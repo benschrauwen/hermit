@@ -5,8 +5,8 @@ Apply these instructions when the task is about inspecting, advancing, recoverin
 ## Workspace Context
 
 - Workspace root: `{{workspaceRoot}}`
-- Selected deal ID: `{{entityId}}`
-- Selected deal path: `{{entityPath}}`
+- Preselected deal ID if already resolved: `{{entityId}}`
+- Preselected deal path if already resolved: `{{entityPath}}`
 
 ## Objective
 
@@ -14,7 +14,7 @@ Help inspect, advance, recover, or requalify a specific deal.
 
 ## Start By Reading
 
-- the deal `record.md`
+- the relevant deal `record.md`; if the target deal is not yet explicit, resolve it first from the user's request or the files
 - `meddicc.md`
 - `activity-log.md`
 - recent transcripts

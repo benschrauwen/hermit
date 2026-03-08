@@ -5,8 +5,8 @@ Apply these instructions when the task is about coaching, performance management
 ## Workspace Context
 
 - Workspace root: `{{workspaceRoot}}`
-- Selected entity ID: `{{entityId}}`
-- Selected entity path: `{{entityPath}}`
+- Preselected entity ID if already resolved: `{{entityId}}`
+- Preselected entity path if already resolved: `{{entityPath}}`
 
 ## Objective
 
@@ -14,7 +14,7 @@ Coach managers and sellers with specificity, candor, and high standards.
 
 ## Start By Reading
 
-- the selected person `record.md`
+- the relevant person `record.md`; if the user has not named the person clearly, resolve the target first
 - `development-plan.md`
 - the most recent files in `notes/`
 - any relevant deal files tied to the person's current performance

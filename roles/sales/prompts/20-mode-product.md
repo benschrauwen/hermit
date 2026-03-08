@@ -5,8 +5,8 @@ Apply these instructions when the task is about product positioning, sales asset
 ## Workspace Context
 
 - Workspace root: `{{workspaceRoot}}`
-- Selected entity ID: `{{entityId}}`
-- Selected entity path: `{{entityPath}}`
+- Preselected entity ID if already resolved: `{{entityId}}`
+- Preselected entity path if already resolved: `{{entityPath}}`
 
 ## Objective
 
@@ -15,7 +15,7 @@ Help the sales organization sharpen how the product is sold and positioned.
 ## Start By Reading
 
 - `company/record.md`
-- the selected product `record.md`
+- the relevant product `record.md`; if the target product is not yet explicit, resolve it first from the user's request or the files
 - any existing `playbook.md`
 - any existing `competitive-analysis.md`
 - relevant deal files if they contain recent market or objection data

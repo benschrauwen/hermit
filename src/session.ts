@@ -44,9 +44,14 @@ const ANSI_ITALIC = "\x1b[3m";
 const ANSI_RESET = "\x1b[0m";
 const ANSI_UNDERLINE = "\x1b[4m";
 const ANSI_CYAN = "\x1b[36m";
+const ANSI_BRIGHT_MAGENTA = "\x1b[95m";
 
 interface TerminalMarkdownState {
   inCodeBlock: boolean;
+}
+
+export function formatUserPromptEcho(prompt: string): string {
+  return `\n${ANSI_BOLD}${ANSI_BRIGHT_MAGENTA}>>${ANSI_RESET} ${ANSI_BRIGHT_MAGENTA}${prompt}${ANSI_RESET}\n\n`;
 }
 
 export function resolveInitialChatPrompt(options: {
@@ -508,7 +513,7 @@ function attachConsoleStreaming(session: AgentSession): () => void {
       writeToConsole("\n");
     }
 
-    writeToConsole(`\r\x1b[2K${frame} ${statusText || "Thinking"}`);
+    writeToConsole(`\r\x1b[2K${ANSI_DIM}${frame} ${statusText || "Thinking"}${ANSI_RESET}`);
     statusVisible = true;
     cursorAtLineStart = false;
   }
@@ -593,7 +598,7 @@ function attachConsoleStreaming(session: AgentSession): () => void {
     flushCompletedAssistantLines();
 
     if (force && assistantTextBuffer) {
-      writeToConsole(renderTerminalMarkdownLine(assistantTextBuffer, markdownState));
+      writeToConsole(renderTerminalMarkdownLine(assistantTextBuffer, markdownState) + "\n");
       assistantTextBuffer = "";
     }
   }
@@ -702,6 +707,7 @@ export async function runOneShotPrompt(session: AgentSession, prompt: string, im
   const stopStreaming = attachConsoleStreaming(session);
 
   try {
+    process.stdout.write(formatUserPromptEcho(prompt));
     await session.prompt(prompt, {
       images: await loadImageAttachments(imagePaths),
     });
@@ -731,7 +737,8 @@ export async function runChatLoop(
     }
 
     while (true) {
-      const input = (await rl.question("> ")).trim();
+      const input = (await rl.question(`\n${ANSI_BOLD}${ANSI_BRIGHT_MAGENTA}>> `)).trim();
+      process.stdout.write(ANSI_RESET);
       if (!input) {
         continue;
       }

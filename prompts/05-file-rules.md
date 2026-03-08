@@ -21,6 +21,7 @@
 - Reuse existing IDs, paths, and filenames.
 - Do not invent facts not grounded in existing files, user input, or cited evidence.
 - If a match is ambiguous, stop and ask for confirmation before updating the wrong person, product, or deal.
+- Before making code, configuration, or prompt-system changes, explain the proposed change first, name the files likely to be touched, and wait for the user's confirmation unless the user has already clearly asked you to proceed.
 - When capturing agent TODOs or reminders, record the date or time captured, expected outcome, business reason, who should be notified, and any due or not-before date that matters.
 
 ## Reading Order

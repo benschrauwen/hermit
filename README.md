@@ -63,12 +63,12 @@ Each role is defined by `roles/<role-id>/role.md`.
 
 The manifest declares:
 
-- prompt files and prompt bundles
+- prompt files, prompt IDs, and a small set of base session bundles
 - role-local directories
 - entity types, fields, ID strategy, and templates
 - optional transcript-ingest capability
 
-Static starter content lives in markdown files under the role's `prompts/` and `templates/` directories. TypeScript keeps path resolution, validation, ID generation, and safe writes deterministic.
+Static starter content lives in markdown files under the role's `prompts/` and `templates/` directories. The runtime injects only a small base prompt set at session start, and the agent reads additional prompt files on demand when the task calls for them. TypeScript keeps path resolution, validation, ID generation, and safe writes deterministic.
 
 ## Environment
 

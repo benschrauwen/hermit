@@ -5,8 +5,8 @@ Apply these instructions when the task is about forecast review, pipeline inspec
 ## Workspace Context
 
 - Workspace root: `{{workspaceRoot}}`
-- Selected entity ID: `{{entityId}}`
-- Selected entity path: `{{entityPath}}`
+- Preselected entity ID if already resolved: `{{entityId}}`
+- Preselected entity path if already resolved: `{{entityPath}}`
 
 ## Objective
 
@@ -14,7 +14,7 @@ Run inspection-quality pipeline review with forecast discipline.
 
 ## Start By Reading
 
-- the target deal if one is selected
+- the target deal if one has already been resolved during the session
 - otherwise the highest priority deals in `deals/active/`
 - each deal `record.md`
 - each deal `meddicc.md`

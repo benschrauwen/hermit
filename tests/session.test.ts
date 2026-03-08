@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import {
   DEFAULT_CHAT_OPENING_PROMPT,
   formatActivityStatus,
+  formatUserPromptEcho,
   loadImageAttachments,
   ONBOARDING_CHAT_OPENING_PROMPT,
   renderTerminalMarkdown,
@@ -116,6 +117,14 @@ describe("resolveInitialChatPrompt", () => {
         },
       }),
     ).toBe(DEFAULT_CHAT_OPENING_PROMPT);
+  });
+});
+
+describe("formatUserPromptEcho", () => {
+  it("wraps the user prompt with spacing, a >> marker, and a distinct color", () => {
+    expect(formatUserPromptEcho("Inspect the top 3 deals.")).toBe(
+      "\n\x1b[1m\x1b[95m>>\x1b[0m \x1b[95mInspect the top 3 deals.\x1b[0m\n\n",
+    );
   });
 });
 

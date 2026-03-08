@@ -10,15 +10,25 @@ import { getWorkspacePaths, scanEntities } from "./workspace.js";
 
 interface DoctorFinding {
   level: "error" | "warning" | "info";
+  kind?: "general" | "placeholder";
   message: string;
+  filePath?: string;
+  placeholderLine?: string;
+}
+
+interface PlaceholderSummary {
+  level: DoctorFinding["level"];
+  placeholderLine: string;
+  filePaths: string[];
 }
 
 const REQUIRED_RECORD_FIELDS = ["id", "type", "name", "updated_at"] as const;
+const MAX_PLACEHOLDER_EXAMPLES = 3;
 
 function addMissingFrontmatterWarnings(findings: DoctorFinding[], recordPath: string, data: Record<string, unknown>): void {
   for (const field of REQUIRED_RECORD_FIELDS) {
     if (!data[field]) {
-      findings.push({ level: "warning", message: `${recordPath} is missing frontmatter field: ${field}` });
+      findings.push({ level: "warning", kind: "general", message: `${recordPath} is missing frontmatter field: ${field}` });
     }
   }
 }
@@ -29,8 +39,18 @@ function extractPlaceholderLines(content: string): string[] {
 
 function addPlaceholderWarnings(findings: DoctorFinding[], filePath: string, content: string): void {
   for (const line of extractPlaceholderLines(content).slice(0, 3)) {
-    findings.push({ level: "warning", message: `${filePath} still contains placeholder text: ${line}` });
+    findings.push({
+      level: "warning",
+      kind: "placeholder",
+      message: `${filePath} still contains placeholder text: ${line}`,
+      filePath,
+      placeholderLine: line,
+    });
   }
+}
+
+function addGeneralFinding(findings: DoctorFinding[], level: DoctorFinding["level"], message: string): void {
+  findings.push({ level, kind: "general", message });
 }
 
 async function validateMarkdownRecord(findings: DoctorFinding[], recordPath: string): Promise<void> {
@@ -41,7 +61,65 @@ async function validateMarkdownRecord(findings: DoctorFinding[], recordPath: str
     addMissingFrontmatterWarnings(findings, recordPath, data);
     addPlaceholderWarnings(findings, recordPath, content);
   } catch {
-    findings.push({ level: "warning", message: `${recordPath} is missing or unreadable.` });
+    addGeneralFinding(findings, "warning", `${recordPath} is missing or unreadable.`);
+  }
+}
+
+function summarizePlaceholderFindings(root: string, findings: DoctorFinding[]): PlaceholderSummary[] {
+  const grouped = new Map<string, PlaceholderSummary>();
+
+  for (const finding of findings) {
+    if (finding.kind !== "placeholder" || !finding.placeholderLine || !finding.filePath) {
+      continue;
+    }
+
+    const key = `${finding.level}:${finding.placeholderLine}`;
+    const existing = grouped.get(key);
+    const relativePath = path.relative(root, finding.filePath) || finding.filePath;
+
+    if (existing) {
+      existing.filePaths.push(relativePath);
+      continue;
+    }
+
+    grouped.set(key, {
+      level: finding.level,
+      placeholderLine: finding.placeholderLine,
+      filePaths: [relativePath],
+    });
+  }
+
+  return [...grouped.values()].sort((left, right) => {
+    if (right.filePaths.length !== left.filePaths.length) {
+      return right.filePaths.length - left.filePaths.length;
+    }
+
+    return left.placeholderLine.localeCompare(right.placeholderLine);
+  });
+}
+
+function printFindings(root: string, findings: DoctorFinding[]): void {
+  const nonPlaceholderFindings = findings.filter((finding) => finding.kind !== "placeholder");
+  const placeholderSummaries = summarizePlaceholderFindings(root, findings);
+
+  for (const finding of nonPlaceholderFindings) {
+    console.log(`${finding.level}: ${finding.message}`);
+  }
+
+  for (const summary of placeholderSummaries) {
+    const count = summary.filePaths.length;
+    const noun = count === 1 ? "file" : "files";
+    const verb = count === 1 ? "contains" : "contain";
+    console.log(`${summary.level}: ${count} ${noun} still ${verb} placeholder text: ${summary.placeholderLine}`);
+
+    for (const examplePath of summary.filePaths.slice(0, MAX_PLACEHOLDER_EXAMPLES)) {
+      console.log(`info: example placeholder path: ${examplePath}`);
+    }
+
+    const omittedCount = count - Math.min(count, MAX_PLACEHOLDER_EXAMPLES);
+    if (omittedCount > 0) {
+      console.log(`info: ${omittedCount} additional placeholder ${omittedCount === 1 ? "file" : "files"} omitted for this line.`);
+    }
   }
 }
 
@@ -54,17 +132,17 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
     try {
       const stat = await fs.stat(path.join(root, relativePath));
       if (!stat.isDirectory()) {
-        findings.push({ level: "error", message: `${relativePath} exists but is not a directory.` });
+        addGeneralFinding(findings, "error", `${relativePath} exists but is not a directory.`);
       }
     } catch {
-      findings.push({ level: "error", message: `Missing required directory: ${relativePath}` });
+      addGeneralFinding(findings, "error", `Missing required directory: ${relativePath}`);
     }
   }
 
   try {
     await fs.access(role.agentsFile);
   } catch {
-    findings.push({ level: "error", message: `Missing ${path.relative(root, role.agentsFile)}.` });
+    addGeneralFinding(findings, "error", `Missing ${path.relative(root, role.agentsFile)}.`);
   }
 
   try {
@@ -72,23 +150,25 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
     const promptLibrary = await PromptLibrary.load(role);
     const missingLinks = promptLibrary.getMissingAgentLinks();
     for (const missingLink of missingLinks) {
-      findings.push({ level: "error", message: `${path.relative(root, role.agentsFile)} is missing a link to ${missingLink}.` });
+      addGeneralFinding(
+        findings,
+        "error",
+        `${path.relative(root, role.agentsFile)} is missing a link to ${missingLink}.`,
+      );
     }
   } catch (error) {
-    findings.push({
-      level: "error",
-      message: error instanceof Error ? error.message : "Failed to load prompt library.",
-    });
+    addGeneralFinding(
+      findings,
+      "error",
+      error instanceof Error ? error.message : "Failed to load prompt library.",
+    );
   }
 
   for (const promptId of role.requiredPromptIds) {
     try {
       await fs.access(getPromptFilePath(role, promptId));
     } catch {
-      findings.push({
-        level: "error",
-        message: `Missing prompt file: ${path.relative(root, getPromptFilePath(role, promptId))}`,
-      });
+      addGeneralFinding(findings, "error", `Missing prompt file: ${path.relative(root, getPromptFilePath(role, promptId))}`);
     }
   }
 
@@ -96,10 +176,11 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
     try {
       await fs.access(path.join(role.roleDir, agentFile));
     } catch {
-      findings.push({
-        level: "error",
-        message: `Missing required agent file: ${path.relative(root, path.join(role.roleDir, agentFile))}`,
-      });
+      addGeneralFinding(
+        findings,
+        "error",
+        `Missing required agent file: ${path.relative(root, path.join(role.roleDir, agentFile))}`,
+      );
     }
   }
 
@@ -117,7 +198,7 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
       if (companyFile === "record.md") {
         // Partial workspaces are allowed during onboarding.
       } else {
-        findings.push({ level: "warning", message: `${companyPath} is missing or unreadable.` });
+        addGeneralFinding(findings, "warning", `${companyPath} is missing or unreadable.`);
       }
     }
   }
@@ -127,7 +208,7 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
 
   for (const entity of entities) {
     if (seenIds.has(entity.id)) {
-      findings.push({ level: "error", message: `Duplicate entity ID detected: ${entity.id}` });
+      addGeneralFinding(findings, "error", `Duplicate entity ID detected: ${entity.id}`);
     }
     seenIds.add(entity.id);
 
@@ -142,14 +223,14 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
           const content = await fs.readFile(requiredPath, "utf8");
           addPlaceholderWarnings(findings, requiredPath, content);
         } catch {
-          findings.push({ level: "warning", message: `${requiredPath} is missing or unreadable.` });
+          addGeneralFinding(findings, "warning", `${requiredPath} is missing or unreadable.`);
         }
       }
     }
   }
 
   if (!process.env.OPENAI_API_KEY) {
-    findings.push({ level: "warning", message: "OPENAI_API_KEY is not set. Agent prompts and web search will not run." });
+    addGeneralFinding(findings, "warning", "OPENAI_API_KEY is not set. Agent prompts and web search will not run.");
   }
 
   if (findings.length === 0) {
@@ -157,9 +238,6 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
     return true;
   }
 
-  for (const finding of findings) {
-    console.log(`${finding.level}: ${finding.message}`);
-  }
-
+  printFindings(root, findings);
   return findings.every((finding) => finding.level !== "error");
 }
