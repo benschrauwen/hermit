@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+*.tsbuildinfo
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+
+# Logs and debug
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE and editors
+.idea/
+*.swp
+*.swo
+*~
+
+# Optional: uncomment if you want to keep editor config but ignore local state
+# .vscode/*
+# !.vscode/settings.json
+# !.vscode/extensions.json
+
+# Test and coverage (if added later)
+coverage/
+
+# Cursor / plan artifacts (optional; remove if you want to track plans)
+.cursor/plans/
