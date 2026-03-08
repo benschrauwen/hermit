@@ -9,5 +9,6 @@
 - [prompts/22-mode-pipeline.md](prompts/22-mode-pipeline.md)
 - [prompts/23-mode-transcript-ingest.md](prompts/23-mode-transcript-ingest.md)
 - [prompts/24-mode-deal.md](prompts/24-mode-deal.md)
+- [prompts/26-mode-agent-ops.md](prompts/26-mode-agent-ops.md)
 - [prompts/40-command-transcript-run.md](prompts/40-command-transcript-run.md)
 - [prompts/90-self-improvement.md](prompts/90-self-improvement.md)

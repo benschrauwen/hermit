@@ -10,13 +10,20 @@ export const REQUIRED_PROMPT_FILES = [
   "22-mode-pipeline.md",
   "23-mode-transcript-ingest.md",
   "24-mode-deal.md",
+  "26-mode-agent-ops.md",
   "40-command-transcript-run.md",
   "90-self-improvement.md",
 ] as const;
 
-export const DEFAULT_PROMPT_BUNDLE = ["00-soul.md", "05-file-rules.md", "15-routing.md"] as const;
+export const DEFAULT_PROMPT_BUNDLE = ["00-soul.md", "05-file-rules.md", "15-routing.md", "26-mode-agent-ops.md"] as const;
 
-export const ONBOARDING_PROMPT_BUNDLE = ["00-soul.md", "05-file-rules.md", "10-bootstrap.md", "15-routing.md"] as const;
+export const ONBOARDING_PROMPT_BUNDLE = [
+  "00-soul.md",
+  "05-file-rules.md",
+  "10-bootstrap.md",
+  "15-routing.md",
+  "26-mode-agent-ops.md",
+] as const;
 
 export const PROMPT_BUNDLES: Record<SessionKind, readonly string[]> = {
   default: DEFAULT_PROMPT_BUNDLE,
@@ -24,6 +31,7 @@ export const PROMPT_BUNDLES: Record<SessionKind, readonly string[]> = {
 };
 
 export const REQUIRED_ROOT_DIRECTORIES = [
+  "agent",
   "company",
   "people",
   "product",
@@ -38,6 +46,8 @@ export const REQUIRED_SUPPORTING_DIRECTORIES = [
   "supporting-files/unmatched-transcripts",
   "supporting-files/reference",
 ];
+
+export const REQUIRED_AGENT_FILES = ["agent/record.md", "agent/inbox.md"] as const;
 
 export const DEAL_SEQUENCE_WIDTH = 4;
 export const DEFAULT_MODEL = process.env.SALES_AGENT_MODEL ?? "openai/gpt-5.4";

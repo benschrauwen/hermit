@@ -3,8 +3,14 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import slugifyImport from "slugify";
 
-import { DEAL_SEQUENCE_WIDTH, REQUIRED_ROOT_DIRECTORIES, REQUIRED_SUPPORTING_DIRECTORIES } from "./constants.js";
 import {
+  DEAL_SEQUENCE_WIDTH,
+  REQUIRED_ROOT_DIRECTORIES,
+  REQUIRED_SUPPORTING_DIRECTORIES,
+} from "./constants.js";
+import {
+  agentInboxTemplate,
+  agentRecordTemplate,
   activityLogTemplate,
   companyGtmTemplate,
   companyRecordTemplate,
@@ -34,6 +40,7 @@ const slugify = slugifyImport as unknown as (
 export interface WorkspacePaths {
   root: string;
   agentsFile: string;
+  agentDir: string;
   promptsDir: string;
   companyDir: string;
   peopleDir: string;
@@ -47,6 +54,7 @@ export function getWorkspacePaths(root: string): WorkspacePaths {
   return {
     root,
     agentsFile: path.join(root, "AGENTS.md"),
+    agentDir: path.join(root, "agent"),
     promptsDir: path.join(root, "prompts"),
     companyDir: path.join(root, "company"),
     peopleDir: path.join(root, "people"),
@@ -62,6 +70,20 @@ export async function ensureWorkspaceScaffold(root: string): Promise<void> {
     [...REQUIRED_ROOT_DIRECTORIES, ...REQUIRED_SUPPORTING_DIRECTORIES].map((relativePath) =>
       fs.mkdir(path.join(root, relativePath), { recursive: true }),
     ),
+  );
+
+  const paths = getWorkspacePaths(root);
+  const requiredAgentFiles = [
+    { path: path.join(paths.agentDir, "record.md"), content: agentRecordTemplate() },
+    { path: path.join(paths.agentDir, "inbox.md"), content: agentInboxTemplate() },
+  ] as const satisfies ReadonlyArray<{ path: string; content: string }>;
+
+  await Promise.all(
+    requiredAgentFiles.map(async (file) => {
+      if (!(await fileExists(file.path))) {
+        await fs.writeFile(file.path, file.content, "utf8");
+      }
+    }),
   );
 }
 

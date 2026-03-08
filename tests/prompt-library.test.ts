@@ -30,8 +30,9 @@ describe("PromptLibrary", () => {
       const files = lib.listPromptFiles();
       expect(files).toContain("00-soul.md");
       expect(files).toContain("15-routing.md");
+      expect(files).toContain("26-mode-agent-ops.md");
       expect(files).toContain("90-self-improvement.md");
-      expect(files.length).toBe(11);
+      expect(files.length).toBe(12);
       const sorted = [...files].sort();
       expect(files).toEqual(sorted);
     });

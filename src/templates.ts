@@ -69,6 +69,92 @@ export function companyGtmTemplate(): string {
   return "# GTM\n\n## Coverage Model\n\n- Add territory and segment coverage.\n\n## Operating Cadence\n\n- Add forecast and inspection cadence.\n";
 }
 
+export function agentRecordTemplate(): string {
+  return renderMarkdownDocument(
+    {
+      id: "sales-leader-agent",
+      type: "agent",
+      name: "Sales Leader Agent",
+      status: "active",
+      owner: "sales leadership",
+      updated_at: new Date().toISOString(),
+      source_refs: ["workspace default scaffold"],
+    },
+    [
+      {
+        title: "Summary",
+        body: "This file is the clarified operating system for the sales leader agent. Keep active commitments here after they leave the inbox.",
+      },
+      {
+        title: "Current Focus",
+        body: [
+          "- Keep the workspace current and trustworthy.",
+          "- Drive the highest-leverage next action that is not blocked.",
+          "- Surface due reminders or questions in the next relevant session.",
+        ].join("\n"),
+      },
+      {
+        title: "Calendar",
+        body: [
+          "- `agt-cal-weekly-review`: At the first active session of each week, review inbox, projects, next actions, waiting-for items, and due follow-ups.",
+        ].join("\n"),
+      },
+      { title: "Projects", body: "- Add active multi-step outcomes." },
+      { title: "Next Actions", body: "- Add the next visible actions for active work." },
+      { title: "Waiting For", body: "- Add delegated or blocked items with follow-up dates." },
+      { title: "Someday / Maybe", body: "- Add worthwhile ideas that are not active commitments." },
+      {
+        title: "Review Cadence",
+        body: [
+          "- Session start: scan `agent/inbox.md` and this file before substantial work.",
+          "- Weekly review: clear stale items, confirm every active project has a next action, and prune low-value commitments.",
+        ].join("\n"),
+      },
+    ],
+  );
+}
+
+export function agentInboxTemplate(): string {
+  return renderMarkdownDocument(
+    {
+      id: "sales-leader-agent-inbox",
+      type: "agent-inbox",
+      name: "Sales Leader Agent Inbox",
+      status: "active",
+      owner: "sales leadership",
+      updated_at: new Date().toISOString(),
+      source_refs: ["workspace default scaffold"],
+    },
+    [
+      {
+        title: "How To Use",
+        body: [
+          "- Capture raw internal commitments here before clarifying them.",
+          "- Preserve the original wording when possible.",
+          "- Once clarified, move the active result into `agent/record.md` and mark the inbox item accordingly.",
+        ].join("\n"),
+      },
+      { title: "Open Inbox Items", body: "- None." },
+      {
+        title: "Capture Template",
+        body: [
+          "### agi-YYYYMMDD-001",
+          "- captured_at:",
+          "- source:",
+          "- raw_input:",
+          "- desired_outcome:",
+          "- why_it_matters:",
+          "- notify:",
+          "- not_before:",
+          "- due_at:",
+          "- status: new",
+          "- clarification_notes:",
+        ].join("\n"),
+      },
+    ],
+  );
+}
+
 export function personRecordTemplate(input: {
   id: string;
   name: string;

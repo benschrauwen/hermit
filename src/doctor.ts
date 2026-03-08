@@ -3,7 +3,12 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
-import { REQUIRED_PROMPT_FILES, REQUIRED_ROOT_DIRECTORIES, REQUIRED_SUPPORTING_DIRECTORIES } from "./constants.js";
+import {
+  REQUIRED_AGENT_FILES,
+  REQUIRED_PROMPT_FILES,
+  REQUIRED_ROOT_DIRECTORIES,
+  REQUIRED_SUPPORTING_DIRECTORIES,
+} from "./constants.js";
 import { PromptLibrary } from "./prompt-library.js";
 import { getWorkspacePaths, scanEntities } from "./workspace.js";
 
@@ -51,6 +56,14 @@ export async function runDoctor(root: string): Promise<boolean> {
       await fs.access(path.join(paths.promptsDir, promptFile));
     } catch {
       findings.push({ level: "error", message: `Missing prompt file: prompts/${promptFile}` });
+    }
+  }
+
+  for (const agentFile of REQUIRED_AGENT_FILES) {
+    try {
+      await fs.access(path.join(root, agentFile));
+    } catch {
+      findings.push({ level: "error", message: `Missing required agent file: ${agentFile}` });
     }
   }
 

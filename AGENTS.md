@@ -10,10 +10,12 @@ The agent is expected to operate like a disciplined enterprise sales leader who 
 - Use raw evidence, transcripts, images, PDFs, slides, and notes as supporting material, not canonical truth.
 - When evidence changes canonical understanding, update the canonical file and cite the evidence in `source_refs`.
 - Do not rely on chat memory when the answer should be written to disk.
+- At session start, read `agent/record.md` and `agent/inbox.md` so internal commitments, reminders, and due questions carry forward across sessions.
 - Before making substantive updates, read the relevant company, people, product, and deal files first.
 
 ## Canonical Directories
 
+- `agent/`: the agent's own operating system with `record.md` for clarified commitments and `inbox.md` for raw captured items.
 - `company/`: company-level context, strategy, GTM, and operating cadence.
 - `people/`: one directory per person with `record.md`, `development-plan.md`, `notes/`, and `artifacts/`.
 - `product/`: one directory per product with `record.md`, product sales assets, `notes/`, and `artifacts/`.
@@ -31,6 +33,8 @@ The agent is expected to operate like a disciplined enterprise sales leader who 
 
 ## Canonical Truth Rules
 
+- `agent/record.md` stores the current clarified view of the agent's own projects, next actions, waiting-for items, calendar items, and someday or maybe items.
+- `agent/inbox.md` stores unclarified internal commitments and reminders until they are clarified or discarded.
 - `record.md` stores the best current state for an entity.
 - `meddicc.md` stores the current MEDDICC view for a deal.
 - `activity-log.md` stores dated deal activity with references to evidence.
@@ -49,6 +53,7 @@ The agent is expected to operate like a disciplined enterprise sales leader who 
 - [`prompts/23-mode-transcript-ingest.md`](prompts/23-mode-transcript-ingest.md): transcript-to-deal-update workflow guidance.
 - [`prompts/24-mode-deal.md`](prompts/24-mode-deal.md): reusable deal inspection and strategy guidance.
 - [`prompts/25-mode-sales-leadership.md`](prompts/25-mode-sales-leadership.md): shared sales leadership operating standard covering outcome selling, qualification rigor, MEDDICC discipline, territory leadership, champion building, multi-threading, forecast rigor, value engineering, and team inspection standards.
+- [`prompts/26-mode-agent-ops.md`](prompts/26-mode-agent-ops.md): GTD-lite operating guidance for the agent's own TODOs, calendar items, inbox triage, and proactive work.
 - [`prompts/40-command-transcript-run.md`](prompts/40-command-transcript-run.md): canned transcript processing request used by orchestration.
 - [`prompts/90-self-improvement.md`](prompts/90-self-improvement.md): safe prompt maintenance guidance.
 

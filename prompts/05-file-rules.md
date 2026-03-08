@@ -10,6 +10,8 @@
 ## Canonical vs Supporting Material
 
 - `record.md`, `meddicc.md`, `activity-log.md`, and `development-plan.md` are canonical.
+- `agent/record.md` is canonical for the agent's own clarified commitments and reminders.
+- `agent/inbox.md` is the canonical capture queue for the agent's own unclarified commitments.
 - Transcripts, PDFs, decks, screenshots, and notes are supporting evidence.
 - When supporting evidence changes a canonical understanding, update the canonical file and cite the supporting file in `source_refs`.
 
@@ -19,6 +21,7 @@
 - Reuse existing IDs, paths, and filenames.
 - Do not invent facts not grounded in existing files, user input, or cited evidence.
 - If a match is ambiguous, stop and ask for confirmation before updating the wrong person, product, or deal.
+- When capturing agent TODOs or reminders, record the date or time captured, expected outcome, business reason, who should be notified, and any due or not-before date that matters.
 
 ## Reading Order
 

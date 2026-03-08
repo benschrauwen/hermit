@@ -13,6 +13,7 @@ describe("constants", () => {
   it("REQUIRED_PROMPT_FILES lists all expected prompt files", () => {
     expect(REQUIRED_PROMPT_FILES).toContain("00-soul.md");
     expect(REQUIRED_PROMPT_FILES).toContain("15-routing.md");
+    expect(REQUIRED_PROMPT_FILES).toContain("26-mode-agent-ops.md");
     expect(REQUIRED_PROMPT_FILES).toContain("90-self-improvement.md");
     expect(REQUIRED_PROMPT_FILES.length).toBeGreaterThanOrEqual(10);
   });
@@ -22,6 +23,7 @@ describe("constants", () => {
     expect(PROMPT_BUNDLES["transcript-ingest"]).toBeDefined();
     expect(Array.isArray(PROMPT_BUNDLES.default)).toBe(true);
     expect(Array.isArray(PROMPT_BUNDLES["transcript-ingest"])).toBe(true);
+    expect(PROMPT_BUNDLES.default).toContain("26-mode-agent-ops.md");
   });
 
   it("every file in PROMPT_BUNDLES is in REQUIRED_PROMPT_FILES", () => {
@@ -39,7 +41,8 @@ describe("constants", () => {
     }
   });
 
-  it("REQUIRED_ROOT_DIRECTORIES includes company, people, product, deals, prompts", () => {
+  it("REQUIRED_ROOT_DIRECTORIES includes agent, company, people, product, deals, prompts", () => {
+    expect(REQUIRED_ROOT_DIRECTORIES).toContain("agent");
     expect(REQUIRED_ROOT_DIRECTORIES).toContain("company");
     expect(REQUIRED_ROOT_DIRECTORIES).toContain("people");
     expect(REQUIRED_ROOT_DIRECTORIES).toContain("product");
