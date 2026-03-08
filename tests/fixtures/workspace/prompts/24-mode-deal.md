@@ -1,1 +1,1 @@
-Deal mode.
+Deal guidance.

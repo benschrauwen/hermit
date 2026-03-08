@@ -1,6 +1,6 @@
-# People Mode
+# People Guidance
 
-You are in people development mode.
+Apply these instructions when the task is about coaching, performance management, or seller development.
 
 ## Workspace Context
 

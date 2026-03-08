@@ -34,6 +34,7 @@ export function companyRecordTemplate(input: {
   idealCustomerProfile: string;
   reviewCadence: string;
   topCompetitors: string[];
+  sourceRefs?: string[];
 }): string {
   return renderMarkdownDocument(
     {
@@ -43,7 +44,7 @@ export function companyRecordTemplate(input: {
       status: "active",
       owner: input.salesTeamName,
       updated_at: new Date().toISOString(),
-      source_refs: ["bootstrap questionnaire"],
+      source_refs: input.sourceRefs ?? ["bootstrap questionnaire"],
     },
     [
       { title: "Summary", body: input.companySummary },
@@ -75,6 +76,7 @@ export function personRecordTemplate(input: {
   manager: string;
   strengths: string;
   coachingFocus: string;
+  sourceRefs?: string[];
 }): string {
   return renderMarkdownDocument(
     {
@@ -84,7 +86,7 @@ export function personRecordTemplate(input: {
       status: "active",
       owner: input.manager || "sales leadership",
       updated_at: new Date().toISOString(),
-      source_refs: ["bootstrap questionnaire"],
+      source_refs: input.sourceRefs ?? ["bootstrap questionnaire"],
     },
     [
       { title: "Role", body: input.role },
@@ -106,6 +108,7 @@ export function productRecordTemplate(input: {
   summary: string;
   valueHypothesis: string;
   competitors: string[];
+  sourceRefs?: string[];
 }): string {
   return renderMarkdownDocument(
     {
@@ -115,7 +118,7 @@ export function productRecordTemplate(input: {
       status: "active",
       owner: "sales leadership",
       updated_at: new Date().toISOString(),
-      source_refs: ["bootstrap questionnaire"],
+      source_refs: input.sourceRefs ?? ["bootstrap questionnaire"],
     },
     [
       { title: "Summary", body: input.summary },
@@ -146,6 +149,7 @@ export function dealRecordTemplate(input: {
   amount: string;
   closeDate: string;
   nextStep: string;
+  sourceRefs?: string[];
 }): string {
   return renderMarkdownDocument(
     {
@@ -155,7 +159,7 @@ export function dealRecordTemplate(input: {
       status: input.stage,
       owner: input.owner,
       updated_at: new Date().toISOString(),
-      source_refs: ["bootstrap questionnaire"],
+      source_refs: input.sourceRefs ?? ["bootstrap questionnaire"],
     },
     [
       { title: "Account", body: input.accountName },
@@ -174,6 +178,6 @@ export function meddiccTemplate(name: string): string {
   return `# MEDDICC\n\n## ${name}\n\n## Metrics\n\n- Add metrics.\n\n## Economic Buyer\n\n- Add economic buyer.\n\n## Decision Criteria\n\n- Add decision criteria.\n\n## Decision Process\n\n- Add decision process.\n\n## Paper Process\n\n- Add paper process.\n\n## Identified Pain\n\n- Add identified pain.\n\n## Champion\n\n- Add champion.\n\n## Competition\n\n- Add competition.\n`;
 }
 
-export function activityLogTemplate(name: string): string {
-  return `# Activity Log\n\n## ${name}\n\n- ${new Date().toISOString()}: Deal created during bootstrap.\n`;
+export function activityLogTemplate(name: string, creationSource = "bootstrap"): string {
+  return `# Activity Log\n\n## ${name}\n\n- ${new Date().toISOString()}: Deal created during ${creationSource}.\n`;
 }

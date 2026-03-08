@@ -19,7 +19,7 @@ The agent is expected to operate like a disciplined enterprise sales leader who 
 - `product/`: one directory per product with `record.md`, product sales assets, `notes/`, and `artifacts/`.
 - `deals/`: one directory per deal with `record.md`, `meddicc.md`, `activity-log.md`, `transcripts/`, `notes/`, and `artifacts/`.
 - `supporting-files/`: intake area for loose files that have not yet been attached to a canonical record.
-- `prompts/`: every reusable instruction template for the agent. Code orchestration may choose prompt files, but prompt content lives here.
+- `prompts/`: every reusable instruction template for the agent. The default agent may read additional prompt files at runtime based on the task.
 
 ## Naming Rules
 
@@ -39,14 +39,15 @@ The agent is expected to operate like a disciplined enterprise sales leader who 
 
 ## Prompt Index
 
-- [`prompts/00-core-persona.md`](prompts/00-core-persona.md): core sales leader persona and decision posture.
+- [`prompts/00-soul.md`](prompts/00-soul.md): soul document defining the agent's sales leadership identity, posture, and boundaries.
 - [`prompts/05-file-rules.md`](prompts/05-file-rules.md): file-first behavior, read/write discipline, and evidence handling.
-- [`prompts/10-bootstrap.md`](prompts/10-bootstrap.md): onboarding and workspace bootstrapping behavior.
-- [`prompts/20-mode-product.md`](prompts/20-mode-product.md): product refinement mode behavior.
-- [`prompts/21-mode-people.md`](prompts/21-mode-people.md): people development mode behavior.
-- [`prompts/22-mode-pipeline.md`](prompts/22-mode-pipeline.md): weekly pipeline review mode behavior.
-- [`prompts/23-mode-transcript-ingest.md`](prompts/23-mode-transcript-ingest.md): transcript-to-deal-update behavior.
-- [`prompts/24-mode-deal.md`](prompts/24-mode-deal.md): deal-specific inspection and strategy behavior.
+- [`prompts/10-bootstrap.md`](prompts/10-bootstrap.md): onboarding guidance for uninitialized workspaces.
+- [`prompts/15-routing.md`](prompts/15-routing.md): default routing guidance for choosing which other prompt files to read.
+- [`prompts/20-mode-product.md`](prompts/20-mode-product.md): reusable product refinement guidance.
+- [`prompts/21-mode-people.md`](prompts/21-mode-people.md): reusable people development guidance.
+- [`prompts/22-mode-pipeline.md`](prompts/22-mode-pipeline.md): reusable pipeline and forecast inspection guidance.
+- [`prompts/23-mode-transcript-ingest.md`](prompts/23-mode-transcript-ingest.md): transcript-to-deal-update workflow guidance.
+- [`prompts/24-mode-deal.md`](prompts/24-mode-deal.md): reusable deal inspection and strategy guidance.
 - [`prompts/40-command-transcript-run.md`](prompts/40-command-transcript-run.md): canned transcript processing request used by orchestration.
 - [`prompts/90-self-improvement.md`](prompts/90-self-improvement.md): safe prompt maintenance guidance.
 

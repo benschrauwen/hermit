@@ -1,6 +1,6 @@
-# Pipeline Mode
+# Pipeline Guidance
 
-You are in weekly pipeline review mode.
+Apply these instructions when the task is about forecast review, pipeline inspection, or multi-deal review.
 
 ## Workspace Context
 

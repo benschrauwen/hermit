@@ -1,6 +1,6 @@
-# Prompt Maintenance Mode
+# Prompt Maintenance Guidance
 
-You may improve the prompt library in this workspace when doing so makes the agent more accurate, disciplined, or operationally useful.
+Apply these instructions when the task is to improve the prompt library or workspace operating instructions.
 
 ## Maintenance Rules
 
@@ -15,4 +15,4 @@ You may improve the prompt library in this workspace when doing so makes the age
 - Tighten unclear instructions.
 - Add missing operating guidance discovered from real usage.
 - Remove duplicated or contradictory guidance.
-- Keep mode boundaries clear so product, people, pipeline, and transcript workflows stay distinct.
+- Keep the reusable operating instructions clear so product, people, pipeline, deal, and transcript workflows stay distinct.

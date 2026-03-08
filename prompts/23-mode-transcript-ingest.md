@@ -1,6 +1,6 @@
-# Transcript Ingest Mode
+# Transcript Workflow Guidance
 
-You are in transcript-to-deal-update mode.
+Apply these instructions during transcript-to-deal update runs.
 
 ## Workspace Context
 

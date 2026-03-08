@@ -1,6 +1,6 @@
-# Product Mode
+# Product Guidance
 
-You are in product refinement mode.
+Apply these instructions when the task is about product positioning, sales assets, or competitive messaging.
 
 ## Workspace Context
 

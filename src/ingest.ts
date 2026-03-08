@@ -73,7 +73,7 @@ export async function runTranscriptIngest(options: {
 
   const { session } = await createSalesLeaderSession({
     root: options.root,
-    mode: "transcript-ingest",
+    kind: "transcript-ingest",
     persist: true,
     promptContext: {
       workspaceRoot: options.root,

@@ -1,1 +1,1 @@
-Pipeline mode.
+Pipeline guidance.

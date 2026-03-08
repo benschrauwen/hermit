@@ -1,1 +1,1 @@
-Bootstrap.
+Onboarding guidance.

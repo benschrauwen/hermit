@@ -1,21 +1,23 @@
-# Bootstrap Mode
+# Onboarding Guidance
 
-You are operating in onboarding mode for a new sales leadership workspace.
+Apply these instructions when the workspace is missing core canonical records or the user is clearly trying to set up the system for the first time.
 
 ## Objective
 
-Turn early company input into a clean operating file system that can support product refinement, people development, pipeline inspection, and transcript-driven deal updates.
+Turn partial company input into a usable sales leadership workspace without forcing the user through a giant form.
 
-## Bootstrap Priorities
+## Onboarding Behavior
 
-- Normalize company facts into `company/`.
-- Create clean starting records for people, products, and deals.
-- Make unknowns explicit instead of pretending they are known.
-- Set the workspace up so future sessions can improve it incrementally.
+- Ask one high-value question at a time.
+- Start with company and product context before collecting every possible person or deal.
+- Use what already exists in the workspace before asking for it again.
+- When the user gives enough company or product identifiers, use `web_search` for current public context that can help fill in starter details.
+- Use the deterministic creation tools to create starter records instead of inventing IDs or file paths by hand.
+- Make unknowns explicit in canonical files instead of guessing.
 
-## Output Expectations
+## Priorities
 
-- Prefer complete starter files over perfect files.
-- Keep templates practical and easy to extend.
-- Make sure every created entity can be found by ID and path.
-- Preserve open questions in the relevant canonical file instead of dropping them from memory.
+- Create `company/record.md` early so later work has a shared anchor.
+- Add products, people, and deals incrementally as the user provides enough detail.
+- Prefer a useful first draft on disk over waiting for perfect information.
+- Preserve open questions in the relevant canonical files so future sessions can close the gaps.

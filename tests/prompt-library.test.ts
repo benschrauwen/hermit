@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { DEFAULT_PROMPT_BUNDLE, ONBOARDING_PROMPT_BUNDLE, PROMPT_BUNDLES } from "../src/constants.js";
 import { PromptLibrary } from "../src/prompt-library.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -27,25 +28,44 @@ describe("PromptLibrary", () => {
     it("returns sorted list of prompt file names", async () => {
       const lib = await PromptLibrary.load(fixtureRoot);
       const files = lib.listPromptFiles();
-      expect(files).toContain("00-core-persona.md");
+      expect(files).toContain("00-soul.md");
+      expect(files).toContain("15-routing.md");
       expect(files).toContain("90-self-improvement.md");
-      expect(files.length).toBe(10);
+      expect(files.length).toBe(11);
       const sorted = [...files].sort();
       expect(files).toEqual(sorted);
     });
   });
 
   describe("renderBundle", () => {
-    it("concatenates bundle prompts with template substitution", async () => {
+    it("concatenates the default bundle prompts", async () => {
       const lib = await PromptLibrary.load(fixtureRoot);
-      const out = lib.renderBundle("transcript-ingest", {
+      const out = lib.renderBundle(DEFAULT_PROMPT_BUNDLE, {
         workspaceRoot: "/my/root",
         entityId: "d-1",
         entityPath: "/my/root/deals/d-1",
         transcriptPath: "/path/to/transcript.md",
       });
-      expect(out).toContain("Transcript ingest.");
-      expect(out).toContain("/my/root");
+      expect(out).toContain("Soul.");
+      expect(out).toContain("Routing guidance.");
+    });
+
+    it("supports onboarding bundle rendering", async () => {
+      const lib = await PromptLibrary.load(fixtureRoot);
+      const out = lib.renderBundle(ONBOARDING_PROMPT_BUNDLE, {
+        workspaceRoot: "/my/root",
+      });
+      expect(out).toContain("Onboarding guidance.");
+      expect(out).toContain("Routing guidance.");
+    });
+
+    it("supports transcript workflow bundle rendering", async () => {
+      const lib = await PromptLibrary.load(fixtureRoot);
+      const out = lib.renderBundle(PROMPT_BUNDLES["transcript-ingest"], {
+        workspaceRoot: "/my/root",
+        entityId: "d-1",
+      });
+      expect(out).toContain("Transcript workflow guidance.");
       expect(out).toContain("d-1");
     });
   });

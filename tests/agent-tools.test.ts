@@ -1,12 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { mkdtempSync, rmSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  createCompanyRecordTool,
   createEntityLookupTool,
   createComputerUseBoundaryTool,
   createCustomTools,
 } from "../src/agent-tools.js";
+import { ensureWorkspaceScaffold } from "../src/workspace.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const fixtureRoot = path.join(__dirname, "fixtures", "workspace");
@@ -58,11 +62,15 @@ describe("createComputerUseBoundaryTool", () => {
 });
 
 describe("createCustomTools", () => {
-  it("returns at least entity_lookup and web_search", () => {
+  it("returns the core lookup, web, and onboarding creation tools", () => {
     const tools = createCustomTools("/root");
     const names = tools.map((t) => t.name);
     expect(names).toContain("entity_lookup");
     expect(names).toContain("web_search");
+    expect(names).toContain("create_company_record");
+    expect(names).toContain("create_person_record");
+    expect(names).toContain("create_product_record");
+    expect(names).toContain("create_deal_record");
   });
 
   it("includes computer_use when SALES_AGENT_ENABLE_COMPUTER_USE is true", () => {
@@ -70,5 +78,29 @@ describe("createCustomTools", () => {
     const tools = createCustomTools("/root");
     const names = tools.map((t) => t.name);
     expect(names).toContain("computer_use");
+  });
+});
+
+describe("createCompanyRecordTool", () => {
+  it("creates canonical company starter files", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "agent-tools-"));
+    try {
+      await ensureWorkspaceScaffold(root);
+      const tool = createCompanyRecordTool(root);
+      const result = await (tool.execute as (id: unknown, params: unknown) => Promise<unknown>)("id", {
+        companyName: "Acme",
+        companySummary: "Summary",
+        salesTeamName: "Sales",
+        salesMethodology: "MEDDICC",
+        idealCustomerProfile: "ICP",
+        reviewCadence: "Weekly",
+        topCompetitors: ["Rival"],
+      });
+      const typed = result as { details: { path: string } };
+      expect(typed.details.path).toContain(path.join("company", "record.md"));
+      expect(readFileSync(typed.details.path, "utf8")).toContain("agent onboarding");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

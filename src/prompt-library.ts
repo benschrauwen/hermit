@@ -1,8 +1,8 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { PROMPT_BUNDLES, REQUIRED_PROMPT_FILES } from "./constants.js";
-import type { InternalMode, PromptContext } from "./types.js";
+import { REQUIRED_PROMPT_FILES } from "./constants.js";
+import type { PromptContext } from "./types.js";
 import { getWorkspacePaths } from "./workspace.js";
 
 export class PromptLibrary {
@@ -32,8 +32,7 @@ export class PromptLibrary {
     return REQUIRED_PROMPT_FILES.filter((fileName) => !linkedFiles.has(`prompts/${fileName}`));
   }
 
-  renderBundle(mode: InternalMode, context: PromptContext): string {
-    const fileNames = PROMPT_BUNDLES[mode];
+  renderBundle(fileNames: readonly string[], context: PromptContext): string {
     const renderedFiles = fileNames.map((fileName) => this.renderTemplate(this.requirePromptFile(fileName), context));
 
     return renderedFiles.join("\n\n");

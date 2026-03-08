@@ -6,6 +6,7 @@ import path from "node:path";
 import {
   getWorkspacePaths,
   ensureWorkspaceScaffold,
+  getWorkspaceInitializationState,
   makeSlug,
   makePersonId,
   makeProductId,
@@ -13,6 +14,10 @@ import {
   writeFileSafely,
   appendLine,
   buildEntityPath,
+  createCompanyRecords,
+  createDealRecord,
+  createPersonRecord,
+  createProductRecord,
   scanEntities,
   findEntityById,
   findDeals,
@@ -104,6 +109,52 @@ describe("workspace fs operations", () => {
       expect(readdirSync(path.join(tmpRoot, "supporting-files"))).toContain(
         "inbox",
       );
+    });
+  });
+
+  describe("getWorkspaceInitializationState", () => {
+    it("reports uninitialized workspace when company record and entities are missing", async () => {
+      await ensureWorkspaceScaffold(tmpRoot);
+      const state = await getWorkspaceInitializationState(tmpRoot);
+      expect(state).toEqual({
+        initialized: false,
+        hasCompanyRecord: false,
+        peopleCount: 0,
+        productCount: 0,
+        dealCount: 0,
+      });
+    });
+
+    it("reports initialized workspace when company record and at least one entity exist", async () => {
+      await ensureWorkspaceScaffold(tmpRoot);
+      await createCompanyRecords(
+        tmpRoot,
+        {
+          companyName: "Acme",
+          companySummary: "Summary",
+          salesTeamName: "Sales",
+          salesMethodology: "MEDDICC",
+          idealCustomerProfile: "ICP",
+          reviewCadence: "Weekly",
+          topCompetitors: ["Rival"],
+        },
+        { sourceRefs: ["test"] },
+      );
+      await createProductRecord(
+        tmpRoot,
+        {
+          name: "Widget",
+          summary: "A widget",
+          valueHypothesis: "Value",
+          competitors: ["Rival"],
+        },
+        { sourceRefs: ["test"] },
+      );
+
+      const state = await getWorkspaceInitializationState(tmpRoot);
+      expect(state.initialized).toBe(true);
+      expect(state.hasCompanyRecord).toBe(true);
+      expect(state.productCount).toBe(1);
     });
   });
 
@@ -317,6 +368,71 @@ name: Jane Doe
       expect(dest).toContain("loose-transcript");
       const { readFileSync } = await import("node:fs");
       expect(readFileSync(dest, "utf8")).toBe("Loose content");
+    });
+  });
+
+  describe("deterministic record creation helpers", () => {
+    it("creates company, person, product, and deal records with canonical paths", async () => {
+      await ensureWorkspaceScaffold(tmpRoot);
+
+      const company = await createCompanyRecords(
+        tmpRoot,
+        {
+          companyName: "Acme",
+          companySummary: "Summary",
+          salesTeamName: "Sales",
+          salesMethodology: "MEDDICC",
+          idealCustomerProfile: "ICP",
+          reviewCadence: "Weekly",
+          topCompetitors: [],
+        },
+        { sourceRefs: ["agent onboarding"] },
+      );
+      const person = await createPersonRecord(
+        tmpRoot,
+        {
+          name: "Jane Doe",
+          role: "AE",
+          manager: "Bob",
+          strengths: "Discovery",
+          coachingFocus: "Closing",
+        },
+        { sourceRefs: ["agent onboarding"] },
+      );
+      const product = await createProductRecord(
+        tmpRoot,
+        {
+          name: "Widget",
+          summary: "Summary",
+          valueHypothesis: "Value",
+          competitors: [],
+        },
+        { sourceRefs: ["agent onboarding"] },
+      );
+      const deal = await createDealRecord(
+        tmpRoot,
+        {
+          accountName: "Acme",
+          opportunityName: "Expansion",
+          owner: "Jane Doe",
+          stage: "qualification",
+          amount: "50k",
+          closeDate: "2026-06-01",
+          nextStep: "Schedule demo",
+        },
+        { sourceRefs: ["agent onboarding"] },
+      );
+
+      const { readFileSync } = await import("node:fs");
+      expect(company.path).toBe(path.join(tmpRoot, "company", "record.md"));
+      expect(person.id).toBe("p-jane-doe");
+      expect(product.id).toBe("prd-widget");
+      expect(deal.id).toMatch(/^d-\d{4}-\d{4}-acme-expansion$/);
+      expect(readFileSync(path.join(person.path, "record.md"), "utf8")).toContain("agent onboarding");
+      expect(readFileSync(path.join(product.path, "playbook.md"), "utf8")).toContain("Ideal Buyers");
+      expect(readFileSync(path.join(deal.path, "activity-log.md"), "utf8")).toContain(
+        "Deal created during agent onboarding",
+      );
     });
   });
 });

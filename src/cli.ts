@@ -4,25 +4,13 @@ import { Command } from "commander";
 import path from "node:path";
 import process from "node:process";
 
-import { runBootstrap } from "./bootstrap.js";
 import { runDoctor } from "./doctor.js";
 import { runTranscriptIngest } from "./ingest.js";
 import { createSalesLeaderSession, runChatLoop, runOneShotPrompt } from "./session.js";
-import type { UserMode } from "./types.js";
 import { findEntityById } from "./workspace.js";
-
-const USER_MODES: UserMode[] = ["product", "people", "pipeline", "deal", "prompt-maintenance"];
 
 function resolveRoot(): string {
   return process.cwd();
-}
-
-function assertUserMode(value: string): UserMode {
-  if (USER_MODES.includes(value as UserMode)) {
-    return value as UserMode;
-  }
-
-  throw new Error(`Invalid mode "${value}". Expected one of: ${USER_MODES.join(", ")}`);
 }
 
 async function resolvePromptContext(root: string, entityId: string | undefined): Promise<{ entityId?: string; entityPath?: string }> {
@@ -50,24 +38,14 @@ const program = new Command();
 program.name("sales-agent").description("Local file-first sales leader agent").version("0.1.0");
 
 program
-  .command("bootstrap")
-  .description("Ask onboarding questions and create the initial workspace records.")
-  .option("--force", "Overwrite files that already exist.")
-  .action(async (options: { force?: boolean }) => {
-    await runBootstrap(resolveRoot(), Boolean(options.force));
-  });
-
-program
   .command("chat")
-  .description("Open an interactive chat session in a specific operating mode.")
-  .requiredOption("--mode <mode>", "Mode: product, people, pipeline, deal, or prompt-maintenance.")
+  .description("Open an interactive sales leader chat session.")
   .option("--entity <id>", "Entity ID to anchor the session.")
   .option("--continue", "Continue the most recent persisted session for this workspace.")
   .option("--image <path>", "Attach image(s) to the initial prompt.", (value, previous: string[] = []) => [...previous, value], [])
   .option("--prompt <text>", "Optional initial prompt before the interactive loop starts.")
   .action(
     async (options: {
-      mode: UserMode;
       entity?: string;
       continue?: boolean;
       image?: string[];
@@ -75,9 +53,9 @@ program
     }) => {
       const root = resolveRoot();
       const promptContext = await resolvePromptContext(root, options.entity);
-      const { session } = await createSalesLeaderSession({
+      const { session, workspaceState } = await createSalesLeaderSession({
         root,
-        mode: assertUserMode(options.mode),
+        kind: "default",
         persist: true,
         continueRecent: Boolean(options.continue),
         promptContext: {
@@ -91,6 +69,9 @@ program
       };
       if (options.prompt !== undefined) {
         chatLoopOptions.initialPrompt = options.prompt;
+      } else if (!workspaceState.initialized) {
+        chatLoopOptions.initialPrompt =
+          "The workspace is not initialized yet. Start onboarding now. Ask the single highest-value question first and use the deterministic creation tools as information becomes clear.";
       }
 
       await runChatLoop(session, chatLoopOptions);
@@ -99,8 +80,7 @@ program
 
 program
   .command("ask")
-  .description("Run a one-shot prompt in a specific operating mode.")
-  .requiredOption("--mode <mode>", "Mode: product, people, pipeline, deal, or prompt-maintenance.")
+  .description("Run a one-shot prompt in the normal sales leader session.")
   .option("--entity <id>", "Entity ID to anchor the prompt.")
   .option("--image <path>", "Attach image(s) to the prompt.", (value, previous: string[] = []) => [...previous, value], [])
   .argument("<prompt...>", "Prompt text to send to the agent.")
@@ -108,7 +88,6 @@ program
     async (
       promptParts: string[],
       options: {
-        mode: UserMode;
         entity?: string;
         image?: string[];
       },
@@ -117,7 +96,7 @@ program
       const promptContext = await resolvePromptContext(root, options.entity);
       const { session } = await createSalesLeaderSession({
         root,
-        mode: assertUserMode(options.mode),
+        kind: "default",
         persist: false,
         promptContext: {
           workspaceRoot: root,

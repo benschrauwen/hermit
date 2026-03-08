@@ -1,1 +1,1 @@
-People mode.
+People guidance.

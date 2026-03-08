@@ -1,9 +1,10 @@
-import type { InternalMode } from "./types.js";
+import type { SessionKind } from "./types.js";
 
 export const REQUIRED_PROMPT_FILES = [
-  "00-core-persona.md",
+  "00-soul.md",
   "05-file-rules.md",
   "10-bootstrap.md",
+  "15-routing.md",
   "20-mode-product.md",
   "21-mode-people.md",
   "22-mode-pipeline.md",
@@ -13,14 +14,13 @@ export const REQUIRED_PROMPT_FILES = [
   "90-self-improvement.md",
 ] as const;
 
-export const PROMPT_BUNDLES: Record<InternalMode, readonly string[]> = {
-  bootstrap: ["00-core-persona.md", "05-file-rules.md", "10-bootstrap.md"],
-  product: ["00-core-persona.md", "05-file-rules.md", "20-mode-product.md"],
-  people: ["00-core-persona.md", "05-file-rules.md", "21-mode-people.md"],
-  pipeline: ["00-core-persona.md", "05-file-rules.md", "22-mode-pipeline.md"],
-  deal: ["00-core-persona.md", "05-file-rules.md", "24-mode-deal.md"],
-  "transcript-ingest": ["00-core-persona.md", "05-file-rules.md", "23-mode-transcript-ingest.md"],
-  "prompt-maintenance": ["00-core-persona.md", "05-file-rules.md", "90-self-improvement.md"],
+export const DEFAULT_PROMPT_BUNDLE = ["00-soul.md", "05-file-rules.md", "15-routing.md"] as const;
+
+export const ONBOARDING_PROMPT_BUNDLE = ["00-soul.md", "05-file-rules.md", "10-bootstrap.md", "15-routing.md"] as const;
+
+export const PROMPT_BUNDLES: Record<SessionKind, readonly string[]> = {
+  default: DEFAULT_PROMPT_BUNDLE,
+  "transcript-ingest": ["00-soul.md", "05-file-rules.md", "23-mode-transcript-ingest.md"],
 };
 
 export const REQUIRED_ROOT_DIRECTORIES = [

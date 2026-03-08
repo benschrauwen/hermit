@@ -15,17 +15,25 @@ import {
 } from "@mariozechner/pi-coding-agent";
 
 import { createCustomTools } from "./agent-tools.js";
-import { DEFAULT_MODEL, DEFAULT_THINKING_LEVEL } from "./constants.js";
+import { DEFAULT_MODEL, DEFAULT_THINKING_LEVEL, ONBOARDING_PROMPT_BUNDLE, PROMPT_BUNDLES } from "./constants.js";
 import { PromptLibrary } from "./prompt-library.js";
-import type { InternalMode, PromptContext } from "./types.js";
-import { ensureWorkspaceScaffold, getWorkspacePaths } from "./workspace.js";
+import type { PromptContext, SessionKind, WorkspaceInitializationState } from "./types.js";
+import { ensureWorkspaceScaffold, getWorkspaceInitializationState, getWorkspacePaths } from "./workspace.js";
 
 interface SessionOptions {
   root: string;
-  mode: InternalMode;
+  kind: SessionKind;
   promptContext: PromptContext;
   persist: boolean;
   continueRecent?: boolean;
+}
+
+function selectPromptBundle(kind: SessionKind, workspaceState: WorkspaceInitializationState): readonly string[] {
+  if (kind === "default" && !workspaceState.initialized) {
+    return ONBOARDING_PROMPT_BUNDLE;
+  }
+
+  return PROMPT_BUNDLES[kind];
 }
 
 function parsePreferredModel(modelName: string): { provider: string; modelId: string } {
@@ -71,11 +79,13 @@ function getSessionManager(root: string, persist: boolean, continueRecent = fals
 export async function createSalesLeaderSession(options: SessionOptions): Promise<{
   session: AgentSession;
   promptLibrary: PromptLibrary;
+  workspaceState: WorkspaceInitializationState;
 }> {
   await ensureWorkspaceScaffold(options.root);
 
+  const workspaceState = await getWorkspaceInitializationState(options.root);
   const promptLibrary = await PromptLibrary.load(options.root);
-  const bundle = promptLibrary.renderBundle(options.mode, options.promptContext);
+  const bundle = promptLibrary.renderBundle(selectPromptBundle(options.kind, workspaceState), options.promptContext);
 
   const loader = new DefaultResourceLoader({
     cwd: options.root,
@@ -102,7 +112,7 @@ export async function createSalesLeaderSession(options: SessionOptions): Promise
     sessionManager: getSessionManager(options.root, options.persist, options.continueRecent),
   });
 
-  return { session, promptLibrary };
+  return { session, promptLibrary, workspaceState };
 }
 
 function attachConsoleStreaming(session: AgentSession): () => void {

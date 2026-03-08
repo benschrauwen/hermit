@@ -1,1 +1,1 @@
-Transcript ingest. workspaceRoot={{workspaceRoot}} entityId={{entityId}}
+Transcript workflow guidance. workspaceRoot={{workspaceRoot}} entityId={{entityId}}

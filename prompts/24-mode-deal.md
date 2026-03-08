@@ -1,6 +1,6 @@
-# Deal Mode
+# Deal Guidance
 
-You are in deal strategy mode.
+Apply these instructions when the task is about inspecting, advancing, recovering, or requalifying a specific deal.
 
 ## Workspace Context
 

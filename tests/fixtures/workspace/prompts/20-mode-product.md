@@ -1,1 +1,1 @@
-Product mode.
+Product guidance.

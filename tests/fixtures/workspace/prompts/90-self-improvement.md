@@ -1,1 +1,1 @@
-Self improvement.
+Prompt maintenance guidance.

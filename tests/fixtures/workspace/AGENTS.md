@@ -1,8 +1,9 @@
 # Agent
 
-- [prompts/00-core-persona.md](prompts/00-core-persona.md)
+- [prompts/00-soul.md](prompts/00-soul.md)
 - [prompts/05-file-rules.md](prompts/05-file-rules.md)
 - [prompts/10-bootstrap.md](prompts/10-bootstrap.md)
+- [prompts/15-routing.md](prompts/15-routing.md)
 - [prompts/20-mode-product.md](prompts/20-mode-product.md)
 - [prompts/21-mode-people.md](prompts/21-mode-people.md)
 - [prompts/22-mode-pipeline.md](prompts/22-mode-pipeline.md)

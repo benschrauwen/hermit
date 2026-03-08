@@ -4,7 +4,27 @@ import path from "node:path";
 import slugifyImport from "slugify";
 
 import { DEAL_SEQUENCE_WIDTH, REQUIRED_ROOT_DIRECTORIES, REQUIRED_SUPPORTING_DIRECTORIES } from "./constants.js";
-import type { EntityRecord } from "./types.js";
+import {
+  activityLogTemplate,
+  companyGtmTemplate,
+  companyRecordTemplate,
+  companyStrategyTemplate,
+  competitiveAnalysisTemplate,
+  dealRecordTemplate,
+  developmentPlanTemplate,
+  meddiccTemplate,
+  personRecordTemplate,
+  playbookTemplate,
+  productRecordTemplate,
+} from "./templates.js";
+import type {
+  CompanyBootstrapInput,
+  DealBootstrapInput,
+  EntityRecord,
+  PersonBootstrapInput,
+  ProductBootstrapInput,
+  WorkspaceInitializationState,
+} from "./types.js";
 
 const slugify = slugifyImport as unknown as (
   value: string,
@@ -43,6 +63,15 @@ export async function ensureWorkspaceScaffold(root: string): Promise<void> {
       fs.mkdir(path.join(root, relativePath), { recursive: true }),
     ),
   );
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function makeSlug(value: string): string {
@@ -112,6 +141,28 @@ export async function writeFileSafely(filePath: string, content: string, force =
 export async function appendLine(filePath: string, line: string): Promise<void> {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.appendFile(filePath, `${line}\n`, "utf8");
+}
+
+export async function getWorkspaceInitializationState(root: string): Promise<WorkspaceInitializationState> {
+  const paths = getWorkspacePaths(root);
+  const [people, products, deals, hasCompanyRecord] = await Promise.all([
+    scanEntityDirectory(paths.peopleDir),
+    scanEntityDirectory(paths.productDir),
+    scanEntityDirectory(paths.dealsDir),
+    fileExists(path.join(paths.companyDir, "record.md")),
+  ]);
+
+  const peopleCount = people.length;
+  const productCount = products.length;
+  const dealCount = deals.length;
+
+  return {
+    initialized: hasCompanyRecord && (peopleCount > 0 || productCount > 0 || dealCount > 0),
+    hasCompanyRecord,
+    peopleCount,
+    productCount,
+    dealCount,
+  };
 }
 
 export async function scanEntities(root: string): Promise<EntityRecord[]> {
@@ -225,4 +276,123 @@ export function buildEntityPath(root: string, entityType: "person" | "product" |
   const paths = getWorkspacePaths(root);
   const baseDir = entityType === "person" ? paths.peopleDir : entityType === "product" ? paths.productDir : paths.dealsDir;
   return path.join(baseDir, entityId);
+}
+
+interface CreateEntityOptions {
+  force?: boolean;
+  sourceRefs?: string[];
+}
+
+export async function createCompanyRecords(
+  root: string,
+  input: CompanyBootstrapInput,
+  options: CreateEntityOptions = {},
+): Promise<{ path: string }> {
+  const paths = getWorkspacePaths(root);
+  const sourceRefs = options.sourceRefs;
+  await writeFileSafely(
+    path.join(paths.companyDir, "record.md"),
+    companyRecordTemplate({
+      ...input,
+      ...(sourceRefs ? { sourceRefs } : {}),
+    }),
+    options.force,
+  );
+  await writeFileSafely(path.join(paths.companyDir, "strategy.md"), companyStrategyTemplate(), options.force);
+  await writeFileSafely(path.join(paths.companyDir, "gtm.md"), companyGtmTemplate(), options.force);
+
+  return {
+    path: path.join(paths.companyDir, "record.md"),
+  };
+}
+
+export async function createPersonRecord(
+  root: string,
+  input: PersonBootstrapInput,
+  options: CreateEntityOptions = {},
+): Promise<{ id: string; path: string }> {
+  const entityId = makePersonId(input.name);
+  const entityPath = buildEntityPath(root, "person", entityId);
+  const sourceRefs = options.sourceRefs;
+
+  await fs.mkdir(path.join(entityPath, "notes"), { recursive: true });
+  await fs.mkdir(path.join(entityPath, "artifacts"), { recursive: true });
+  await writeFileSafely(
+    path.join(entityPath, "record.md"),
+    personRecordTemplate({
+      id: entityId,
+      ...input,
+      ...(sourceRefs ? { sourceRefs } : {}),
+    }),
+    options.force,
+  );
+  await writeFileSafely(path.join(entityPath, "development-plan.md"), developmentPlanTemplate(input.name), options.force);
+
+  return {
+    id: entityId,
+    path: entityPath,
+  };
+}
+
+export async function createProductRecord(
+  root: string,
+  input: ProductBootstrapInput,
+  options: CreateEntityOptions = {},
+): Promise<{ id: string; path: string }> {
+  const entityId = makeProductId(input.name);
+  const entityPath = buildEntityPath(root, "product", entityId);
+  const sourceRefs = options.sourceRefs;
+
+  await fs.mkdir(path.join(entityPath, "notes"), { recursive: true });
+  await fs.mkdir(path.join(entityPath, "artifacts"), { recursive: true });
+  await writeFileSafely(
+    path.join(entityPath, "record.md"),
+    productRecordTemplate({
+      id: entityId,
+      ...input,
+      ...(sourceRefs ? { sourceRefs } : {}),
+    }),
+    options.force,
+  );
+  await writeFileSafely(path.join(entityPath, "playbook.md"), playbookTemplate(input.name), options.force);
+  await writeFileSafely(path.join(entityPath, "competitive-analysis.md"), competitiveAnalysisTemplate(input.name), options.force);
+
+  return {
+    id: entityId,
+    path: entityPath,
+  };
+}
+
+export async function createDealRecord(
+  root: string,
+  input: DealBootstrapInput,
+  options: CreateEntityOptions = {},
+): Promise<{ id: string; path: string }> {
+  const entityId = await makeDealId(root, input.accountName, input.opportunityName);
+  const entityPath = buildEntityPath(root, "deal", entityId);
+  const sourceRefs = options.sourceRefs;
+
+  await fs.mkdir(path.join(entityPath, "notes"), { recursive: true });
+  await fs.mkdir(path.join(entityPath, "artifacts"), { recursive: true });
+  await fs.mkdir(path.join(entityPath, "transcripts"), { recursive: true });
+  await writeFileSafely(
+    path.join(entityPath, "record.md"),
+    dealRecordTemplate({
+      id: entityId,
+      ...input,
+      ...(sourceRefs ? { sourceRefs } : {}),
+    }),
+    options.force,
+  );
+  await writeFileSafely(path.join(entityPath, "meddicc.md"), meddiccTemplate(`${input.accountName} - ${input.opportunityName}`), options.force);
+  await writeFileSafely(
+    path.join(entityPath, "activity-log.md"),
+    activityLogTemplate(`${input.accountName} - ${input.opportunityName}`, options.sourceRefs?.[0] ?? "onboarding"),
+    options.force,
+  );
+
+  return {
+    id: entityId,
+    path: entityPath,
+  };
 }

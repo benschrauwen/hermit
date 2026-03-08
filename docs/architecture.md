@@ -28,11 +28,11 @@ Why:
 - behavior remains editable without changing the runtime
 - prompt maintenance is visible and auditable
 - orchestration logic stays separate from operating guidance
-- the project can evolve mode behavior without turning code into hidden prompt config
+- the project can evolve operating guidance without turning code into hidden prompt config
 
 ### 3. Keep orchestration deterministic
 
-TypeScript handles the parts that should be predictable: CLI parsing, directory scaffolding, entity lookup, ID generation, prompt selection, session creation, transcript placement, and workspace validation.
+TypeScript handles the parts that should be predictable: CLI parsing, directory scaffolding, entity lookup, ID generation, prompt bundle selection, onboarding state detection, session creation, transcript placement, and workspace validation.
 
 Why:
 
@@ -61,12 +61,13 @@ The system has four layers:
 
 In practice, the flow looks like this:
 
-1. A user runs a CLI command such as `bootstrap`, `chat`, `ask`, `ingest transcript`, or `doctor`.
+1. A user runs a CLI command such as `chat`, `ask`, `ingest transcript`, or `doctor`.
 2. The CLI resolves the workspace root and optional entity context.
-3. The runtime loads the required prompt bundle from markdown files.
+3. The runtime loads the base prompt bundle from markdown files.
 4. A session is created with standard coding tools plus project-specific tools.
-5. The model reads and updates the file-backed workspace according to the prompt contract.
-6. Validation commands and deterministic helpers keep the workspace shape consistent.
+5. The model reads additional prompt files from `prompts/` when the task requires domain-specific guidance.
+6. The model reads and updates the file-backed workspace according to the prompt contract.
+7. Validation commands and deterministic helpers keep the workspace shape consistent.
 
 ## Module Responsibilities
 
@@ -74,9 +75,8 @@ In practice, the flow looks like this:
 
 This is the command surface for the application. It exposes:
 
-- `bootstrap`
-- `chat --mode ...`
-- `ask --mode ...`
+- `chat`
+- `ask`
 - `ingest transcript`
 - `doctor`
 
@@ -105,7 +105,7 @@ Why:
 
 ### `src/prompt-library.ts`
 
-This module loads `AGENTS.md` and the required prompt files, then renders a mode-specific prompt bundle using simple template placeholders such as `{{workspaceRoot}}`, `{{entityId}}`, and `{{transcriptPath}}`.
+This module loads `AGENTS.md` and the required prompt files, then renders a requested prompt bundle using simple template placeholders such as `{{workspaceRoot}}`, `{{entityId}}`, and `{{transcriptPath}}`.
 
 Why:
 
@@ -132,13 +132,13 @@ Why:
 
 ### `src/bootstrap.ts`
 
-This module implements first-run onboarding. It collects company, team, product, and open-deal data via the terminal, creates the required directory structure, and writes starter records from templates.
+This module now exposes onboarding-related deterministic helpers instead of a fixed questionnaire. First-run setup is initiated by a normal chat session when the workspace is still missing core records.
 
 Why:
 
-- the workspace should become useful immediately after setup
-- bootstrap creates a consistent starting point for later AI-assisted work
-- users should not need to hand-author the entire file structure before trying the tool
+- onboarding should feel conversational instead of form-driven
+- deterministic helper functions still protect IDs, paths, and file shapes
+- the workspace can become useful incrementally as the user answers questions
 
 ### `src/templates.ts`
 
@@ -227,18 +227,19 @@ Why this contract:
 
 ## Prompt Architecture
 
-Prompt selection is mode-based. The code maps each internal mode to a small bundle of markdown files, for example:
+Prompt selection is bundle-based. The code starts normal sessions with a small shared bundle, then the agent reads additional prompt files from `prompts/` when the task requires more specific instructions, for example:
 
-- core persona
+- soul
 - file rules
-- a mode-specific operating instruction
+- routing guidance
+- onboarding guidance when the workspace is not initialized
 
 Special flows such as transcript ingest can also render a dedicated command prompt with contextual placeholders.
 
 Why:
 
 - shared guidance avoids duplicating core rules
-- mode-specific prompts keep instructions targeted
+- reusable instruction files keep specialized guidance targeted without forcing the user to choose a mode up front
 - command prompts let the system inject precise context without hiding business logic in TypeScript
 
 ## Runtime And Model Strategy
@@ -294,7 +295,7 @@ The current design leaves clear seams for future changes:
 
 - add richer validation rules in `doctor`
 - add more custom tools in `src/agent-tools.ts`
-- extend prompt bundles with new operating modes
+- extend prompt bundles with new reusable operating instructions
 - enable real computer-use behind the existing boundary
 - add more evidence ingestors that follow the same "store raw input first, update canonical state second" pattern
 

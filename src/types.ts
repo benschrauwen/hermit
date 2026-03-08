@@ -1,6 +1,4 @@
-export type UserMode = "product" | "people" | "pipeline" | "deal" | "prompt-maintenance";
-
-export type InternalMode = UserMode | "bootstrap" | "transcript-ingest";
+export type SessionKind = "default" | "transcript-ingest";
 
 export interface PromptContext {
   workspaceRoot: string;
@@ -16,6 +14,16 @@ export interface EntityRecord {
   path: string;
   status?: string;
   owner?: string;
+}
+
+export interface CompanyBootstrapInput {
+  companyName: string;
+  companySummary: string;
+  salesTeamName: string;
+  salesMethodology: string;
+  idealCustomerProfile: string;
+  reviewCadence: string;
+  topCompetitors: string[];
 }
 
 export interface PersonBootstrapInput {
@@ -43,15 +51,10 @@ export interface DealBootstrapInput {
   nextStep: string;
 }
 
-export interface BootstrapAnswers {
-  companyName: string;
-  companySummary: string;
-  salesTeamName: string;
-  salesMethodology: string;
-  idealCustomerProfile: string;
-  reviewCadence: string;
-  topCompetitors: string[];
-  people: PersonBootstrapInput[];
-  products: ProductBootstrapInput[];
-  deals: DealBootstrapInput[];
+export interface WorkspaceInitializationState {
+  initialized: boolean;
+  hasCompanyRecord: boolean;
+  peopleCount: number;
+  productCount: number;
+  dealCount: number;
 }
