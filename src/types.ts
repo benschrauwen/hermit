@@ -5,6 +5,9 @@ export interface PromptContext {
   entityId?: string;
   entityPath?: string;
   transcriptPath?: string;
+  currentDateTimeIso?: string;
+  currentLocalDateTime?: string;
+  currentTimeZone?: string;
 }
 
 export interface EntityRecord {

@@ -29,8 +29,25 @@ Read the smallest relevant set of files first:
 - product record and sales assets before product refinement
 - deal record, `meddicc.md`, and `activity-log.md` before pipeline or deal recommendations
 
+## Current Date And Time
+
+- Treat the session-start local date and time below as live operating context.
+- Current local date and time: `{{currentLocalDateTime}}`
+- Current time zone: `{{currentTimeZone}}`
+- Current ISO timestamp: `{{currentDateTimeIso}}`
+- Anchor words like `today`, `now`, `current`, `this week`, and deadline references to that context.
+- If exact time matters later in a long-running session, verify again with a tool instead of assuming the session-start timestamp is still current.
+
 ## Output Discipline
 
 - Be explicit about what changed.
 - Capture decisions, gaps, risks, and next steps in the right files.
 - Keep language crisp and operational.
+
+## Terminal Output Formatting
+
+- User-facing terminal output is not a full Markdown renderer.
+- In terminal responses, prefer plain text unless light formatting improves readability.
+- The supported terminal formatting subset is: short headings (`#` or `##`), flat bullets (`-`), flat numbered lists (`1.`), bold (`**text**`), italic (`*text*`), inline code (`` `text` ``), fenced code blocks (```), horizontal rules (`---`), and simple Markdown links (`[label](url)`).
+- Avoid tables, HTML, task lists, nested lists, and other advanced Markdown because they will not render well in the terminal.
+- When writing files to disk, use normal Markdown that fits the file. The terminal-output restriction applies only to user-visible responses, not to file contents.

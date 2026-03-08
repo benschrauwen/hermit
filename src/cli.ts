@@ -7,7 +7,7 @@ import process from "node:process";
 
 import { runDoctor } from "./doctor.js";
 import { runTranscriptIngest } from "./ingest.js";
-import { createSalesLeaderSession, runChatLoop, runOneShotPrompt } from "./session.js";
+import { createSalesLeaderSession, resolveInitialChatPrompt, runChatLoop, runOneShotPrompt } from "./session.js";
 import { findEntityById } from "./workspace.js";
 
 function resolveRoot(): string {
@@ -68,11 +68,13 @@ program
       const chatLoopOptions: { initialPrompt?: string; initialImages?: string[] } = {
         initialImages: collectImagePaths(options.image),
       };
-      if (options.prompt !== undefined) {
-        chatLoopOptions.initialPrompt = options.prompt;
-      } else if (!workspaceState.initialized) {
-        chatLoopOptions.initialPrompt =
-          "The workspace is not initialized yet. Start onboarding now. Ask the single highest-value question first and use the deterministic creation tools as information becomes clear.";
+      const initialPrompt = resolveInitialChatPrompt({
+        workspaceState,
+        ...(options.prompt !== undefined ? { initialPrompt: options.prompt } : {}),
+        ...(options.continue !== undefined ? { continueRecent: options.continue } : {}),
+      });
+      if (initialPrompt !== undefined) {
+        chatLoopOptions.initialPrompt = initialPrompt;
       }
 
       await runChatLoop(session, chatLoopOptions);

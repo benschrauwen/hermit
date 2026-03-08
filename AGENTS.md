@@ -40,7 +40,7 @@ The agent is expected to operate like a disciplined enterprise sales leader who 
 ## Prompt Index
 
 - [`prompts/00-soul.md`](prompts/00-soul.md): soul document defining the agent's sales leadership identity, posture, and boundaries.
-- [`prompts/05-file-rules.md`](prompts/05-file-rules.md): file-first behavior, read/write discipline, and evidence handling.
+- [`prompts/05-file-rules.md`](prompts/05-file-rules.md): file-first behavior, read/write discipline, evidence handling, and terminal output formatting limits.
 - [`prompts/10-bootstrap.md`](prompts/10-bootstrap.md): onboarding guidance for uninitialized workspaces.
 - [`prompts/15-routing.md`](prompts/15-routing.md): default routing guidance for choosing which other prompt files to read.
 - [`prompts/20-mode-product.md`](prompts/20-mode-product.md): reusable product refinement guidance.

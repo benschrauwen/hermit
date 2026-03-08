@@ -68,6 +68,9 @@ export class PromptLibrary {
       entityId: context.entityId ?? "not-selected",
       entityPath: context.entityPath ?? "not-selected",
       transcriptPath: context.transcriptPath ?? "not-selected",
+      currentDateTimeIso: context.currentDateTimeIso ?? "unknown",
+      currentLocalDateTime: context.currentLocalDateTime ?? "unknown",
+      currentTimeZone: context.currentTimeZone ?? "unknown",
     };
 
     return template.replaceAll(/\{\{(\w+)\}\}/g, (_match, key: string) => values[key] ?? "");
