@@ -39,3 +39,6 @@ Run inspection-quality pipeline review with forecast discipline.
 - Document what changed since the last review when forecast confidence moves.
 - Keep `deals/active/` clean by moving conclusively won or lost deals into the appropriate closed bucket instead of leaving them in the working pipeline.
 - Keep recommendations operational and tied to the next inspection step.
+When inspecting the pipeline, work from `{{roleRoot}}/deals/`.
+
+Prioritize qualification rigor, clear next steps, stage hygiene, and forecast realism.

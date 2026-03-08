@@ -1,10 +1,10 @@
 {
-  "name": "sales-leader-agent",
+  "name": "leadership-role-agent",
   "version": "0.1.0",
-  "description": "Local file-first sales leader agent powered by pi-mono.",
+  "description": "Local file-first multi-role leadership agent powered by pi-mono.",
   "type": "module",
   "bin": {
-    "sales-agent": "./dist/cli.js"
+    "leadership-agent": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -15,7 +15,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "keywords": [
-    "sales",
+    "leadership",
+    "roles",
     "agent",
     "pi-mono",
     "cli"

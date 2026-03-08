@@ -2,34 +2,35 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
-import {
-  createCompanyRecordTool,
-  createEntityLookupTool,
-  createComputerUseBoundaryTool,
-  createCustomTools,
-} from "../src/agent-tools.js";
-import { ensureWorkspaceScaffold } from "../src/workspace.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const fixtureRoot = path.join(__dirname, "fixtures", "workspace");
+import { createCompanyRecordTool, createComputerUseBoundaryTool, createCustomTools, createEntityLookupTool } from "../src/agent-tools.js";
+import { loadRole } from "../src/roles.js";
+import { ensureWorkspaceScaffold, writeFileSafely } from "../src/workspace.js";
+import { seedRoleWorkspace } from "./test-helpers.js";
 
 describe("createEntityLookupTool", () => {
+  let root: string;
+
   beforeEach(() => {
     vi.unstubAllEnvs();
+    root = mkdtempSync(path.join(tmpdir(), "agent-tools-lookup-"));
+    seedRoleWorkspace(root, ["sales"]);
   });
 
   it("returns tool with expected name and description", () => {
-    const tool = createEntityLookupTool("/any/root");
+    const role = {
+      id: "sales",
+    } as Awaited<ReturnType<typeof loadRole>>;
+    const tool = createEntityLookupTool("/any/root", role);
     expect(tool.name).toBe("entity_lookup");
     expect(tool.label).toBe("Entity Lookup");
-    expect(tool.description).toContain("people, products, and deals");
+    expect(tool.description).toContain("shared people and role-specific entities");
     expect(tool.parameters).toBeDefined();
   });
 
   it("execute returns content and details (empty when no entities)", async () => {
-    const tool = createEntityLookupTool(fixtureRoot);
+    const role = await loadRole(root, "sales");
+    const tool = createEntityLookupTool(root, role);
     const execute = tool.execute as (
       id: unknown,
       params: { query: string; type?: string; limit?: number },
@@ -62,8 +63,11 @@ describe("createComputerUseBoundaryTool", () => {
 });
 
 describe("createCustomTools", () => {
-  it("returns the core lookup, web, and onboarding creation tools", () => {
-    const tools = createCustomTools("/root");
+  it("returns the core lookup, web, shared creation, and role entity tools", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "agent-tools-custom-"));
+    seedRoleWorkspace(root, ["sales"]);
+    const role = await loadRole(root, "sales");
+    const tools = createCustomTools("/root", role);
     const names = tools.map((t) => t.name);
     expect(names).toContain("entity_lookup");
     expect(names).toContain("web_search");
@@ -71,13 +75,18 @@ describe("createCustomTools", () => {
     expect(names).toContain("create_person_record");
     expect(names).toContain("create_product_record");
     expect(names).toContain("create_deal_record");
+    rmSync(root, { recursive: true, force: true });
   });
 
-  it("includes computer_use when SALES_AGENT_ENABLE_COMPUTER_USE is true", () => {
-    vi.stubEnv("SALES_AGENT_ENABLE_COMPUTER_USE", "true");
-    const tools = createCustomTools("/root");
+  it("includes computer_use when ROLE_AGENT_ENABLE_COMPUTER_USE is true", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "agent-tools-computer-"));
+    seedRoleWorkspace(root, ["sales"]);
+    vi.stubEnv("ROLE_AGENT_ENABLE_COMPUTER_USE", "true");
+    const role = await loadRole(root, "sales");
+    const tools = createCustomTools("/root", role);
     const names = tools.map((t) => t.name);
     expect(names).toContain("computer_use");
+    rmSync(root, { recursive: true, force: true });
   });
 });
 
@@ -85,15 +94,15 @@ describe("createCompanyRecordTool", () => {
   it("creates canonical company starter files", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "agent-tools-"));
     try {
-      await ensureWorkspaceScaffold(root);
+      seedRoleWorkspace(root, ["sales"]);
+      await ensureWorkspaceScaffold(root, await loadRole(root, "sales"));
       const tool = createCompanyRecordTool(root);
       const result = await (tool.execute as (id: unknown, params: unknown) => Promise<unknown>)("id", {
         companyName: "Acme",
         companySummary: "Summary",
-        salesTeamName: "Sales",
-        salesMethodology: "MEDDICC",
-        idealCustomerProfile: "ICP",
-        reviewCadence: "Weekly",
+        businessModel: "Subscription",
+        operatingCadence: "Weekly",
+        strategicPriorities: "Expansion",
         topCompetitors: ["Rival"],
       });
       const typed = result as { details: { path: string } };

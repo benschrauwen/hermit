@@ -36,3 +36,6 @@ Help inspect, advance, recover, or requalify a specific deal.
 - Update `record.md`, `meddicc.md`, or `activity-log.md` when the strategy or facts change.
 - If a deal is conclusively won or lost, keep the close-out facts in the canonical files and move the deal directory out of `deals/active/` into `deals/closed-won/` or `deals/closed-lost/`.
 - Keep action plans concrete, dated, accountable, and tied to named stakeholders.
+For deal work, inspect the canonical record, qualification, and activity history together.
+
+Sharpen next steps, surface risks, and keep MEDDICC evidence-based.

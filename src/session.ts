@@ -15,13 +15,14 @@ import {
 } from "@mariozechner/pi-coding-agent";
 
 import { createCustomTools } from "./agent-tools.js";
-import { DEFAULT_MODEL, DEFAULT_THINKING_LEVEL, ONBOARDING_PROMPT_BUNDLE, PROMPT_BUNDLES } from "./constants.js";
+import { DEFAULT_MODEL, DEFAULT_THINKING_LEVEL } from "./constants.js";
 import { PromptLibrary } from "./prompt-library.js";
-import type { PromptContext, SessionKind, WorkspaceInitializationState } from "./types.js";
+import type { PromptContext, RoleDefinition, SessionKind, WorkspaceInitializationState } from "./types.js";
 import { ensureWorkspaceScaffold, getWorkspaceInitializationState, getWorkspacePaths } from "./workspace.js";
 
 interface SessionOptions {
   root: string;
+  role: RoleDefinition;
   kind: SessionKind;
   promptContext: PromptContext;
   persist: boolean;
@@ -68,12 +69,16 @@ export function resolveInitialChatPrompt(options: {
   return DEFAULT_CHAT_OPENING_PROMPT;
 }
 
-function selectPromptBundle(kind: SessionKind, workspaceState: WorkspaceInitializationState): readonly string[] {
+function selectPromptBundle(
+  role: RoleDefinition,
+  kind: SessionKind,
+  workspaceState: WorkspaceInitializationState,
+): readonly string[] {
   if (kind === "default" && !workspaceState.initialized) {
-    return ONBOARDING_PROMPT_BUNDLE;
+    return role.promptBundles.onboarding ?? role.promptBundles.default ?? [];
   }
 
-  return PROMPT_BUNDLES[kind];
+  return role.promptBundles[kind] ?? role.promptBundles.default ?? [];
 }
 
 function parsePreferredModel(modelName: string): { provider: string; modelId: string } {
@@ -100,7 +105,7 @@ function resolvePreferredModel(modelRegistry: ModelRegistry): Model<any> {
   const fallback = available[0] ?? modelRegistry.find(preferred.provider, preferred.modelId);
   if (!fallback) {
     throw new Error(
-      `No configured model is available. Set OPENAI_API_KEY and optionally SALES_AGENT_MODEL (current preference: ${DEFAULT_MODEL}).`,
+      `No configured model is available. Set OPENAI_API_KEY and optionally ROLE_AGENT_MODEL (current preference: ${DEFAULT_MODEL}).`,
     );
   }
 
@@ -402,8 +407,8 @@ export function formatActivityStatus(toolName: string | undefined, args?: unknow
   }
 }
 
-function getSessionManager(root: string, persist: boolean, continueRecent = false): SessionManager {
-  const { sessionsDir } = getWorkspacePaths(root);
+function getSessionManager(root: string, role: RoleDefinition, persist: boolean, continueRecent = false): SessionManager {
+  const { sessionsDir } = getWorkspacePaths(root, role);
   if (!persist) {
     return SessionManager.inMemory(root);
   }
@@ -428,17 +433,17 @@ function enrichPromptContextWithCurrentTime(promptContext: PromptContext): Promp
   };
 }
 
-export async function createSalesLeaderSession(options: SessionOptions): Promise<{
+export async function createRoleSession(options: SessionOptions): Promise<{
   session: AgentSession;
   promptLibrary: PromptLibrary;
   workspaceState: WorkspaceInitializationState;
 }> {
-  await ensureWorkspaceScaffold(options.root);
+  await ensureWorkspaceScaffold(options.root, options.role);
 
-  const workspaceState = await getWorkspaceInitializationState(options.root);
-  const promptLibrary = await PromptLibrary.load(options.root);
+  const workspaceState = await getWorkspaceInitializationState(options.root, options.role);
+  const promptLibrary = await PromptLibrary.load(options.role);
   const promptContext = enrichPromptContextWithCurrentTime(options.promptContext);
-  const bundle = promptLibrary.renderBundle(selectPromptBundle(options.kind, workspaceState), promptContext);
+  const bundle = promptLibrary.renderBundle(selectPromptBundle(options.role, options.kind, workspaceState), promptContext);
 
   const loader = new DefaultResourceLoader({
     cwd: options.root,
@@ -460,9 +465,9 @@ export async function createSalesLeaderSession(options: SessionOptions): Promise
     model: resolvePreferredModel(modelRegistry),
     thinkingLevel: DEFAULT_THINKING_LEVEL as "minimal" | "low" | "medium" | "high" | "xhigh",
     tools: createCodingTools(options.root),
-    customTools: createCustomTools(options.root),
+    customTools: createCustomTools(options.root, options.role),
     resourceLoader: loader,
-    sessionManager: getSessionManager(options.root, options.persist, options.continueRecent),
+    sessionManager: getSessionManager(options.root, options.role, options.persist, options.continueRecent),
   });
 
   return { session, promptLibrary, workspaceState };

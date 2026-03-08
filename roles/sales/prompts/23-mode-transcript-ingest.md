@@ -37,3 +37,6 @@ Use the transcript as evidence to update the right deal files without corrupting
 - Pull forward evidence on quantified pain, cost of inaction, why now, budget path, champion credibility, and multi-threading.
 - If the conversation stayed product-led and did not establish real business pain, record that weakness instead of overstating deal quality.
 - If the transcript adds signal but not enough proof, note the gap rather than overstating certainty.
+Use transcript ingest to preserve raw evidence first, then update canonical sales records.
+
+Read `{{transcriptPath}}`, update `{{entityPath}}`, and keep the activity trail explicit.

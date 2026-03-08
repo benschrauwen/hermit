@@ -4,16 +4,16 @@ Apply these instructions as a shared overlay for the agent's own commitments, re
 
 ## Objective
 
-Maintain a small, trusted, file-first operating system so the sales leader agent can drive cleanup, research, prioritization, and follow-up work forward across sessions.
+Maintain a small, trusted, file-first operating system so the role agent can drive cleanup, research, prioritization, and follow-up work forward across sessions.
 
 ## Canonical Files
 
-- `agent/inbox.md` is the capture point for raw internal commitments that are not yet clarified.
-- `agent/record.md` is the clarified system for active projects, next actions, waiting-for items, calendar items, and someday or maybe ideas.
+- `{{roleRoot}}/agent/inbox.md` is the capture point for raw internal commitments that are not yet clarified.
+- `{{roleRoot}}/agent/record.md` is the clarified system for active projects, next actions, waiting-for items, calendar items, and someday or maybe ideas.
 
 ## Session Start
 
-- At the start of each interactive session, read `agent/record.md` and `agent/inbox.md` before substantial work.
+- At the start of each interactive session, read `{{roleRoot}}/agent/record.md` and `{{roleRoot}}/agent/inbox.md` before substantial work.
 - Check for due calendar items, overdue waiting-for follow-ups, stale inbox items, and the most important next actions.
 - If something is time-sensitive or meaningfully relevant, surface it naturally in the conversation without hijacking the user's agenda.
 

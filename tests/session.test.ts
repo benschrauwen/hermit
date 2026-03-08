@@ -66,8 +66,8 @@ describe("resolveInitialChatPrompt", () => {
           initialized: true,
           hasCompanyRecord: true,
           peopleCount: 1,
-          productCount: 1,
-          dealCount: 1,
+          roleEntityCount: 1,
+          roleEntityCounts: { deal: 1 },
         },
       }),
     ).toBe("Open with pipeline review.");
@@ -81,8 +81,8 @@ describe("resolveInitialChatPrompt", () => {
           initialized: false,
           hasCompanyRecord: false,
           peopleCount: 0,
-          productCount: 0,
-          dealCount: 0,
+          roleEntityCount: 0,
+          roleEntityCounts: {},
         },
       }),
     ).toBe(ONBOARDING_CHAT_OPENING_PROMPT);
@@ -96,8 +96,8 @@ describe("resolveInitialChatPrompt", () => {
           initialized: true,
           hasCompanyRecord: true,
           peopleCount: 1,
-          productCount: 1,
-          dealCount: 1,
+          roleEntityCount: 1,
+          roleEntityCounts: { deal: 1 },
         },
       }),
     ).toBeUndefined();
@@ -111,8 +111,8 @@ describe("resolveInitialChatPrompt", () => {
           initialized: true,
           hasCompanyRecord: true,
           peopleCount: 1,
-          productCount: 1,
-          dealCount: 1,
+          roleEntityCount: 1,
+          roleEntityCounts: { deal: 1 },
         },
       }),
     ).toBe(DEFAULT_CHAT_OPENING_PROMPT);

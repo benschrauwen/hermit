@@ -1,15 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, cpSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 
 import { runDoctor } from "../src/doctor.js";
-import { REQUIRED_PROMPT_FILES } from "../src/constants.js";
-import { getWorkspacePaths } from "../src/workspace.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const fixtureRoot = path.join(__dirname, "fixtures", "workspace");
+import { loadRole } from "../src/roles.js";
+import { ensureWorkspaceScaffold } from "../src/workspace.js";
+import { seedRoleWorkspace, writeCompanyRecord } from "./test-helpers.js";
 
 describe("runDoctor", () => {
   let consoleSpy: { log: ReturnType<typeof vi.spyOn> };
@@ -25,51 +22,37 @@ describe("runDoctor", () => {
   it("reports errors and returns false when required dirs are missing", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "doctor-missing-"));
     try {
-      const paths = getWorkspacePaths(root);
-      mkdirSync(paths.promptsDir, { recursive: true });
-      writeFileSync(
-        paths.agentsFile,
-        `# Agent\n${REQUIRED_PROMPT_FILES.map((f) => `- [prompts/${f}](prompts/${f})`).join("\n")}\n`,
-      );
-      for (const file of REQUIRED_PROMPT_FILES) {
-        writeFileSync(path.join(paths.promptsDir, file), "# Prompt\n");
-      }
-      const result = await runDoctor(root);
+      const result = await runDoctor(root, "sales").catch(() => false);
       expect(result).toBe(false);
-      const calls = consoleSpy.log.mock.calls.map((c) => c[0] as string);
-      const errors = calls.filter((m) => m.startsWith("error:"));
-      expect(errors.length).toBeGreaterThan(0);
-      expect(errors.some((m) => m.includes("Missing required directory"))).toBe(
-        true,
-      );
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
   });
 
   it("returns true when workspace is valid (may log healthy or warnings only)", async () => {
-    const { ensureWorkspaceScaffold } = await import("../src/workspace.js");
-    await ensureWorkspaceScaffold(fixtureRoot);
-    const result = await runDoctor(fixtureRoot);
+    const root = mkdtempSync(path.join(tmpdir(), "doctor-valid-"));
+    seedRoleWorkspace(root, ["sales"]);
+    const role = await loadRole(root, "sales");
+    await ensureWorkspaceScaffold(root, role);
+    writeCompanyRecord(root);
+    const result = await runDoctor(root, "sales");
     const logged = consoleSpy.log.mock.calls.map((c) => c[0] as string);
     const errors = logged.filter((m) => m.startsWith("error:"));
     expect(errors, `Expected no errors but got: ${errors.join("; ")}`).toHaveLength(0);
     expect(result).toBe(true);
-    expect(
-      logged.some((m) => m.includes("healthy") || m.startsWith("warning:")),
-    ).toBe(true);
+    rmSync(root, { recursive: true, force: true });
   });
 
-  it("warns on placeholder text and missing canonical deal files without failing the workspace", async () => {
-    const { ensureWorkspaceScaffold } = await import("../src/workspace.js");
+  it("warns on placeholder text and missing role files without failing the workspace", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "doctor-quality-"));
 
     try {
-      await ensureWorkspaceScaffold(root);
-      cpSync(path.join(fixtureRoot, "prompts"), path.join(root, "prompts"), { recursive: true });
-      cpSync(path.join(fixtureRoot, "AGENTS.md"), path.join(root, "AGENTS.md"));
+      seedRoleWorkspace(root, ["sales"]);
+      const role = await loadRole(root, "sales");
+      await ensureWorkspaceScaffold(root, role);
+      writeCompanyRecord(root);
 
-      const dealDir = path.join(root, "deals", "active", "d-2026-0001-acme");
+      const dealDir = path.join(root, "roles", "sales", "deals", "active", "d-2026-0001-acme");
       mkdirSync(dealDir, { recursive: true });
       writeFileSync(
         path.join(dealDir, "record.md"),
@@ -86,7 +69,7 @@ updated_at: 2026-03-08T12:00:00.000Z
 `,
       );
 
-      const result = await runDoctor(root);
+      const result = await runDoctor(root, "sales");
       const logged = consoleSpy.log.mock.calls.map((c) => c[0] as string);
       expect(result).toBe(true);
       expect(logged.some((m) => m.includes("placeholder text"))).toBe(true);

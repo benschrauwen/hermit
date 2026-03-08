@@ -7,19 +7,34 @@ import process from "node:process";
 
 import { runDoctor } from "./doctor.js";
 import { runTranscriptIngest } from "./ingest.js";
-import { createSalesLeaderSession, resolveInitialChatPrompt, runChatLoop, runOneShotPrompt } from "./session.js";
+import { inferRootAndRoleFromCwd, loadRole, resolveRole } from "./roles.js";
+import { createRoleSession, resolveInitialChatPrompt, runChatLoop, runOneShotPrompt } from "./session.js";
 import { findEntityById } from "./workspace.js";
 
-function resolveRoot(): string {
-  return process.cwd();
+async function resolveRoleContext(explicitRoleId?: string): Promise<{ root: string; roleId: string }> {
+  const inferred = inferRootAndRoleFromCwd(process.cwd());
+  const root = inferred.root;
+  const roleId = explicitRoleId ?? inferred.roleId;
+
+  if (roleId) {
+    return { root, roleId };
+  }
+
+  const resolved = await resolveRole(root, undefined);
+  return { root, roleId: resolved.role.id };
 }
 
-async function resolvePromptContext(root: string, entityId: string | undefined): Promise<{ entityId?: string; entityPath?: string }> {
+async function resolvePromptContext(
+  root: string,
+  roleId: string,
+  entityId: string | undefined,
+): Promise<{ entityId?: string; entityPath?: string }> {
   if (!entityId) {
     return {};
   }
 
-  const entity = await findEntityById(root, entityId);
+  const role = await loadRole(root, roleId);
+  const entity = await findEntityById(root, role, entityId);
   if (!entity) {
     throw new Error(`Unknown entity ID: ${entityId}`);
   }
@@ -36,31 +51,37 @@ function collectImagePaths(values: string[] | undefined): string[] {
 
 const program = new Command();
 
-program.name("sales-agent").description("Local file-first sales leader agent").version("0.1.0");
+program.name("leadership-agent").description("Local file-first multi-role leadership agent").version("0.1.0");
 
 program
   .command("chat")
-  .description("Open an interactive sales leader chat session.")
+  .description("Open an interactive leadership chat session.")
+  .option("--role <id>", "Role ID to run, for example sales or engineering.")
   .option("--entity <id>", "Entity ID to anchor the session.")
   .option("--continue", "Continue the most recent persisted session for this workspace.")
   .option("--image <path>", "Attach image(s) to the initial prompt.", (value, previous: string[] = []) => [...previous, value], [])
   .option("--prompt <text>", "Optional initial prompt before the interactive loop starts.")
   .action(
     async (options: {
+      role?: string;
       entity?: string;
       continue?: boolean;
       image?: string[];
       prompt?: string;
     }) => {
-      const root = resolveRoot();
-      const promptContext = await resolvePromptContext(root, options.entity);
-      const { session, workspaceState } = await createSalesLeaderSession({
+      const { root, roleId } = await resolveRoleContext(options.role);
+      const role = await loadRole(root, roleId);
+      const promptContext = await resolvePromptContext(root, roleId, options.entity);
+      const { session, workspaceState } = await createRoleSession({
         root,
+        role,
         kind: "default",
         persist: true,
         continueRecent: Boolean(options.continue),
         promptContext: {
           workspaceRoot: root,
+          roleId,
+          roleRoot: path.relative(root, role.roleDir) || ".",
           ...promptContext,
         },
       });
@@ -83,7 +104,8 @@ program
 
 program
   .command("ask")
-  .description("Run a one-shot prompt in the normal sales leader session.")
+  .description("Run a one-shot prompt in the selected role session.")
+  .option("--role <id>", "Role ID to run, for example sales or engineering.")
   .option("--entity <id>", "Entity ID to anchor the prompt.")
   .option("--image <path>", "Attach image(s) to the prompt.", (value, previous: string[] = []) => [...previous, value], [])
   .argument("<prompt...>", "Prompt text to send to the agent.")
@@ -91,18 +113,23 @@ program
     async (
       promptParts: string[],
       options: {
+        role?: string;
         entity?: string;
         image?: string[];
       },
     ) => {
-      const root = resolveRoot();
-      const promptContext = await resolvePromptContext(root, options.entity);
-      const { session } = await createSalesLeaderSession({
+      const { root, roleId } = await resolveRoleContext(options.role);
+      const role = await loadRole(root, roleId);
+      const promptContext = await resolvePromptContext(root, roleId, options.entity);
+      const { session } = await createRoleSession({
         root,
+        role,
         kind: "default",
         persist: false,
         promptContext: {
           workspaceRoot: root,
+          roleId,
+          roleRoot: path.relative(root, role.roleDir) || ".",
           ...promptContext,
         },
       });
@@ -115,29 +142,34 @@ const ingestCommand = program.command("ingest").description("Ingest evidence int
 
 ingestCommand
   .command("transcript <file>")
-  .description("Store a call transcript and update the selected deal.")
-  .option("--deal <id>", "Deal ID to update.")
+  .description("Store a transcript and update the selected role entity.")
+  .option("--role <id>", "Role ID to run, for example sales.")
+  .option("--entity <id>", "Entity ID to update.")
   .option("--image <path>", "Attach image(s) to the transcript run.", (value, previous: string[] = []) => [...previous, value], [])
   .action(
     async (
       file: string,
       options: {
-        deal?: string;
+        role?: string;
+        entity?: string;
         image?: string[];
       },
     ) => {
+      const { root, roleId } = await resolveRoleContext(options.role);
       const ingestOptions: {
         root: string;
+        roleId: string;
         transcriptPath: string;
         imagePaths: string[];
-        dealId?: string;
+        entityId?: string;
       } = {
-        root: resolveRoot(),
+        root,
+        roleId,
         transcriptPath: path.resolve(file),
         imagePaths: collectImagePaths(options.image),
       };
-      if (options.deal !== undefined) {
-        ingestOptions.dealId = options.deal;
+      if (options.entity !== undefined) {
+        ingestOptions.entityId = options.entity;
       }
 
       await runTranscriptIngest(ingestOptions);
@@ -146,9 +178,11 @@ ingestCommand
 
 program
   .command("doctor")
-  .description("Validate workspace structure, prompt links, and canonical record basics.")
-  .action(async () => {
-    const healthy = await runDoctor(resolveRoot());
+  .description("Validate shared workspace structure plus the selected role contract.")
+  .option("--role <id>", "Role ID to validate.")
+  .action(async (options: { role?: string }) => {
+    const { root, roleId } = await resolveRoleContext(options.role);
+    const healthy = await runDoctor(root, roleId);
     process.exitCode = healthy ? 0 : 1;
   });
 

@@ -1,7 +1,13 @@
-export type SessionKind = "default" | "transcript-ingest";
+export type SessionKind = "default" | string;
+
+export type RoleFieldType = "string" | "string-array";
+export type RoleEntityIdStrategy = "prefixed-slug" | "year-sequence-slug";
+export type RolePromptScope = "shared" | "role";
 
 export interface PromptContext {
   workspaceRoot: string;
+  roleId?: string;
+  roleRoot?: string;
   entityId?: string;
   entityPath?: string;
   transcriptPath?: string;
@@ -15,6 +21,8 @@ export interface EntityRecord {
   type: string;
   name: string;
   path: string;
+  scope: "shared" | "role";
+  roleId?: string;
   status?: string;
   owner?: string;
 }
@@ -22,10 +30,9 @@ export interface EntityRecord {
 export interface CompanyBootstrapInput {
   companyName: string;
   companySummary: string;
-  salesTeamName: string;
-  salesMethodology: string;
-  idealCustomerProfile: string;
-  reviewCadence: string;
+  businessModel: string;
+  operatingCadence: string;
+  strategicPriorities: string;
   topCompetitors: string[];
 }
 
@@ -37,27 +44,84 @@ export interface PersonBootstrapInput {
   coachingFocus: string;
 }
 
-export interface ProductBootstrapInput {
-  name: string;
-  summary: string;
-  valueHypothesis: string;
-  competitors: string[];
+export interface RoleFieldDefinition {
+  key: string;
+  label: string;
+  type: RoleFieldType;
+  description: string;
+  required?: boolean;
+  defaultValue?: string | string[];
 }
 
-export interface DealBootstrapInput {
-  accountName: string;
-  opportunityName: string;
-  owner: string;
-  stage: string;
-  amount: string;
-  closeDate: string;
-  nextStep: string;
+export interface RoleTemplateFileDefinition {
+  path: string;
+  template: string;
+}
+
+export interface RolePromptDefinition {
+  id: string;
+  scope: RolePromptScope;
+  file: string;
+}
+
+export interface RoleEntityDefinition {
+  key: string;
+  label: string;
+  type: string;
+  createDirectory: string;
+  scanDirectories?: string[];
+  excludeDirectoryNames?: string[];
+  idStrategy: RoleEntityIdStrategy;
+  idPrefix?: string;
+  idSourceFields: string[];
+  nameTemplate: string;
+  statusField?: string;
+  ownerField?: string;
+  includeInInitialization?: boolean;
+  extraDirectories?: string[];
+  fields: RoleFieldDefinition[];
+  files: RoleTemplateFileDefinition[];
+}
+
+export interface TranscriptIngestCapability {
+  entityType: string;
+  promptFile: string;
+  evidenceDirectory: string;
+  unmatchedDirectory: string;
+  activityLogFile: string;
+}
+
+export interface RoleDefinition {
+  id: string;
+  name: string;
+  description: string;
+  roleDir: string;
+  root: string;
+  agentsFile: string;
+  manifestFile: string;
+  sharedPromptsDir: string;
+  rolePromptsDir: string;
+  templatesDir: string;
+  agentDir: string;
+  sessionsDir: string;
+  promptCatalog: Record<string, RolePromptDefinition>;
+  requiredPromptIds: string[];
+  promptBundles: Record<string, string[]>;
+  roleDirectories: string[];
+  agentFiles: string[];
+  entities: RoleEntityDefinition[];
+  transcriptIngest?: TranscriptIngestCapability;
+}
+
+export interface RoleResolution {
+  root: string;
+  role: RoleDefinition;
 }
 
 export interface WorkspaceInitializationState {
   initialized: boolean;
   hasCompanyRecord: boolean;
   peopleCount: number;
-  productCount: number;
-  dealCount: number;
+  roleEntityCount: number;
+  roleEntityCounts: Record<string, number>;
 }

@@ -3,11 +3,12 @@ import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
 import OpenAI from "openai";
 
 import { DEFAULT_WEB_SEARCH_MODEL } from "./constants.js";
-import { createCompanyRecords, createDealRecord, createPersonRecord, createProductRecord, scanEntities } from "./workspace.js";
+import { createCompanyRecords, createPersonRecord, createRoleEntityRecord, scanEntities } from "./workspace.js";
+import type { RoleDefinition, RoleEntityDefinition, RoleFieldDefinition } from "./types.js";
 
 const entityLookupParameters = Type.Object({
-  query: Type.String({ description: "ID, account name, person name, or product name to search for." }),
-  type: Type.Optional(Type.String({ description: "Optional type filter: person, product, or deal." })),
+  query: Type.String({ description: "ID or entity name to search for." }),
+  type: Type.Optional(Type.String({ description: "Optional type filter." })),
   limit: Type.Optional(Type.Number({ description: "Maximum number of matches to return." })),
 });
 
@@ -23,10 +24,9 @@ const computerUseParameters = Type.Object({
 const createCompanyRecordParameters = Type.Object({
   companyName: Type.String({ description: "Company name." }),
   companySummary: Type.String({ description: "Short company summary." }),
-  salesTeamName: Type.String({ description: "Name of the sales team or org." }),
-  salesMethodology: Type.String({ description: "Primary sales methodology." }),
-  idealCustomerProfile: Type.String({ description: "Ideal customer profile summary." }),
-  reviewCadence: Type.String({ description: "Forecast or review cadence." }),
+  businessModel: Type.String({ description: "How the company makes money or delivers value." }),
+  operatingCadence: Type.String({ description: "How the business reviews priorities and execution." }),
+  strategicPriorities: Type.String({ description: "Current strategic priorities." }),
   topCompetitors: Type.Optional(Type.Array(Type.String({ description: "Competitor name." }))),
 });
 
@@ -38,23 +38,6 @@ const createPersonRecordParameters = Type.Object({
   coachingFocus: Type.String({ description: "Current coaching focus." }),
 });
 
-const createProductRecordParameters = Type.Object({
-  name: Type.String({ description: "Product name." }),
-  summary: Type.String({ description: "Short product summary." }),
-  valueHypothesis: Type.String({ description: "Why customers buy this product." }),
-  competitors: Type.Optional(Type.Array(Type.String({ description: "Competitor name." }))),
-});
-
-const createDealRecordParameters = Type.Object({
-  accountName: Type.String({ description: "Account or customer name." }),
-  opportunityName: Type.String({ description: "Opportunity name." }),
-  owner: Type.String({ description: "Deal owner." }),
-  stage: Type.String({ description: "Current stage." }),
-  amount: Type.String({ description: "Expected amount." }),
-  closeDate: Type.String({ description: "Expected close date." }),
-  nextStep: Type.String({ description: "Next committed step." }),
-});
-
 function requireOpenAIApiKey(): string {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -64,19 +47,36 @@ function requireOpenAIApiKey(): string {
   return apiKey;
 }
 
-export function createEntityLookupTool(root: string): ToolDefinition<typeof entityLookupParameters> {
+function buildRoleFieldSchema(field: RoleFieldDefinition): TSchema {
+  if (field.type === "string-array") {
+    return (field.required ?? false)
+      ? Type.Array(Type.String({ description: field.description }))
+      : Type.Optional(Type.Array(Type.String({ description: field.description })));
+  }
+
+  return (field.required ?? false)
+    ? Type.String({ description: field.description })
+    : Type.Optional(Type.String({ description: field.description }));
+}
+
+function buildRoleEntityParameters(entity: RoleEntityDefinition): TSchema {
+  const properties = Object.fromEntries(entity.fields.map((field) => [field.key, buildRoleFieldSchema(field)]));
+  return Type.Object(properties);
+}
+
+export function createEntityLookupTool(root: string, role: RoleDefinition): ToolDefinition<typeof entityLookupParameters> {
   return {
     name: "entity_lookup",
     label: "Entity Lookup",
-    description: "Find people, products, and deals by ID or name from the workspace.",
-    promptSnippet: "Use entity_lookup to resolve people, product, and deal IDs before editing files.",
+    description: "Find shared people and role-specific entities by ID or name from the workspace.",
+    promptSnippet: "Use entity_lookup to resolve canonical IDs before editing files.",
     promptGuidelines: [
       "Use entity_lookup when an entity name or ID is ambiguous.",
       "Prefer canonical entity IDs and paths returned by entity_lookup when updating files.",
     ],
     parameters: entityLookupParameters,
     async execute(_toolCallId, params) {
-      const entities = await scanEntities(root);
+      const entities = await scanEntities(root, role);
       const normalizedQuery = params.query.toLowerCase();
       const matches = entities
         .filter((entity) => (params.type ? entity.type === params.type : true))
@@ -223,52 +223,22 @@ export function createPersonRecordTool(root: string): ToolDefinition<typeof crea
   };
 }
 
-export function createProductRecordTool(root: string): ToolDefinition<typeof createProductRecordParameters> {
+export function createRoleEntityRecordTool(root: string, role: RoleDefinition, entity: RoleEntityDefinition): ToolDefinition<TSchema> {
+  const parameters = buildRoleEntityParameters(entity);
   return {
-    name: "create_product_record",
-    label: "Create Product Record",
-    description: "Create a product record and starter sales assets using deterministic templates.",
-    promptSnippet: "Use create_product_record during onboarding when you have enough product context.",
+    name: `create_${entity.key}_record`,
+    label: `Create ${entity.label} Record`,
+    description: `Create a ${entity.label.toLowerCase()} record using the selected role's deterministic templates.`,
+    promptSnippet: `Use create_${entity.key}_record when you have enough information for a new ${entity.label.toLowerCase()}.`,
     promptGuidelines: [
-      "Use this tool instead of inventing product IDs by hand.",
-      "Capture known competitors explicitly and leave the rest as open questions.",
-    ],
-    parameters: createProductRecordParameters,
-    async execute(_toolCallId, params) {
-      const result = await createProductRecord(
-        root,
-        {
-          ...params,
-          competitors: params.competitors ?? [],
-        },
-        { sourceRefs: ["agent onboarding"] },
-      );
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-        details: result,
-      };
-    },
-  };
-}
-
-export function createDealRecordTool(root: string): ToolDefinition<typeof createDealRecordParameters> {
-  return {
-    name: "create_deal_record",
-    label: "Create Deal Record",
-    description: "Create a deal record, MEDDICC file, and activity log using deterministic templates.",
-    promptSnippet: "Use create_deal_record during onboarding when you have enough deal information.",
-    promptGuidelines: [
-      "Use this tool instead of inventing deal IDs by hand.",
+      "Use this tool instead of inventing IDs by hand.",
       "Leave missing facts explicit instead of pretending they are known.",
     ],
-    parameters: createDealRecordParameters,
+    parameters,
     async execute(_toolCallId, params) {
-      const result = await createDealRecord(root, params, { sourceRefs: ["agent onboarding"] });
+      const result = await createRoleEntityRecord(root, role, entity.key, params as Record<string, unknown>, {
+        sourceRefs: ["agent onboarding"],
+      });
       return {
         content: [
           {
@@ -282,17 +252,16 @@ export function createDealRecordTool(root: string): ToolDefinition<typeof create
   };
 }
 
-export function createCustomTools(root: string): Array<ToolDefinition<TSchema>> {
+export function createCustomTools(root: string, role: RoleDefinition): Array<ToolDefinition<TSchema>> {
   const tools: Array<ToolDefinition<TSchema>> = [
-    createEntityLookupTool(root) as unknown as ToolDefinition<TSchema>,
+    createEntityLookupTool(root, role) as unknown as ToolDefinition<TSchema>,
     createWebSearchTool() as unknown as ToolDefinition<TSchema>,
     createCompanyRecordTool(root) as unknown as ToolDefinition<TSchema>,
     createPersonRecordTool(root) as unknown as ToolDefinition<TSchema>,
-    createProductRecordTool(root) as unknown as ToolDefinition<TSchema>,
-    createDealRecordTool(root) as unknown as ToolDefinition<TSchema>,
+    ...role.entities.map((entity) => createRoleEntityRecordTool(root, role, entity) as unknown as ToolDefinition<TSchema>),
   ];
 
-  if (process.env.SALES_AGENT_ENABLE_COMPUTER_USE === "true") {
+  if (process.env.ROLE_AGENT_ENABLE_COMPUTER_USE === "true") {
     tools.push(createComputerUseBoundaryTool() as unknown as ToolDefinition<TSchema>);
   }
 

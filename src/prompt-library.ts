@@ -1,35 +1,36 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { REQUIRED_PROMPT_FILES } from "./constants.js";
+import type { RoleDefinition } from "./types.js";
 import type { PromptContext } from "./types.js";
-import { getWorkspacePaths } from "./workspace.js";
+import { getPromptDefinition, getPromptFilePath, getPromptLinkPath } from "./roles.js";
 
 export class PromptLibrary {
   private constructor(
-    private readonly root: string,
+    private readonly role: RoleDefinition,
     private readonly agentsContent: string,
     private readonly promptFiles: Map<string, string>,
   ) {}
 
-  static async load(root: string): Promise<PromptLibrary> {
-    const paths = getWorkspacePaths(root);
-    const agentsContent = await fs.readFile(paths.agentsFile, "utf8");
+  static async load(role: RoleDefinition): Promise<PromptLibrary> {
+    const agentsContent = await fs.readFile(role.agentsFile, "utf8");
     const promptFiles = new Map<string, string>();
 
     await Promise.all(
-      REQUIRED_PROMPT_FILES.map(async (fileName) => {
-        const content = await fs.readFile(path.join(paths.promptsDir, fileName), "utf8");
-        promptFiles.set(fileName, content);
+      role.requiredPromptIds.map(async (promptId) => {
+        const content = await fs.readFile(getPromptFilePath(role, promptId), "utf8");
+        promptFiles.set(promptId, content);
       }),
     );
 
-    return new PromptLibrary(root, agentsContent, promptFiles);
+    return new PromptLibrary(role, agentsContent, promptFiles);
   }
 
   getMissingAgentLinks(): string[] {
     const linkedFiles = new Set(this.extractLinkedPromptFiles());
-    return REQUIRED_PROMPT_FILES.filter((fileName) => !linkedFiles.has(`prompts/${fileName}`));
+    return this.role.requiredPromptIds
+      .filter((promptId) => !linkedFiles.has(getPromptLinkPath(this.role, promptId)))
+      .map((promptId) => getPromptLinkPath(this.role, promptId));
   }
 
   renderBundle(fileNames: readonly string[], context: PromptContext): string {
@@ -42,12 +43,12 @@ export class PromptLibrary {
     return this.renderTemplate(this.requirePromptFile(fileName), context);
   }
 
-  listPromptFiles(): string[] {
+  listPromptIds(): string[] {
     return [...this.promptFiles.keys()].sort();
   }
 
   private extractLinkedPromptFiles(): string[] {
-    const matches = this.agentsContent.matchAll(/\((prompts\/[^)]+\.md)\)/g);
+    const matches = this.agentsContent.matchAll(/\(([^)]+\.md)\)/g);
     return [...matches]
       .map((match) => match[1])
       .filter((value): value is string => value !== undefined);
@@ -56,7 +57,8 @@ export class PromptLibrary {
   private requirePromptFile(fileName: string): string {
     const content = this.promptFiles.get(fileName);
     if (!content) {
-      throw new Error(`Missing prompt file: ${fileName}`);
+      const prompt = getPromptDefinition(this.role, fileName);
+      throw new Error(`Missing prompt file: ${path.relative(this.role.root, getPromptFilePath(this.role, prompt.id))}`);
     }
 
     return content;
@@ -65,6 +67,8 @@ export class PromptLibrary {
   private renderTemplate(template: string, context: PromptContext): string {
     const values: Record<string, string> = {
       workspaceRoot: context.workspaceRoot,
+      roleId: context.roleId ?? this.role.id,
+      roleRoot: context.roleRoot ?? (path.relative(context.workspaceRoot, this.role.roleDir) || "."),
       entityId: context.entityId ?? "not-selected",
       entityPath: context.entityPath ?? "not-selected",
       transcriptPath: context.transcriptPath ?? "not-selected",

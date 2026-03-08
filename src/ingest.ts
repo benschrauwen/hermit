@@ -4,15 +4,16 @@ import readline from "node:readline/promises";
 import process from "node:process";
 
 import { PromptLibrary } from "./prompt-library.js";
-import { createSalesLeaderSession, runOneShotPrompt } from "./session.js";
+import { loadRole } from "./roles.js";
+import { createRoleSession, runOneShotPrompt } from "./session.js";
 import type { EntityRecord } from "./types.js";
 import {
   appendLine,
-  copyTranscriptIntoDeal,
-  copyTranscriptToInbox,
-  findActiveDeals,
-  findTranscriptDealCandidates,
-  resolveTranscriptDeal,
+  copyTranscriptIntoRoleEntity,
+  copyTranscriptToRoleInbox,
+  findCreatableRoleEntities,
+  findTranscriptEntityCandidates,
+  resolveTranscriptEntity,
 } from "./workspace.js";
 
 async function chooseDeal(deals: EntityRecord[]): Promise<EntityRecord | undefined> {
@@ -46,46 +47,71 @@ async function chooseDeal(deals: EntityRecord[]): Promise<EntityRecord | undefin
 
 export async function runTranscriptIngest(options: {
   root: string;
+  roleId: string;
   transcriptPath: string;
-  dealId?: string;
+  entityId?: string;
   imagePaths: string[];
 }): Promise<void> {
   await fs.access(options.transcriptPath);
-
-  let deal = await resolveTranscriptDeal(options.root, options.dealId, options.transcriptPath);
-  if (!deal && !options.dealId) {
-    const candidateDeals = await findTranscriptDealCandidates(options.root, options.transcriptPath);
-    deal = await chooseDeal(candidateDeals.length > 0 ? candidateDeals : await findActiveDeals(options.root));
+  const role = await loadRole(options.root, options.roleId);
+  if (!role.transcriptIngest) {
+    throw new Error(`Role ${role.id} does not support transcript ingest.`);
   }
 
-  if (!deal) {
-    const inboxPath = await copyTranscriptToInbox(options.root, options.transcriptPath);
-    console.log(`No deal selected. Transcript stored at ${inboxPath}`);
+  let entity = await resolveTranscriptEntity(
+    options.root,
+    role,
+    role.transcriptIngest,
+    options.entityId,
+    options.transcriptPath,
+  );
+  if (!entity && !options.entityId) {
+    const candidateEntities = await findTranscriptEntityCandidates(
+      options.root,
+      role,
+      role.transcriptIngest,
+      options.transcriptPath,
+    );
+    entity = await chooseDeal(
+      candidateEntities.length > 0
+        ? candidateEntities
+        : await findCreatableRoleEntities(options.root, role, role.transcriptIngest.entityType),
+    );
+  }
+
+  if (!entity) {
+    const inboxPath = await copyTranscriptToRoleInbox(role, role.transcriptIngest, options.transcriptPath);
+    console.log(`No ${role.transcriptIngest.entityType} selected. Transcript stored at ${inboxPath}`);
     return;
   }
 
-  const transcriptCopyPath = await copyTranscriptIntoDeal(options.root, deal, options.transcriptPath);
+  const transcriptCopyPath = await copyTranscriptIntoRoleEntity(role.transcriptIngest, entity, options.transcriptPath);
   await appendLine(
-    path.join(deal.path, "activity-log.md"),
+    path.join(entity.path, role.transcriptIngest.activityLogFile),
     `- ${new Date().toISOString()}: Transcript ingested from ${transcriptCopyPath}.`,
   );
 
-  const promptLibrary = await PromptLibrary.load(options.root);
-  const commandPrompt = promptLibrary.renderNamedPrompt("40-command-transcript-run.md", {
+  const promptLibrary = await PromptLibrary.load(role);
+  const commandPrompt = promptLibrary.renderNamedPrompt(role.transcriptIngest.promptFile, {
     workspaceRoot: options.root,
-    entityId: deal.id,
-    entityPath: deal.path,
+    roleId: role.id,
+    roleRoot: path.relative(options.root, role.roleDir) || ".",
+    entityId: entity.id,
+    entityPath: entity.path,
     transcriptPath: transcriptCopyPath,
   });
 
-  const { session } = await createSalesLeaderSession({
+  const { session } = await createRoleSession({
     root: options.root,
+    role,
     kind: "transcript-ingest",
     persist: true,
     promptContext: {
       workspaceRoot: options.root,
-      entityId: deal.id,
-      entityPath: deal.path,
+      roleId: role.id,
+      roleRoot: path.relative(options.root, role.roleDir) || ".",
+      entityId: entity.id,
+      entityPath: entity.path,
       transcriptPath: transcriptCopyPath,
     },
   });

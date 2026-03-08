@@ -36,3 +36,11 @@ coverage/
 
 # Cursor / plan artifacts (optional; remove if you want to track plans)
 .cursor/plans/
+
+.sales-agent/
+agent/
+company/
+people/
+product/
+deals/
+supporting-files/

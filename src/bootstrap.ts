@@ -1,7 +1,6 @@
 export {
   createCompanyRecords,
-  createDealRecord,
   createPersonRecord,
-  createProductRecord,
+  createRoleEntityRecord,
   getWorkspaceInitializationState,
 } from "./workspace.js";

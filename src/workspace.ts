@@ -3,32 +3,16 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import slugifyImport from "slugify";
 
-import {
-  DEAL_SEQUENCE_WIDTH,
-  REQUIRED_ROOT_DIRECTORIES,
-  REQUIRED_SUPPORTING_DIRECTORIES,
-} from "./constants.js";
-import {
-  agentInboxTemplate,
-  agentRecordTemplate,
-  activityLogTemplate,
-  companyGtmTemplate,
-  companyRecordTemplate,
-  companyStrategyTemplate,
-  competitiveAnalysisTemplate,
-  dealRecordTemplate,
-  developmentPlanTemplate,
-  meddiccTemplate,
-  personRecordTemplate,
-  playbookTemplate,
-  productRecordTemplate,
-} from "./templates.js";
+import { DEAL_SEQUENCE_WIDTH, SHARED_ROOT_DIRECTORIES } from "./constants.js";
+import { getRootPaths, getRolePaths } from "./roles.js";
+import { renderBulletList, renderYamlList, TemplateLibrary } from "./template-library.js";
 import type {
   CompanyBootstrapInput,
-  DealBootstrapInput,
   EntityRecord,
   PersonBootstrapInput,
-  ProductBootstrapInput,
+  RoleDefinition,
+  RoleEntityDefinition,
+  TranscriptIngestCapability,
   WorkspaceInitializationState,
 } from "./types.js";
 
@@ -37,64 +21,46 @@ const slugify = slugifyImport as unknown as (
   options?: { lower?: boolean; strict?: boolean; trim?: boolean },
 ) => string;
 
-const DEAL_BUCKET_DIRECTORY_NAMES = ["active", "closed-won", "closed-lost"] as const;
+const templateLibrary = new TemplateLibrary();
 
 export interface WorkspacePaths {
   root: string;
-  agentsFile: string;
-  agentDir: string;
-  promptsDir: string;
   companyDir: string;
   peopleDir: string;
-  productDir: string;
-  dealsDir: string;
-  activeDealsDir: string;
-  closedWonDealsDir: string;
-  closedLostDealsDir: string;
-  supportingFilesDir: string;
-  sessionsDir: string;
+  rolesDir: string;
+  roleDir?: string;
+  agentsFile?: string;
+  manifestFile?: string;
+  sharedPromptsDir?: string;
+  rolePromptsDir?: string;
+  templatesDir?: string;
+  agentDir?: string;
+  sessionsDir?: string;
 }
 
-export function getWorkspacePaths(root: string): WorkspacePaths {
-  const dealsDir = path.join(root, "deals");
+interface CreateEntityOptions {
+  force?: boolean;
+  sourceRefs?: string[];
+}
 
+export function getWorkspacePaths(root: string, role?: RoleDefinition): WorkspacePaths {
+  const shared = getRootPaths(root);
+  if (!role) {
+    return shared;
+  }
+
+  const rolePaths = getRolePaths(root, role.id);
   return {
-    root,
-    agentsFile: path.join(root, "AGENTS.md"),
-    agentDir: path.join(root, "agent"),
-    promptsDir: path.join(root, "prompts"),
-    companyDir: path.join(root, "company"),
-    peopleDir: path.join(root, "people"),
-    productDir: path.join(root, "product"),
-    dealsDir,
-    activeDealsDir: path.join(dealsDir, "active"),
-    closedWonDealsDir: path.join(dealsDir, "closed-won"),
-    closedLostDealsDir: path.join(dealsDir, "closed-lost"),
-    supportingFilesDir: path.join(root, "supporting-files"),
-    sessionsDir: path.join(root, ".sales-agent", "sessions"),
+    ...shared,
+    roleDir: rolePaths.roleDir,
+    agentsFile: rolePaths.agentsFile,
+    manifestFile: rolePaths.manifestFile,
+      sharedPromptsDir: rolePaths.sharedPromptsDir,
+      rolePromptsDir: rolePaths.rolePromptsDir,
+    templatesDir: rolePaths.templatesDir,
+    agentDir: rolePaths.agentDir,
+    sessionsDir: rolePaths.sessionsDir,
   };
-}
-
-export async function ensureWorkspaceScaffold(root: string): Promise<void> {
-  await Promise.all(
-    [...REQUIRED_ROOT_DIRECTORIES, ...REQUIRED_SUPPORTING_DIRECTORIES].map((relativePath) =>
-      fs.mkdir(path.join(root, relativePath), { recursive: true }),
-    ),
-  );
-
-  const paths = getWorkspacePaths(root);
-  const requiredAgentFiles = [
-    { path: path.join(paths.agentDir, "record.md"), content: agentRecordTemplate() },
-    { path: path.join(paths.agentDir, "inbox.md"), content: agentInboxTemplate() },
-  ] as const satisfies ReadonlyArray<{ path: string; content: string }>;
-
-  await Promise.all(
-    requiredAgentFiles.map(async (file) => {
-      if (!(await fileExists(file.path))) {
-        await fs.writeFile(file.path, file.content, "utf8");
-      }
-    }),
-  );
 }
 
 async function fileExists(filePath: string): Promise<boolean> {
@@ -118,24 +84,55 @@ export function makePersonId(name: string): string {
   return `p-${makeSlug(name)}`;
 }
 
-export function makeProductId(name: string): string {
-  return `prd-${makeSlug(name)}`;
+function applyTemplateValues(template: string, values: Record<string, string>): string {
+  return template.replaceAll(/\{\{(\w+)\}\}/g, (_match, key: string) => values[key] ?? "");
 }
 
-export async function makeDealId(root: string, accountName: string, opportunityName: string): Promise<string> {
-  const year = new Date().getFullYear();
-  const sequence = await getNextDealSequence(root, year);
-  const slug = makeSlug(`${accountName} ${opportunityName}`);
-
-  return `d-${year}-${String(sequence).padStart(DEAL_SEQUENCE_WIDTH, "0")}-${slug}`;
+function getSharedTemplatePath(root: string, relativePath: string): string {
+  return path.join(root, "templates", "shared", relativePath);
 }
 
-function isDealBucketDirectoryName(value: string): boolean {
-  return DEAL_BUCKET_DIRECTORY_NAMES.includes(value as (typeof DEAL_BUCKET_DIRECTORY_NAMES)[number]);
+function joinFieldValues(input: Record<string, unknown>, fieldNames: string[]): string {
+  return fieldNames
+    .map((fieldName) => String(input[fieldName] ?? ""))
+    .join(" ")
+    .trim();
 }
 
-function getDealBucketDirectories(paths: WorkspacePaths): string[] {
-  return [paths.activeDealsDir, paths.closedWonDealsDir, paths.closedLostDealsDir];
+async function renderSharedTemplate(
+  root: string,
+  relativeTemplatePath: string,
+  values: Record<string, string>,
+): Promise<string> {
+  return templateLibrary.render(getSharedTemplatePath(root, relativeTemplatePath), values);
+}
+
+function buildFieldContext(input: Record<string, unknown>): Record<string, string> {
+  const context: Record<string, string> = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (typeof value === "string") {
+      context[key] = value;
+      continue;
+    }
+    if (Array.isArray(value)) {
+      const stringValues = value.map((entry) => String(entry));
+      context[key] = stringValues.join(", ");
+      context[`${key}BulletList`] = renderBulletList(stringValues, "- None.");
+    }
+  }
+
+  return context;
+}
+
+async function ensureDirectory(relativeTo: string, relativePaths: string[]): Promise<void> {
+  await Promise.all(relativePaths.map((relativePath) => fs.mkdir(path.join(relativeTo, relativePath), { recursive: true })));
+}
+
+function renderNameTemplate(entity: RoleEntityDefinition, input: Record<string, unknown>): string {
+  return applyTemplateValues(
+    entity.nameTemplate,
+    Object.fromEntries(Object.entries(input).map(([key, value]) => [key, String(value ?? "")])),
+  );
 }
 
 async function listDirectoryNames(directory: string): Promise<string[]> {
@@ -147,27 +144,44 @@ async function listDirectoryNames(directory: string): Promise<string[]> {
   }
 }
 
-async function listDealDirectoryNames(paths: WorkspacePaths): Promise<string[]> {
-  const legacyDealNames = (await listDirectoryNames(paths.dealsDir)).filter((name) => !isDealBucketDirectoryName(name));
-  const bucketDealNames = await Promise.all(getDealBucketDirectories(paths).map((directory) => listDirectoryNames(directory)));
-
-  return [...legacyDealNames, ...bucketDealNames.flat()];
-}
-
-async function getNextDealSequence(root: string, year: number): Promise<number> {
-  const dealDirectoryNames = await listDealDirectoryNames(getWorkspacePaths(root));
-  const values = dealDirectoryNames
+async function getNextSequencedEntityNumber(root: string, role: RoleDefinition, entity: RoleEntityDefinition): Promise<number> {
+  const year = new Date().getFullYear();
+  const scanDirectories = entity.scanDirectories ?? [entity.createDirectory];
+  const names = (await Promise.all(scanDirectories.map((directory) => listDirectoryNames(path.join(role.roleDir, directory))))).flat();
+  const values = names
     .map((name) => {
-      const match = name.match(/^d-(\d{4})-(\d{4})-/);
+      const match = name.match(/^([a-z]+)-(\d{4})-(\d{4})-/);
       if (!match) {
         return undefined;
       }
 
-      return Number(match[1]) === year ? Number(match[2]) : undefined;
+      return Number(match[2]) === year ? Number(match[3]) : undefined;
     })
     .filter((value): value is number => value !== undefined);
 
   return (values.length > 0 ? Math.max(...values) : 0) + 1;
+}
+
+async function makeRoleEntityId(root: string, role: RoleDefinition, entity: RoleEntityDefinition, input: Record<string, unknown>): Promise<string> {
+  const sourceValue = joinFieldValues(input, entity.idSourceFields);
+  const slug = makeSlug(sourceValue);
+  const prefix = entity.idPrefix ?? entity.key;
+
+  if (entity.idStrategy === "prefixed-slug") {
+    return `${prefix}-${slug}`;
+  }
+
+  const year = new Date().getFullYear();
+  const sequence = await getNextSequencedEntityNumber(root, role, entity);
+  return `${prefix}-${year}-${String(sequence).padStart(DEAL_SEQUENCE_WIDTH, "0")}-${slug}`;
+}
+
+async function renderRoleTemplate(
+  role: RoleDefinition,
+  relativeTemplatePath: string,
+  values: Record<string, string>,
+): Promise<string> {
+  return templateLibrary.render(path.join(role.templatesDir, relativeTemplatePath), values);
 }
 
 export async function writeFileSafely(filePath: string, content: string, force = false): Promise<void> {
@@ -192,52 +206,86 @@ export async function appendLine(filePath: string, line: string): Promise<void> 
   await fs.appendFile(filePath, `${line}\n`, "utf8");
 }
 
-export async function getWorkspaceInitializationState(root: string): Promise<WorkspaceInitializationState> {
-  const paths = getWorkspacePaths(root);
-  const [people, products, deals, hasCompanyRecord] = await Promise.all([
-    scanEntityDirectory(paths.peopleDir),
-    scanEntityDirectory(paths.productDir),
-    scanDealDirectories(paths),
-    fileExists(path.join(paths.companyDir, "record.md")),
+export async function ensureWorkspaceScaffold(root: string, role?: RoleDefinition): Promise<void> {
+  await ensureDirectory(root, [...SHARED_ROOT_DIRECTORIES]);
+
+  if (!role) {
+    return;
+  }
+
+  await ensureDirectory(role.roleDir, [
+    "agent",
+    "prompts",
+    "templates",
+    ".role-agent/sessions",
+    ...role.roleDirectories,
   ]);
 
-  const peopleCount = people.length;
-  const productCount = products.length;
-  const dealCount = deals.length;
+  const roleRootRelative = path.relative(root, role.roleDir) || ".";
+  const agentFiles = [
+    {
+      relativePath: "agent/record.md",
+      template: "agent/record.md",
+      values: {
+        roleId: role.id,
+        roleName: role.name,
+        roleDescription: role.description,
+        updatedAt: new Date().toISOString(),
+        sourceRefsYaml: renderYamlList(["workspace default scaffold"]),
+        roleRoot: roleRootRelative,
+      },
+    },
+    {
+      relativePath: "agent/inbox.md",
+      template: "agent/inbox.md",
+      values: {
+        roleId: role.id,
+        roleName: role.name,
+        roleDescription: role.description,
+        updatedAt: new Date().toISOString(),
+        sourceRefsYaml: renderYamlList(["workspace default scaffold"]),
+        roleRoot: roleRootRelative,
+      },
+    },
+  ] as const;
+
+  await Promise.all(
+    agentFiles.map(async (file) => {
+      const filePath = path.join(role.roleDir, file.relativePath);
+      if (!(await fileExists(filePath))) {
+        await fs.writeFile(filePath, await renderRoleTemplate(role, file.template, file.values), "utf8");
+      }
+    }),
+  );
+}
+
+export async function getWorkspaceInitializationState(root: string, role: RoleDefinition): Promise<WorkspaceInitializationState> {
+  const paths = getWorkspacePaths(root, role);
+  const [people, roleEntities, hasCompanyRecord] = await Promise.all([
+    scanSharedEntityDirectory(paths.peopleDir),
+    scanRoleEntities(root, role),
+    fileExists(path.join(paths.companyDir, "record.md")),
+  ]);
+  const roleEntityCounts = Object.fromEntries(
+    role.entities.map((entity) => [entity.key, roleEntities.filter((record) => record.type === entity.type).length]),
+  );
+  const roleEntityCount = role.entities
+    .filter((entity) => entity.includeInInitialization !== false)
+    .reduce((count, entity) => count + (roleEntityCounts[entity.key] ?? 0), 0);
 
   return {
-    initialized: hasCompanyRecord && (peopleCount > 0 || productCount > 0 || dealCount > 0),
+    initialized: hasCompanyRecord && (people.length > 0 || roleEntityCount > 0),
     hasCompanyRecord,
-    peopleCount,
-    productCount,
-    dealCount,
+    peopleCount: people.length,
+    roleEntityCount,
+    roleEntityCounts,
   };
 }
 
-export async function scanEntities(root: string): Promise<EntityRecord[]> {
-  const paths = getWorkspacePaths(root);
-  const entities: EntityRecord[] = [];
-
-  entities.push(...(await scanEntityDirectory(paths.peopleDir)));
-  entities.push(...(await scanEntityDirectory(paths.productDir)));
-  entities.push(...(await scanDealDirectories(paths)));
-
-  return entities.sort((left, right) => left.name.localeCompare(right.name));
-}
-
-async function scanDealDirectories(paths: WorkspacePaths): Promise<EntityRecord[]> {
-  const [legacyDeals, activeDeals, closedWonDeals, closedLostDeals] = await Promise.all([
-    scanEntityDirectory(paths.dealsDir, { excludeDirectoryNames: DEAL_BUCKET_DIRECTORY_NAMES }),
-    scanEntityDirectory(paths.activeDealsDir),
-    scanEntityDirectory(paths.closedWonDealsDir),
-    scanEntityDirectory(paths.closedLostDealsDir),
-  ]);
-
-  return [...legacyDeals, ...activeDeals, ...closedWonDeals, ...closedLostDeals];
-}
-
-async function scanEntityDirectory(
+async function scanDirectoryForEntities(
   directory: string,
+  scope: "shared" | "role",
+  roleId?: string,
   options: { excludeDirectoryNames?: readonly string[] } = {},
 ): Promise<EntityRecord[]> {
   try {
@@ -257,27 +305,24 @@ async function scanEntityDirectory(
             const parsed = matter(content);
             const data = parsed.data as Record<string, unknown>;
 
-            const entity: EntityRecord = {
+            return {
               id: String(data.id ?? entry.name),
               type: String(data.type ?? "unknown"),
               name: String(data.name ?? entry.name),
               path: path.join(directory, entry.name),
-            };
-
-            if (data.status) {
-              entity.status = String(data.status);
-            }
-            if (data.owner) {
-              entity.owner = String(data.owner);
-            }
-
-            return entity;
+              scope,
+              ...(roleId ? { roleId } : {}),
+              ...(data.status ? { status: String(data.status) } : {}),
+              ...(data.owner ? { owner: String(data.owner) } : {}),
+            } satisfies EntityRecord;
           } catch {
             return {
               id: entry.name,
               type: "unknown",
               name: entry.name,
               path: path.join(directory, entry.name),
+              scope,
+              ...(roleId ? { roleId } : {}),
             } satisfies EntityRecord;
           }
         }),
@@ -289,111 +334,68 @@ async function scanEntityDirectory(
   }
 }
 
-export async function findEntityById(root: string, entityId: string): Promise<EntityRecord | undefined> {
-  const entities = await scanEntities(root);
+async function scanSharedEntityDirectory(directory: string): Promise<EntityRecord[]> {
+  return scanDirectoryForEntities(directory, "shared");
+}
+
+async function scanRoleEntities(root: string, role: RoleDefinition): Promise<EntityRecord[]> {
+  const entities = await Promise.all(
+    role.entities.flatMap((entity) =>
+      (entity.scanDirectories ?? [entity.createDirectory]).map((directory) =>
+        scanDirectoryForEntities(
+          path.join(role.roleDir, directory),
+          "role",
+          role.id,
+          entity.excludeDirectoryNames ? { excludeDirectoryNames: entity.excludeDirectoryNames } : {},
+        ),
+      ),
+    ),
+  );
+
+  return [...new Map(entities.flat().map((entity) => [entity.path, entity])).values()];
+}
+
+export async function scanEntities(root: string, role: RoleDefinition): Promise<EntityRecord[]> {
+  const entities = [...(await scanSharedEntityDirectory(getWorkspacePaths(root).peopleDir)), ...(await scanRoleEntities(root, role))];
+  return entities.sort((left, right) => left.name.localeCompare(right.name));
+}
+
+export async function findEntityById(root: string, role: RoleDefinition, entityId: string): Promise<EntityRecord | undefined> {
+  const entities = await scanEntities(root, role);
   return entities.find((entity) => entity.id === entityId);
 }
 
-export async function findDeals(root: string): Promise<EntityRecord[]> {
-  const entities = await scanEntities(root);
-  return entities.filter((entity) => entity.type === "deal");
+export async function findEntitiesByType(root: string, role: RoleDefinition, entityType: string): Promise<EntityRecord[]> {
+  const entities = await scanEntities(root, role);
+  return entities.filter((entity) => entity.type === entityType);
 }
 
-export async function findActiveDeals(root: string): Promise<EntityRecord[]> {
-  const paths = getWorkspacePaths(root);
-  const deals = await findDeals(root);
+export async function findCreatableRoleEntities(root: string, role: RoleDefinition, entityType: string): Promise<EntityRecord[]> {
+  const definition = role.entities.find((entity) => entity.type === entityType);
+  if (!definition) {
+    return [];
+  }
 
-  return deals.filter((deal) => {
-    const parentDirectory = path.dirname(deal.path);
-    return parentDirectory === paths.activeDealsDir || parentDirectory === paths.dealsDir;
+  const all = await findEntitiesByType(root, role, entityType);
+  const createDirectoryPath = path.join(role.roleDir, definition.createDirectory);
+  const createDirectoryParent = path.dirname(createDirectoryPath);
+  return all.filter((entity) => {
+    const parentDirectory = path.dirname(entity.path);
+    return parentDirectory === createDirectoryPath || parentDirectory === createDirectoryParent;
   });
 }
 
-function scoreTranscriptDealMatch(deal: EntityRecord, transcriptSlug: string): number {
-  const dealIdSlug = makeSlug(deal.id);
-  const dealNameSlug = makeSlug(deal.name);
-
-  if (transcriptSlug.includes(dealIdSlug)) {
-    return 100;
-  }
-
-  if (transcriptSlug === dealNameSlug) {
-    return 95;
-  }
-
-  if (transcriptSlug.includes(dealNameSlug)) {
-    return 90;
-  }
-
-  const overlapTokens = [...new Set([...dealNameSlug.split("-"), ...dealIdSlug.split("-")])].filter(
-    (token) => token.length >= 4 && !/^\d+$/.test(token) && transcriptSlug.includes(token),
-  ).length;
-
-  if (overlapTokens >= 2) {
-    return 70 + Math.min(overlapTokens, 10);
-  }
-
-  if (overlapTokens === 1) {
-    return 60;
-  }
-
-  return 0;
-}
-
-function rankTranscriptDealMatches(
-  deals: EntityRecord[],
-  transcriptSlug: string,
-): Array<{ deal: EntityRecord; score: number }> {
-  return deals
-    .map((deal) => ({
-      deal,
-      score: scoreTranscriptDealMatch(deal, transcriptSlug),
-    }))
-    .filter((candidate) => candidate.score > 0)
-    .sort((left, right) => right.score - left.score || left.deal.name.localeCompare(right.deal.name));
-}
-
-async function getTranscriptDealMatches(
-  root: string,
-  transcriptPath: string,
-): Promise<Array<{ deal: EntityRecord; score: number }>> {
-  const transcriptSlug = makeSlug(path.basename(transcriptPath, path.extname(transcriptPath)));
-  const activeMatches = rankTranscriptDealMatches(await findActiveDeals(root), transcriptSlug);
-
-  if (activeMatches.length > 0) {
-    return activeMatches;
-  }
-
-  return rankTranscriptDealMatches(await findDeals(root), transcriptSlug);
-}
-
-export async function findTranscriptDealCandidates(root: string, transcriptPath: string): Promise<EntityRecord[]> {
-  const matches = await getTranscriptDealMatches(root, transcriptPath);
-  return matches.map((candidate) => candidate.deal);
-}
-
-export async function resolveTranscriptDeal(
-  root: string,
-  explicitDealId: string | undefined,
-  transcriptPath: string,
-): Promise<EntityRecord | undefined> {
-  if (explicitDealId) {
-    return findEntityById(root, explicitDealId);
-  }
-
-  const matches = await getTranscriptDealMatches(root, transcriptPath);
-  const [bestMatch, secondMatch] = matches;
-
-  if (bestMatch && bestMatch.score >= 90 && (!secondMatch || bestMatch.score > secondMatch.score)) {
-    return bestMatch.deal;
-  }
-
-  return undefined;
-}
-
-export async function copyTranscriptIntoDeal(root: string, deal: EntityRecord, sourcePath: string): Promise<string> {
+export async function copyTranscriptIntoRoleEntity(
+  capability: TranscriptIngestCapability,
+  entity: EntityRecord,
+  sourcePath: string,
+): Promise<string> {
   const transcriptSlug = makeSlug(path.basename(sourcePath, path.extname(sourcePath)));
-  const destination = path.join(deal.path, "transcripts", `${new Date().toISOString().slice(0, 10)}--${transcriptSlug}.md`);
+  const destination = path.join(
+    entity.path,
+    capability.evidenceDirectory,
+    `${new Date().toISOString().slice(0, 10)}--${transcriptSlug}.md`,
+  );
   const content = await fs.readFile(sourcePath, "utf8");
 
   await fs.mkdir(path.dirname(destination), { recursive: true });
@@ -402,10 +404,14 @@ export async function copyTranscriptIntoDeal(root: string, deal: EntityRecord, s
   return destination;
 }
 
-export async function copyTranscriptToInbox(root: string, sourcePath: string): Promise<string> {
+export async function copyTranscriptToRoleInbox(
+  role: RoleDefinition,
+  capability: TranscriptIngestCapability,
+  sourcePath: string,
+): Promise<string> {
   const destination = path.join(
-    getWorkspacePaths(root).supportingFilesDir,
-    "unmatched-transcripts",
+    role.roleDir,
+    capability.unmatchedDirectory,
     `${new Date().toISOString().slice(0, 10)}--${path.basename(sourcePath)}`,
   );
   const content = await fs.readFile(sourcePath, "utf8");
@@ -416,19 +422,87 @@ export async function copyTranscriptToInbox(root: string, sourcePath: string): P
   return destination;
 }
 
-export function buildEntityPath(root: string, entityType: "person" | "product" | "deal", entityId: string): string {
-  const paths = getWorkspacePaths(root);
-  const baseDir = entityType === "person"
-    ? paths.peopleDir
-    : entityType === "product"
-      ? paths.productDir
-      : paths.activeDealsDir;
-  return path.join(baseDir, entityId);
+function scoreTranscriptEntityMatch(entity: EntityRecord, transcriptSlug: string): number {
+  const entityIdSlug = makeSlug(entity.id);
+  const entityNameSlug = makeSlug(entity.name);
+
+  if (transcriptSlug.includes(entityIdSlug)) {
+    return 100;
+  }
+  if (transcriptSlug === entityNameSlug) {
+    return 95;
+  }
+  if (transcriptSlug.includes(entityNameSlug)) {
+    return 90;
+  }
+
+  const overlapTokens = [...new Set([...entityNameSlug.split("-"), ...entityIdSlug.split("-")])].filter(
+    (token) => token.length >= 4 && !/^\d+$/.test(token) && transcriptSlug.includes(token),
+  ).length;
+
+  if (overlapTokens >= 2) {
+    return 70 + Math.min(overlapTokens, 10);
+  }
+  if (overlapTokens === 1) {
+    return 60;
+  }
+  return 0;
 }
 
-interface CreateEntityOptions {
-  force?: boolean;
-  sourceRefs?: string[];
+async function getTranscriptEntityMatches(
+  root: string,
+  role: RoleDefinition,
+  capability: TranscriptIngestCapability,
+  transcriptPath: string,
+): Promise<Array<{ entity: EntityRecord; score: number }>> {
+  const transcriptSlug = makeSlug(path.basename(transcriptPath, path.extname(transcriptPath)));
+  const activeMatches = (await findCreatableRoleEntities(root, role, capability.entityType))
+    .map((entity) => ({ entity, score: scoreTranscriptEntityMatch(entity, transcriptSlug) }))
+    .filter((candidate) => candidate.score > 0)
+    .sort((left, right) => right.score - left.score || left.entity.name.localeCompare(right.entity.name));
+
+  if (activeMatches.length > 0) {
+    return activeMatches;
+  }
+
+  return (await findEntitiesByType(root, role, capability.entityType))
+    .map((entity) => ({ entity, score: scoreTranscriptEntityMatch(entity, transcriptSlug) }))
+    .filter((candidate) => candidate.score > 0)
+    .sort((left, right) => right.score - left.score || left.entity.name.localeCompare(right.entity.name));
+}
+
+export async function findTranscriptEntityCandidates(
+  root: string,
+  role: RoleDefinition,
+  capability: TranscriptIngestCapability,
+  transcriptPath: string,
+): Promise<EntityRecord[]> {
+  const matches = await getTranscriptEntityMatches(root, role, capability, transcriptPath);
+  return matches.map((candidate) => candidate.entity);
+}
+
+export async function resolveTranscriptEntity(
+  root: string,
+  role: RoleDefinition,
+  capability: TranscriptIngestCapability,
+  explicitEntityId: string | undefined,
+  transcriptPath: string,
+): Promise<EntityRecord | undefined> {
+  if (explicitEntityId) {
+    return findEntityById(root, role, explicitEntityId);
+  }
+
+  const matches = await getTranscriptEntityMatches(root, role, capability, transcriptPath);
+  const [bestMatch, secondMatch] = matches;
+  if (bestMatch && bestMatch.score >= 90 && (!secondMatch || bestMatch.score > secondMatch.score)) {
+    return bestMatch.entity;
+  }
+
+  return undefined;
+}
+
+function buildRoleEntityPath(role: RoleDefinition, entity: RoleEntityDefinition, entityId: string): string {
+  return path.join(role.roleDir, entity.createDirectory, entityId);
 }
 
 export async function createCompanyRecords(
@@ -437,21 +511,31 @@ export async function createCompanyRecords(
   options: CreateEntityOptions = {},
 ): Promise<{ path: string }> {
   const paths = getWorkspacePaths(root);
-  const sourceRefs = options.sourceRefs;
+  const sourceRefs = options.sourceRefs ?? ["bootstrap questionnaire"];
+  const recordContent = await renderSharedTemplate(root, "company/record.md", {
+    companyName: input.companyName,
+    companySummary: input.companySummary,
+    businessModel: input.businessModel,
+    operatingCadence: input.operatingCadence,
+    strategicPriorities: input.strategicPriorities,
+    topCompetitorsBulletList: renderBulletList(input.topCompetitors, "- Add competitors."),
+    updatedAt: new Date().toISOString(),
+    sourceRefsYaml: renderYamlList(sourceRefs),
+  });
+
+  await writeFileSafely(path.join(paths.companyDir, "record.md"), recordContent, options.force);
   await writeFileSafely(
-    path.join(paths.companyDir, "record.md"),
-    companyRecordTemplate({
-      ...input,
-      ...(sourceRefs ? { sourceRefs } : {}),
-    }),
+    path.join(paths.companyDir, "strategy.md"),
+    await renderSharedTemplate(root, "company/strategy.md", {}),
     options.force,
   );
-  await writeFileSafely(path.join(paths.companyDir, "strategy.md"), companyStrategyTemplate(), options.force);
-  await writeFileSafely(path.join(paths.companyDir, "gtm.md"), companyGtmTemplate(), options.force);
+  await writeFileSafely(
+    path.join(paths.companyDir, "gtm.md"),
+    await renderSharedTemplate(root, "company/gtm.md", {}),
+    options.force,
+  );
 
-  return {
-    path: path.join(paths.companyDir, "record.md"),
-  };
+  return { path: path.join(paths.companyDir, "record.md") };
 }
 
 export async function createPersonRecord(
@@ -459,84 +543,77 @@ export async function createPersonRecord(
   input: PersonBootstrapInput,
   options: CreateEntityOptions = {},
 ): Promise<{ id: string; path: string }> {
+  const paths = getWorkspacePaths(root);
   const entityId = makePersonId(input.name);
-  const entityPath = buildEntityPath(root, "person", entityId);
-  const sourceRefs = options.sourceRefs;
+  const entityPath = path.join(paths.peopleDir, entityId);
+  const sourceRefs = options.sourceRefs ?? ["bootstrap questionnaire"];
 
-  await fs.mkdir(path.join(entityPath, "notes"), { recursive: true });
-  await fs.mkdir(path.join(entityPath, "artifacts"), { recursive: true });
+  await ensureDirectory(entityPath, ["notes", "artifacts"]);
   await writeFileSafely(
     path.join(entityPath, "record.md"),
-    personRecordTemplate({
+    await renderSharedTemplate(root, "person/record.md", {
       id: entityId,
-      ...input,
-      ...(sourceRefs ? { sourceRefs } : {}),
+      name: input.name,
+      role: input.role,
+      manager: input.manager || "Unknown",
+      strengths: input.strengths || "Add strengths.",
+      coachingFocus: input.coachingFocus || "Add coaching focus.",
+      updatedAt: new Date().toISOString(),
+      sourceRefsYaml: renderYamlList(sourceRefs),
     }),
     options.force,
   );
-  await writeFileSafely(path.join(entityPath, "development-plan.md"), developmentPlanTemplate(input.name), options.force);
+  await writeFileSafely(
+    path.join(entityPath, "development-plan.md"),
+    await renderSharedTemplate(root, "person/development-plan.md", {
+      name: input.name,
+    }),
+    options.force,
+  );
 
-  return {
-    id: entityId,
-    path: entityPath,
-  };
+  return { id: entityId, path: entityPath };
 }
 
-export async function createProductRecord(
+export async function createRoleEntityRecord(
   root: string,
-  input: ProductBootstrapInput,
+  role: RoleDefinition,
+  entityKey: string,
+  input: Record<string, unknown>,
   options: CreateEntityOptions = {},
 ): Promise<{ id: string; path: string }> {
-  const entityId = makeProductId(input.name);
-  const entityPath = buildEntityPath(root, "product", entityId);
-  const sourceRefs = options.sourceRefs;
+  const entity = role.entities.find((item) => item.key === entityKey);
+  if (!entity) {
+    throw new Error(`Unknown role entity key: ${entityKey}`);
+  }
 
-  await fs.mkdir(path.join(entityPath, "notes"), { recursive: true });
-  await fs.mkdir(path.join(entityPath, "artifacts"), { recursive: true });
-  await writeFileSafely(
-    path.join(entityPath, "record.md"),
-    productRecordTemplate({
-      id: entityId,
-      ...input,
-      ...(sourceRefs ? { sourceRefs } : {}),
-    }),
-    options.force,
-  );
-  await writeFileSafely(path.join(entityPath, "playbook.md"), playbookTemplate(input.name), options.force);
-  await writeFileSafely(path.join(entityPath, "competitive-analysis.md"), competitiveAnalysisTemplate(input.name), options.force);
-
-  return {
+  const entityId = await makeRoleEntityId(root, role, entity, input);
+  const entityPath = buildRoleEntityPath(role, entity, entityId);
+  const sourceRefs = options.sourceRefs ?? ["bootstrap questionnaire"];
+  const entityName = renderNameTemplate(entity, input);
+  const status = entity.statusField ? String(input[entity.statusField] ?? "") : "active";
+  const owner = entity.ownerField ? String(input[entity.ownerField] ?? "") : role.name;
+  const values = {
+    ...buildFieldContext(input),
     id: entityId,
-    path: entityPath,
+    type: entity.type,
+    name: entityName,
+    status: status || "active",
+    owner,
+    updatedAt: new Date().toISOString(),
+    sourceRefsYaml: renderYamlList(sourceRefs),
+    entityDisplayName: entityName,
+    sourceRef: sourceRefs[0] ?? "bootstrap questionnaire",
   };
-}
 
-export async function createDealRecord(
-  root: string,
-  input: DealBootstrapInput,
-  options: CreateEntityOptions = {},
-): Promise<{ id: string; path: string }> {
-  const entityId = await makeDealId(root, input.accountName, input.opportunityName);
-  const entityPath = buildEntityPath(root, "deal", entityId);
-  const sourceRefs = options.sourceRefs;
-
-  await fs.mkdir(path.join(entityPath, "notes"), { recursive: true });
-  await fs.mkdir(path.join(entityPath, "artifacts"), { recursive: true });
-  await fs.mkdir(path.join(entityPath, "transcripts"), { recursive: true });
-  await writeFileSafely(
-    path.join(entityPath, "record.md"),
-    dealRecordTemplate({
-      id: entityId,
-      ...input,
-      ...(sourceRefs ? { sourceRefs } : {}),
+  await ensureDirectory(entityPath, entity.extraDirectories ?? []);
+  await Promise.all(
+    entity.files.map(async (file) => {
+      await writeFileSafely(
+        path.join(entityPath, file.path),
+        await renderRoleTemplate(role, file.template, values),
+        options.force,
+      );
     }),
-    options.force,
-  );
-  await writeFileSafely(path.join(entityPath, "meddicc.md"), meddiccTemplate(`${input.accountName} - ${input.opportunityName}`), options.force);
-  await writeFileSafely(
-    path.join(entityPath, "activity-log.md"),
-    activityLogTemplate(`${input.accountName} - ${input.opportunityName}`, options.sourceRefs?.[0] ?? "onboarding"),
-    options.force,
   );
 
   return {

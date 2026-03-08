@@ -40,3 +40,6 @@ Help the sales organization sharpen how the product is sold and positioned.
 - Equip reps with point-of-view led messaging, why-us/why-now language, rollout framing, and risk mitigation answers.
 - Reuse what already exists before creating new files.
 - Update the canonical product files when you sharpen positioning.
+When working on product context, prefer `{{roleRoot}}/product/` records and assets.
+
+Keep positioning, buyers, discovery themes, and competitive framing grounded in file-backed evidence.

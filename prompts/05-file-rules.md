@@ -9,9 +9,9 @@
 
 ## Canonical vs Supporting Material
 
-- `record.md`, `meddicc.md`, `activity-log.md`, and `development-plan.md` are canonical.
-- `agent/record.md` is canonical for the agent's own clarified commitments and reminders.
-- `agent/inbox.md` is the canonical capture queue for the agent's own unclarified commitments.
+- `record.md` files and other role-local files declared in `{{roleRoot}}/role.md` are canonical.
+- `{{roleRoot}}/agent/record.md` is canonical for the agent's own clarified commitments and reminders.
+- `{{roleRoot}}/agent/inbox.md` is the canonical capture queue for the agent's own unclarified commitments.
 - Transcripts, PDFs, decks, screenshots, and notes are supporting evidence.
 - When supporting evidence changes a canonical understanding, update the canonical file and cite the supporting file in `source_refs`.
 
@@ -29,8 +29,8 @@ Read the smallest relevant set of files first:
 
 - company context before strategic recommendations
 - person record and development plan before coaching
-- product record and sales assets before product refinement
-- deal record, `meddicc.md`, and `activity-log.md` before pipeline or deal recommendations
+- the selected role entity record and its required companion files before specific recommendations
+- `{{roleRoot}}/role.md` before changing role-local structure or assuming which files are canonical
 
 ## Current Date And Time
 
