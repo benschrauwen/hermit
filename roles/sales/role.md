@@ -194,6 +194,10 @@ entities:
         template: deal/meddicc.md
       - path: activity-log.md
         template: deal/activity-log.md
+explorer:
+  renderers:
+    detail:
+      deal: explorer/renderers/deal-detail.mjs
 transcript_ingest:
   entity_type: deal
   prompt_file: sales-transcript-command

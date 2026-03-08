@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This project implements a local, file-first multi-role leadership agent. The workspace stays the system of record while the runtime remains a thin, deterministic orchestration layer around markdown files and a reusable agent session runtime.
+Hermit implements a local, file-first runtime for autonomous applications. In the current workspace, that runtime is applied to a multi-role leadership agent system. The workspace stays the system of record while the runtime remains a thin, deterministic orchestration layer around markdown files and a reusable agent session runtime.
 
 ## Core Idea
 
@@ -97,7 +97,7 @@ flowchart TD
 
 ### `src/cli.ts`
 
-Parses commands, resolves the workspace root, resolves or infers `--role`, and starts the right flow.
+Parses commands, resolves the workspace root, resolves or infers `--role`, and starts the right flow. The published CLI name is `hermit`.
 
 Normal `chat` and `ask` sessions take the role and the user prompt. The user points the agent at the right deal, product, or person inside the conversation, and the agent resolves that target from the workspace files or `entity_lookup` when needed. `ingest transcript` accepts `--entity` because evidence placement benefits from an explicit deterministic target.
 
@@ -350,5 +350,18 @@ In practice, this means:
 - role pages reuse the root `dist/` modules for manifest-aware scanning
 - role entity lists are driven by manifest metadata, not hardcoded per entity type
 - role detail pages render the markdown files declared by each entity definition
+- role manifests may optionally declare explorer renderers for entity detail pages or specific entity files, with fallback to the default markdown renderer
 
-If the explorer grows later, optional role-local presentation metadata or overrides can be added, but the first implementation keeps the extension model mostly declarative and file-driven.
+Optional role-local explorer renderers live under the role directory and are referenced from `role.md`, for example:
+
+```yaml
+explorer:
+  renderers:
+    detail:
+      deal: explorer/renderers/deal-detail.mjs
+    files:
+      deal:
+        meddicc.md: explorer/renderers/deal-meddicc.mjs
+```
+
+Each renderer module is loaded dynamically by the explorer at runtime. Detail renderers can replace the full entity detail body for a given entity type. File renderers can replace the default rendering for a specific file like `meddicc.md`. If no matching renderer is declared, the explorer uses the built-in generic markdown view.

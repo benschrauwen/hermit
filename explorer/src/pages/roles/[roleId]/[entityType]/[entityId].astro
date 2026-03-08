@@ -2,7 +2,7 @@
 import BaseLayout from "../../../../layouts/BaseLayout.astro";
 import { getWorkspaceRoot, loadRole, findEntitiesByType } from "../../../../lib/workspace.js";
 import { readEntityRecordContent } from "../../../../lib/entity-content.js";
-import { marked } from "marked";
+import { renderRoleEntityDetail } from "../../../../lib/renderers.js";
 
 const { roleId, entityType, entityId } = Astro.params;
 if (!roleId || !entityType || !entityId) return Astro.redirect("/");
@@ -22,14 +22,15 @@ const entities = await findEntitiesByType(root, role, entityType);
 const entity = entities.find((candidate) => candidate.id === entityId);
 if (!entity) return Astro.redirect(`/roles/${roleId}/${entityType}`);
 
-const rawFiles = await readEntityRecordContent(entity.path, role, entityType);
-marked.setOptions({ gfm: true });
-const files = await Promise.all(
-  rawFiles.map(async (file) => ({
-    ...file,
-    html: file.content ? await marked.parse(file.content) : "",
-  }))
-);
+const files = await readEntityRecordContent(entity.path, role, entityType);
+const rendered = await renderRoleEntityDetail({
+  root,
+  role,
+  entityType,
+  entityDef,
+  entity,
+  files,
+});
 ---
 <BaseLayout title={`${entity.name} · ${role.name}`} roleId={roleId} roleName={role.name}>
   <div class="breadcrumb">
@@ -40,18 +41,26 @@ const files = await Promise.all(
   <h1>{entity.name}</h1>
   <p class="meta">ID: {entity.id} · Type: {entity.type}</p>
 
-  {files.map((file) => (
-    <section class="file-section card">
-      <h3>{file.relativePath}</h3>
-      {Object.keys(file.frontmatter).length > 0 && (
-        <dl class="meta" style="margin: 0 0 0.75rem; font-size: 0.85rem;">
-          {Object.entries(file.frontmatter).map(([k, v]) => [
-            <dt style="margin: 0.25rem 0 0; font-weight: 600;">{k}</dt>,
-            <dd style="margin: 0 0 0 1rem;">{Array.isArray(v) ? v.join(", ") : String(v)}</dd>,
-          ])}
-        </dl>
-      )}
-      <div class="markdown-body" set:html={file.html} />
-    </section>
-  ))}
+  {rendered.mode === "detail-plugin" ? (
+    <div set:html={rendered.html} />
+  ) : (
+    rendered.sections.map((section) =>
+      section.kind === "plugin" ? (
+        <div set:html={section.html} />
+      ) : (
+        <section class="file-section card">
+          <h3>{section.file.relativePath}</h3>
+          {Object.keys(section.file.frontmatter).length > 0 && (
+            <dl class="meta" style="margin: 0 0 0.75rem; font-size: 0.85rem;">
+              {Object.entries(section.file.frontmatter).map(([k, v]) => [
+                <dt style="margin: 0.25rem 0 0; font-weight: 600;">{k}</dt>,
+                <dd style="margin: 0 0 0 1rem;">{Array.isArray(v) ? v.join(", ") : String(v)}</dd>,
+              ])}
+            </dl>
+          )}
+          <div class="markdown-body" set:html={section.html} />
+        </section>
+      ),
+    )
+  )}
 </BaseLayout>

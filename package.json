@@ -1,11 +1,11 @@
 {
-  "name": "leadership-role-agent",
+  "name": "hermit",
   "version": "0.1.0",
-  "description": "Local file-first multi-role leadership agent powered by pi-mono.",
+  "description": "Local file-first runtime for autonomous applications, powered by pi-mono.",
   "type": "module",
   "packageManager": "bun@1.3.8",
   "bin": {
-    "leadership-agent": "./dist/cli.js"
+    "hermit": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -20,9 +20,10 @@
     "explorer:preview": "(cd explorer && WORKSPACE_ROOT=\"$(cd .. && pwd)\" bun run preview)"
   },
   "keywords": [
-    "leadership",
-    "roles",
+    "hermit",
+    "autonomous-applications",
     "agent",
+    "file-first",
     "pi-mono",
     "cli"
   ],

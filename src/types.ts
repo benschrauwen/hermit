@@ -91,6 +91,15 @@ export interface TranscriptIngestCapability {
   activityLogFile: string;
 }
 
+export interface RoleExplorerRendererConfig {
+  detail?: Record<string, string>;
+  files?: Record<string, Record<string, string>>;
+}
+
+export interface RoleExplorerConfig {
+  renderers?: RoleExplorerRendererConfig;
+}
+
 export interface RoleDefinition {
   id: string;
   name: string;
@@ -111,6 +120,7 @@ export interface RoleDefinition {
   agentFiles: string[];
   entities: RoleEntityDefinition[];
   transcriptIngest?: TranscriptIngestCapability;
+  explorer?: RoleExplorerConfig;
 }
 
 export interface RoleResolution {

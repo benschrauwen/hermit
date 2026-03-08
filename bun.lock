@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "leadership-role-agent",
+      "name": "hermit",
       "dependencies": {
         "@mariozechner/pi-ai": "^0.57.1",
         "@mariozechner/pi-coding-agent": "^0.57.1",

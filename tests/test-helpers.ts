@@ -1,4 +1,4 @@
-import { cpSync, mkdirSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -31,6 +31,11 @@ export function seedRoleWorkspace(root: string, roleIds: string[] = ["sales"]): 
     cpSync(path.join(sourceRoleDir, "templates"), path.join(targetRoleDir, "templates"), {
       recursive: true,
     });
+    if (existsSync(path.join(sourceRoleDir, "explorer"))) {
+      cpSync(path.join(sourceRoleDir, "explorer"), path.join(targetRoleDir, "explorer"), {
+        recursive: true,
+      });
+    }
   }
 }
 

@@ -1,7 +1,7 @@
-# Leadership Role Agent Workspace
+# Hermit Workspace
 
-This workspace is the system of record for a local multi-role leadership agent.
-The core runtime is generic. Shared company and people context live at the workspace root, while each leadership role runs from its own subdirectory under `roles/`.
+This workspace is the system of record for Hermit, a local file-first runtime for autonomous applications.
+The current implementation is centered on multi-role leadership agents. Shared company and people context live at the workspace root, while each leadership role runs from its own subdirectory under `roles/`.
 
 ## Operating Model
 
@@ -53,7 +53,7 @@ The runtime should treat the selected role's prompt directory as canonical for t
 
 ## Internal Architecture Reference
 
-- [`docs/architecture.md`](docs/architecture.md): implementation design document for understanding how the agent is built and why the architecture was chosen. Read this only when the task requires understanding or changing the agent's internal implementation. Do not treat it as required context for normal sales leadership work.
+- [`docs/architecture.md`](docs/architecture.md): implementation design document for understanding how Hermit is built and why the architecture was chosen. Read this only when the task requires understanding or changing the runtime's internal implementation. Do not treat it as required context for normal sales leadership work.
 
 ## Prompt Maintenance
 

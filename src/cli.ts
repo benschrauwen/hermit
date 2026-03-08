@@ -51,7 +51,7 @@ function collectImagePaths(values: string[] | undefined): string[] {
 
 const program = new Command();
 
-program.name("leadership-agent").description("Local file-first multi-role leadership agent").version("0.1.0");
+program.name("hermit").description("Local file-first runtime for autonomous applications").version("0.1.0");
 
 program
   .command("chat")

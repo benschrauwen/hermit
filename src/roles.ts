@@ -5,6 +5,7 @@ import path from "node:path";
 import type {
   RoleDefinition,
   RoleEntityDefinition,
+  RoleExplorerConfig,
   RoleFieldDefinition,
   RolePromptDefinition,
   RoleResolution,
@@ -25,6 +26,7 @@ interface RoleManifestData {
   role_directories?: unknown;
   entities?: unknown;
   transcript_ingest?: unknown;
+  explorer?: unknown;
 }
 
 function asString(value: unknown, fieldName: string): string {
@@ -217,6 +219,56 @@ function parseTranscriptIngestCapability(value: unknown): TranscriptIngestCapabi
   };
 }
 
+function parseStringMap(value: unknown, fieldName: string): Record<string, string> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`Invalid role manifest field: ${fieldName}`);
+  }
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, entry]) => [key, asString(entry, `${fieldName}.${key}`)]),
+  );
+}
+
+function parseNestedStringMap(value: unknown, fieldName: string): Record<string, Record<string, string>> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`Invalid role manifest field: ${fieldName}`);
+  }
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, entry]) => [key, parseStringMap(entry, `${fieldName}.${key}`)]),
+  );
+}
+
+function parseExplorerConfig(value: unknown): RoleExplorerConfig | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("Invalid role manifest field: explorer");
+  }
+
+  const record = value as Record<string, unknown>;
+  const renderers = record.renderers;
+  if (renderers === undefined) {
+    return {};
+  }
+  if (typeof renderers !== "object" || renderers === null || Array.isArray(renderers)) {
+    throw new Error("Invalid role manifest field: explorer.renderers");
+  }
+
+  const rendererRecord = renderers as Record<string, unknown>;
+  const parsedRenderers: NonNullable<RoleExplorerConfig["renderers"]> = {};
+
+  if (rendererRecord.detail !== undefined) {
+    parsedRenderers.detail = parseStringMap(rendererRecord.detail, "explorer.renderers.detail");
+  }
+  if (rendererRecord.files !== undefined) {
+    parsedRenderers.files = parseNestedStringMap(rendererRecord.files, "explorer.renderers.files");
+  }
+
+  return { renderers: parsedRenderers };
+}
+
 export function getRootPaths(root: string): {
   root: string;
   companyDir: string;
@@ -252,6 +304,15 @@ export function getRolePaths(root: string, roleId: string): {
     agentDir: path.join(roleDir, "agent"),
     sessionsDir: path.join(roleDir, ".role-agent", "sessions"),
   };
+}
+
+export function resolveRoleLocalPath(role: RoleDefinition, relativePath: string): string {
+  const resolvedPath = path.resolve(role.roleDir, relativePath);
+  const relativeToRoleDir = path.relative(role.roleDir, resolvedPath);
+  if (relativeToRoleDir.startsWith("..") || path.isAbsolute(relativeToRoleDir)) {
+    throw new Error(`Role ${role.id} references a path outside its role directory: ${relativePath}`);
+  }
+  return resolvedPath;
 }
 
 export function getPromptDefinition(role: RoleDefinition, promptId: string): RolePromptDefinition {
@@ -304,6 +365,7 @@ export async function loadRole(root: string, roleId: string): Promise<RoleDefini
 
   const transcriptIngest = parseTranscriptIngestCapability(data.transcript_ingest);
   const promptCatalog = parsePromptCatalog(data.prompt_catalog);
+  const explorer = parseExplorerConfig(data.explorer);
   return {
     id: asString(data.id, "id"),
     name: asString(data.name, "name"),
@@ -324,6 +386,7 @@ export async function loadRole(root: string, roleId: string): Promise<RoleDefini
     agentFiles: [...ROLE_AGENT_FILES],
     entities: parseEntityDefinitions(data.entities),
     ...(transcriptIngest ? { transcriptIngest } : {}),
+    ...(explorer ? { explorer } : {}),
   };
 }
 
@@ -381,6 +444,7 @@ export async function ensureRoleTemplatesExist(role: RoleDefinition): Promise<vo
 export async function validateRoleManifest(root: string, roleId: string): Promise<void> {
   const role = await loadRole(root, roleId);
   const allPromptIds = new Set(Object.keys(role.promptCatalog));
+  const entityTypes = new Set(role.entities.map((entity) => entity.type));
   for (const promptId of role.requiredPromptIds) {
     if (!allPromptIds.has(promptId)) {
       throw new Error(`Role ${roleId} requires unknown prompt ${promptId}.`);
@@ -403,5 +467,31 @@ export async function validateRoleManifest(root: string, roleId: string): Promis
     throw new Error(
       `Role ${roleId} references transcript prompt ${role.transcriptIngest.promptFile} but it is not in required_prompts.`,
     );
+  }
+
+  const detailRenderers = role.explorer?.renderers?.detail ?? {};
+  for (const [entityType, rendererPath] of Object.entries(detailRenderers)) {
+    if (!entityTypes.has(entityType)) {
+      throw new Error(`Role ${roleId} references explorer detail renderer for unknown entity type ${entityType}.`);
+    }
+    try {
+      await fs.access(resolveRoleLocalPath(role, rendererPath));
+    } catch {
+      throw new Error(`Role ${roleId} is missing explorer detail renderer: ${rendererPath}`);
+    }
+  }
+
+  const fileRenderers = role.explorer?.renderers?.files ?? {};
+  for (const [entityType, rendererMap] of Object.entries(fileRenderers)) {
+    if (!entityTypes.has(entityType)) {
+      throw new Error(`Role ${roleId} references explorer file renderer for unknown entity type ${entityType}.`);
+    }
+    for (const rendererPath of Object.values(rendererMap)) {
+      try {
+        await fs.access(resolveRoleLocalPath(role, rendererPath));
+      } catch {
+        throw new Error(`Role ${roleId} is missing explorer file renderer: ${rendererPath}`);
+      }
+    }
   }
 }

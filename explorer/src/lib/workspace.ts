@@ -42,12 +42,22 @@ export interface RoleEntityDefinition {
   files: Array<{ path: string; template: string }>;
 }
 
+export interface RoleExplorerRendererConfig {
+  detail?: Record<string, string>;
+  files?: Record<string, Record<string, string>>;
+}
+
+export interface RoleExplorerConfig {
+  renderers?: RoleExplorerRendererConfig;
+}
+
 export interface RoleDefinition {
   id: string;
   name: string;
   description: string;
   roleDir: string;
   entities: RoleEntityDefinition[];
+  explorer?: RoleExplorerConfig;
 }
 
 type RolesModule = {
