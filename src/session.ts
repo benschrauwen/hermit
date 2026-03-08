@@ -17,16 +17,16 @@ import {
 import { createCustomTools } from "./agent-tools.js";
 import { DEFAULT_MODEL, DEFAULT_THINKING_LEVEL } from "./constants.js";
 import { PromptLibrary } from "./prompt-library.js";
-import type { PromptContext, RoleDefinition, SessionKind, WorkspaceInitializationState } from "./types.js";
+import type { PromptContext, RoleDefinition, WorkspaceInitializationState } from "./types.js";
 import { ensureWorkspaceScaffold, getWorkspaceInitializationState, getWorkspacePaths } from "./workspace.js";
 
 interface SessionOptions {
   root: string;
   role: RoleDefinition;
-  kind: SessionKind;
   promptContext: PromptContext;
   persist: boolean;
   continueRecent?: boolean;
+  additionalRolePrompts?: string[];
 }
 
 export const ONBOARDING_CHAT_OPENING_PROMPT =
@@ -72,18 +72,6 @@ export function resolveInitialChatPrompt(options: {
   }
 
   return DEFAULT_CHAT_OPENING_PROMPT;
-}
-
-function selectPromptBundle(
-  role: RoleDefinition,
-  kind: SessionKind,
-  workspaceState: WorkspaceInitializationState,
-): readonly string[] {
-  if (kind === "default" && !workspaceState.initialized) {
-    return role.promptBundles.onboarding ?? role.promptBundles.default ?? [];
-  }
-
-  return role.promptBundles[kind] ?? role.promptBundles.default ?? [];
 }
 
 function parsePreferredModel(modelName: string): { provider: string; modelId: string } {
@@ -448,7 +436,7 @@ export async function createRoleSession(options: SessionOptions): Promise<{
   const workspaceState = await getWorkspaceInitializationState(options.root, options.role);
   const promptLibrary = await PromptLibrary.load(options.role);
   const promptContext = enrichPromptContextWithCurrentTime(options.promptContext);
-  const bundle = promptLibrary.renderBundle(selectPromptBundle(options.role, options.kind, workspaceState), promptContext);
+  const systemPrompt = await promptLibrary.renderSystemPrompt(promptContext, options.additionalRolePrompts);
 
   const loader = new DefaultResourceLoader({
     cwd: options.root,
@@ -456,7 +444,7 @@ export async function createRoleSession(options: SessionOptions): Promise<{
     noSkills: true,
     noPromptTemplates: true,
     noThemes: true,
-    appendSystemPromptOverride: (base) => [...base, bundle],
+    appendSystemPromptOverride: (base) => [...base, systemPrompt],
   });
   await loader.reload();
 

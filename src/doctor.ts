@@ -5,7 +5,7 @@ import process from "node:process";
 
 import { SHARED_COMPANY_FILES, SHARED_ROOT_DIRECTORIES } from "./constants.js";
 import { PromptLibrary } from "./prompt-library.js";
-import { getPromptFilePath, loadRole, validateRoleManifest } from "./roles.js";
+import { loadRole, validateRoleManifest } from "./roles.js";
 import { getWorkspacePaths, scanEntities } from "./workspace.js";
 
 interface DoctorFinding {
@@ -148,13 +148,18 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
   try {
     await validateRoleManifest(root, roleId);
     const promptLibrary = await PromptLibrary.load(role);
-    const missingLinks = promptLibrary.getMissingAgentLinks();
-    for (const missingLink of missingLinks) {
-      addGeneralFinding(
-        findings,
-        "error",
-        `${path.relative(root, role.agentsFile)} is missing a link to ${missingLink}.`,
-      );
+    const linkedFiles = promptLibrary.extractLinkedFiles();
+    for (const linkedFile of linkedFiles) {
+      const resolvedPath = path.resolve(role.roleDir, linkedFile);
+      try {
+        await fs.access(resolvedPath);
+      } catch {
+        addGeneralFinding(
+          findings,
+          "error",
+          `${path.relative(root, role.agentsFile)} links to missing file: ${linkedFile}`,
+        );
+      }
     }
   } catch (error) {
     addGeneralFinding(
@@ -162,14 +167,6 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
       "error",
       error instanceof Error ? error.message : "Failed to load prompt library.",
     );
-  }
-
-  for (const promptId of role.requiredPromptIds) {
-    try {
-      await fs.access(getPromptFilePath(role, promptId));
-    } catch {
-      addGeneralFinding(findings, "error", `Missing prompt file: ${path.relative(root, getPromptFilePath(role, promptId))}`);
-    }
   }
 
   for (const agentFile of role.agentFiles) {

@@ -16,34 +16,11 @@ describe("PromptLibrary", () => {
     });
   });
 
-  describe("getMissingAgentLinks", () => {
-    it("returns empty when AGENTS.md links to all required prompts", async () => {
-      const lib = await PromptLibrary.load(await loadRole(fixtureRoot, "sales"));
-      const missing = lib.getMissingAgentLinks();
-      expect(missing).toEqual([]);
-    });
-  });
-
-  describe("listPromptIds", () => {
-    it("returns sorted list of prompt ids", async () => {
-      const lib = await PromptLibrary.load(await loadRole(fixtureRoot, "sales"));
-      const promptIds = lib.listPromptIds();
-      expect(promptIds).toContain("core-soul");
-      expect(promptIds).toContain("routing");
-      expect(promptIds).toContain("sales-standard");
-      expect(promptIds).toContain("agent-ops");
-      expect(promptIds).toContain("self-improvement");
-      expect(promptIds.length).toBe(13);
-      const sorted = [...promptIds].sort();
-      expect(promptIds).toEqual(sorted);
-    });
-  });
-
-  describe("renderBundle", () => {
-    it("concatenates the default bundle prompts", async () => {
+  describe("renderSystemPrompt", () => {
+    it("includes shared prompts and AGENTS.md content", async () => {
       const role = await loadRole(fixtureRoot, "sales");
       const lib = await PromptLibrary.load(role);
-      const out = lib.renderBundle(role.promptBundles.default, {
+      const out = await lib.renderSystemPrompt({
         workspaceRoot: "/my/root",
         roleId: "sales",
         roleRoot: "roles/sales",
@@ -52,42 +29,45 @@ describe("PromptLibrary", () => {
         transcriptPath: "/path/to/transcript.md",
       });
       expect(out).toContain("file-first leadership agent");
-      expect(out).toContain("Shared prompts live in `prompts/`");
-      expect(out).toContain("Sales Leadership Standard");
+      expect(out).toContain("Sales Leader Role");
+      expect(out).toContain("Sales Leadership Lens");
     });
 
-    it("supports onboarding bundle rendering", async () => {
+    it("substitutes template variables", async () => {
       const role = await loadRole(fixtureRoot, "sales");
       const lib = await PromptLibrary.load(role);
-      const out = lib.renderBundle(role.promptBundles.onboarding, {
+      const out = await lib.renderSystemPrompt({
         workspaceRoot: "/my/root",
         roleId: "sales",
         roleRoot: "roles/sales",
       });
-      expect(out).toContain("usable leadership workspace");
       expect(out).toContain("`roles/sales/AGENTS.md`");
+      expect(out).not.toContain("{{roleRoot}}");
     });
 
-    it("supports transcript workflow bundle rendering", async () => {
+    it("includes additional role prompts when provided", async () => {
       const role = await loadRole(fixtureRoot, "sales");
       const lib = await PromptLibrary.load(role);
-      const out = lib.renderBundle(role.promptBundles["transcript-ingest"], {
-        workspaceRoot: "/my/root",
-        roleId: "sales",
-        roleRoot: "roles/sales",
-        entityId: "d-1",
-        entityPath: "/my/root/roles/sales/deals/active/d-1",
-        transcriptPath: "/tmp/call.md",
-      });
+      const out = await lib.renderSystemPrompt(
+        {
+          workspaceRoot: "/my/root",
+          roleId: "sales",
+          roleRoot: "roles/sales",
+          entityId: "d-1",
+          entityPath: "/my/root/roles/sales/deals/active/d-1",
+          transcriptPath: "/tmp/call.md",
+        },
+        ["23-mode-transcript-ingest.md"],
+      );
       expect(out).toContain("Preserve the transcript as raw evidence.");
       expect(out).toContain("/tmp/call.md");
     });
   });
 
-  describe("renderNamedPrompt", () => {
+  describe("renderRolePrompt", () => {
     it("substitutes context into single prompt", async () => {
       const lib = await PromptLibrary.load(await loadRole(fixtureRoot, "sales"));
-      const out = lib.renderNamedPrompt("sales-transcript-command", {
+      const out = await lib.renderRolePrompt("40-command-transcript-run.md", {
         workspaceRoot: "/root",
         roleId: "sales",
         roleRoot: "roles/sales",
@@ -99,12 +79,21 @@ describe("PromptLibrary", () => {
 
     it("uses not-selected for missing optional context", async () => {
       const lib = await PromptLibrary.load(await loadRole(fixtureRoot, "sales"));
-      const out = lib.renderNamedPrompt("sales-transcript-command", {
+      const out = await lib.renderRolePrompt("40-command-transcript-run.md", {
         workspaceRoot: "/root",
         roleId: "sales",
         roleRoot: "roles/sales",
       });
       expect(out).toContain("not-selected");
+    });
+  });
+
+  describe("extractLinkedFiles", () => {
+    it("returns linked files from AGENTS.md", async () => {
+      const lib = await PromptLibrary.load(await loadRole(fixtureRoot, "sales"));
+      const links = lib.extractLinkedFiles();
+      expect(links.length).toBeGreaterThan(0);
+      expect(links).toContain("prompts/20-mode-product.md");
     });
   });
 });

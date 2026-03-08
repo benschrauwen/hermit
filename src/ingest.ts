@@ -92,28 +92,22 @@ export async function runTranscriptIngest(options: {
   );
 
   const promptLibrary = await PromptLibrary.load(role);
-  const commandPrompt = promptLibrary.renderNamedPrompt(role.transcriptIngest.promptFile, {
+  const promptContext = {
     workspaceRoot: options.root,
     roleId: role.id,
     roleRoot: path.relative(options.root, role.roleDir) || ".",
     entityId: entity.id,
     entityPath: entity.path,
     transcriptPath: transcriptCopyPath,
-  });
+  };
+  const commandPrompt = await promptLibrary.renderRolePrompt(role.transcriptIngest.commandPrompt, promptContext);
 
   const { session } = await createRoleSession({
     root: options.root,
     role,
-    kind: "transcript-ingest",
     persist: true,
-    promptContext: {
-      workspaceRoot: options.root,
-      roleId: role.id,
-      roleRoot: path.relative(options.root, role.roleDir) || ".",
-      entityId: entity.id,
-      entityPath: entity.path,
-      transcriptPath: transcriptCopyPath,
-    },
+    promptContext,
+    additionalRolePrompts: role.transcriptIngest.systemPrompts,
   });
 
   await runOneShotPrompt(session, commandPrompt, options.imagePaths);

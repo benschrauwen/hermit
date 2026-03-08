@@ -1,8 +1,5 @@
-export type SessionKind = "default" | string;
-
 export type RoleFieldType = "string" | "string-array";
 export type RoleEntityIdStrategy = "prefixed-slug" | "year-sequence-slug";
-export type RolePromptScope = "shared" | "role";
 
 export interface PromptContext {
   workspaceRoot: string;
@@ -58,12 +55,6 @@ export interface RoleTemplateFileDefinition {
   template: string;
 }
 
-export interface RolePromptDefinition {
-  id: string;
-  scope: RolePromptScope;
-  file: string;
-}
-
 export interface RoleEntityDefinition {
   key: string;
   label: string;
@@ -85,7 +76,8 @@ export interface RoleEntityDefinition {
 
 export interface TranscriptIngestCapability {
   entityType: string;
-  promptFile: string;
+  commandPrompt: string;
+  systemPrompts: string[];
   evidenceDirectory: string;
   unmatchedDirectory: string;
   activityLogFile: string;
@@ -113,9 +105,6 @@ export interface RoleDefinition {
   templatesDir: string;
   agentDir: string;
   sessionsDir: string;
-  promptCatalog: Record<string, RolePromptDefinition>;
-  requiredPromptIds: string[];
-  promptBundles: Record<string, string[]>;
   roleDirectories: string[];
   agentFiles: string[];
   entities: RoleEntityDefinition[];

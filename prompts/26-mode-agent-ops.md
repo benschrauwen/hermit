@@ -13,8 +13,7 @@ Maintain a small, trusted, file-first operating system so the role agent can dri
 
 ## Session Start
 
-- At the start of each interactive session, read `{{roleRoot}}/agent/record.md` and `{{roleRoot}}/agent/inbox.md` before substantial work.
-- Check for due calendar items, overdue waiting-for follow-ups, stale inbox items, and the most important next actions.
+- After reading the startup files listed in the role section, check for due calendar items, overdue waiting-for follow-ups, stale inbox items, and the most important next actions.
 - If something is time-sensitive or meaningfully relevant, surface it naturally in the conversation without hijacking the user's agenda.
 
 ## Capture Rules

@@ -7,7 +7,6 @@ import type {
   RoleEntityDefinition,
   RoleExplorerConfig,
   RoleFieldDefinition,
-  RolePromptDefinition,
   RoleResolution,
   TranscriptIngestCapability,
 } from "./types.js";
@@ -20,9 +19,6 @@ interface RoleManifestData {
   id?: unknown;
   name?: unknown;
   description?: unknown;
-  prompt_catalog?: unknown;
-  required_prompts?: unknown;
-  prompt_bundles?: unknown;
   role_directories?: unknown;
   entities?: unknown;
   transcript_ingest?: unknown;
@@ -162,45 +158,6 @@ function parseEntityDefinitions(value: unknown): RoleEntityDefinition[] {
   });
 }
 
-function parsePromptBundles(value: unknown): Record<string, string[]> {
-  if (typeof value !== "object" || value === null) {
-    throw new Error("Invalid role manifest field: prompt_bundles");
-  }
-
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>).map(([key, bundle]) => [key, asStringArray(bundle, `prompt_bundles.${key}`)]),
-  );
-}
-
-function parsePromptCatalog(value: unknown): Record<string, RolePromptDefinition> {
-  if (typeof value !== "object" || value === null) {
-    throw new Error("Invalid role manifest field: prompt_catalog");
-  }
-
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>).map(([id, entry]) => {
-      if (typeof entry !== "object" || entry === null) {
-        throw new Error(`Invalid prompt catalog entry: ${id}`);
-      }
-
-      const record = entry as Record<string, unknown>;
-      const scope = asString(record.scope, `prompt_catalog.${id}.scope`);
-      if (scope !== "shared" && scope !== "role") {
-        throw new Error(`Unsupported prompt scope for ${id}: ${scope}`);
-      }
-
-      return [
-        id,
-        {
-          id,
-          scope,
-          file: asString(record.file, `prompt_catalog.${id}.file`),
-        } satisfies RolePromptDefinition,
-      ];
-    }),
-  );
-}
-
 function parseTranscriptIngestCapability(value: unknown): TranscriptIngestCapability | undefined {
   if (value === undefined) {
     return undefined;
@@ -212,7 +169,8 @@ function parseTranscriptIngestCapability(value: unknown): TranscriptIngestCapabi
   const record = value as Record<string, unknown>;
   return {
     entityType: asString(record.entity_type, "transcript_ingest.entity_type"),
-    promptFile: asString(record.prompt_file, "transcript_ingest.prompt_file"),
+    commandPrompt: asString(record.command_prompt, "transcript_ingest.command_prompt"),
+    systemPrompts: asOptionalStringArray(record.system_prompts, "transcript_ingest.system_prompts") ?? [],
     evidenceDirectory: asString(record.evidence_directory, "transcript_ingest.evidence_directory"),
     unmatchedDirectory: asString(record.unmatched_directory, "transcript_ingest.unmatched_directory"),
     activityLogFile: asString(record.activity_log_file, "transcript_ingest.activity_log_file"),
@@ -315,26 +273,6 @@ export function resolveRoleLocalPath(role: RoleDefinition, relativePath: string)
   return resolvedPath;
 }
 
-export function getPromptDefinition(role: RoleDefinition, promptId: string): RolePromptDefinition {
-  const prompt = role.promptCatalog[promptId];
-  if (!prompt) {
-    throw new Error(`Role ${role.id} references unknown prompt: ${promptId}`);
-  }
-
-  return prompt;
-}
-
-export function getPromptFilePath(role: RoleDefinition, promptId: string): string {
-  const prompt = getPromptDefinition(role, promptId);
-  return prompt.scope === "shared"
-    ? path.join(role.sharedPromptsDir, prompt.file)
-    : path.join(role.rolePromptsDir, prompt.file);
-}
-
-export function getPromptLinkPath(role: RoleDefinition, promptId: string): string {
-  return path.relative(role.roleDir, getPromptFilePath(role, promptId)).split(path.sep).join("/");
-}
-
 export async function listRoleIds(root: string): Promise<string[]> {
   try {
     const entries = await fs.readdir(getRootPaths(root).rolesDir, { withFileTypes: true });
@@ -364,7 +302,6 @@ export async function loadRole(root: string, roleId: string): Promise<RoleDefini
   const data = parsed.data as RoleManifestData;
 
   const transcriptIngest = parseTranscriptIngestCapability(data.transcript_ingest);
-  const promptCatalog = parsePromptCatalog(data.prompt_catalog);
   const explorer = parseExplorerConfig(data.explorer);
   return {
     id: asString(data.id, "id"),
@@ -379,9 +316,6 @@ export async function loadRole(root: string, roleId: string): Promise<RoleDefini
     templatesDir: paths.templatesDir,
     agentDir: paths.agentDir,
     sessionsDir: paths.sessionsDir,
-    promptCatalog,
-    requiredPromptIds: asStringArray(data.required_prompts, "required_prompts"),
-    promptBundles: parsePromptBundles(data.prompt_bundles),
     roleDirectories: asStringArray(data.role_directories, "role_directories"),
     agentFiles: [...ROLE_AGENT_FILES],
     entities: parseEntityDefinitions(data.entities),
@@ -427,11 +361,13 @@ export function inferRootAndRoleFromCwd(cwd: string): { root: string; roleId?: s
 
 export async function ensureRoleTemplatesExist(role: RoleDefinition): Promise<void> {
   const files = [
-    ...role.requiredPromptIds.map((promptId) => getPromptFilePath(role, promptId)),
     ...role.entities.flatMap((entity) => entity.files.map((file) => path.join(role.templatesDir, file.template))),
   ];
   if (role.transcriptIngest) {
-    files.push(getPromptFilePath(role, role.transcriptIngest.promptFile));
+    files.push(path.join(role.rolePromptsDir, role.transcriptIngest.commandPrompt));
+    for (const systemPrompt of role.transcriptIngest.systemPrompts) {
+      files.push(path.join(role.rolePromptsDir, systemPrompt));
+    }
   }
 
   await Promise.all(
@@ -443,30 +379,30 @@ export async function ensureRoleTemplatesExist(role: RoleDefinition): Promise<vo
 
 export async function validateRoleManifest(root: string, roleId: string): Promise<void> {
   const role = await loadRole(root, roleId);
-  const allPromptIds = new Set(Object.keys(role.promptCatalog));
   const entityTypes = new Set(role.entities.map((entity) => entity.type));
-  for (const promptId of role.requiredPromptIds) {
-    if (!allPromptIds.has(promptId)) {
-      throw new Error(`Role ${roleId} requires unknown prompt ${promptId}.`);
+
+  await fs.access(role.agentsFile);
+  await fs.access(role.sharedPromptsDir);
+
+  if (role.transcriptIngest) {
+    const commandPath = path.join(role.rolePromptsDir, role.transcriptIngest.commandPrompt);
+    try {
+      await fs.access(commandPath);
+    } catch {
+      throw new Error(`Role ${roleId} is missing transcript command prompt: ${role.transcriptIngest.commandPrompt}`);
     }
-  }
-  for (const bundle of Object.values(role.promptBundles)) {
-    for (const promptId of bundle) {
-      if (!allPromptIds.has(promptId)) {
-        throw new Error(`Role ${roleId} references unknown prompt ${promptId} in a bundle.`);
-      }
-      if (!role.requiredPromptIds.includes(promptId)) {
-        throw new Error(`Role ${roleId} references prompt ${promptId} in a bundle but not in required_prompts.`);
+    for (const systemPrompt of role.transcriptIngest.systemPrompts) {
+      try {
+        await fs.access(path.join(role.rolePromptsDir, systemPrompt));
+      } catch {
+        throw new Error(`Role ${roleId} is missing transcript system prompt: ${systemPrompt}`);
       }
     }
-  }
-  if (role.transcriptIngest && !allPromptIds.has(role.transcriptIngest.promptFile)) {
-    throw new Error(`Role ${roleId} references unknown transcript prompt ${role.transcriptIngest.promptFile}.`);
-  }
-  if (role.transcriptIngest && !role.requiredPromptIds.includes(role.transcriptIngest.promptFile)) {
-    throw new Error(
-      `Role ${roleId} references transcript prompt ${role.transcriptIngest.promptFile} but it is not in required_prompts.`,
-    );
+    if (!entityTypes.has(role.transcriptIngest.entityType)) {
+      throw new Error(
+        `Role ${roleId} transcript_ingest references unknown entity type ${role.transcriptIngest.entityType}.`,
+      );
+    }
   }
 
   const detailRenderers = role.explorer?.renderers?.detail ?? {};

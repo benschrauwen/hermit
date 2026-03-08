@@ -75,7 +75,6 @@ program
       const { session, workspaceState } = await createRoleSession({
         root,
         role,
-        kind: "default",
         persist: true,
         continueRecent: Boolean(options.continue),
         promptContext: {
@@ -124,7 +123,6 @@ program
       const { session } = await createRoleSession({
         root,
         role,
-        kind: "default",
         persist: false,
         promptContext: {
           workspaceRoot: root,

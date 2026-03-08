@@ -79,15 +79,13 @@ flowchart TD
   explorer[Explorer] --> explorerLoader[Explorer Loader]
   explorerLoader --> workspaceDist[dist roles_workspace]
   roleResolver --> roleManifest[role.md]
-  roleManifest --> promptCatalog[prompt_catalog]
-  promptCatalog --> promptLibrary[PromptLibrary]
-  roleManifest --> promptBundles[prompt_bundles]
   roleManifest --> templateLibrary[TemplateLibrary]
   roleManifest --> workspaceRules[WorkspaceRules]
   workspaceRules --> sharedData[company_people]
   workspaceRules --> roleData[roles_roleId]
+  sharedPrompts[prompts/] --> promptLibrary[PromptLibrary]
+  agentsMd[AGENTS.md] --> promptLibrary
   promptLibrary --> sessionFactory[SessionFactory]
-  promptBundles --> sessionFactory
   templateLibrary --> workspaceCore[WorkspaceCore]
   workspaceDist --> workspaceRules
   workspaceRules --> doctor[Doctor]
@@ -103,20 +101,15 @@ Normal `chat` and `ask` sessions take the role and the user prompt. The user poi
 
 ### `src/roles.ts`
 
-Loads and validates `roles/<role-id>/role.md`, lists available roles, infers the current role from the working directory when possible, and resolves prompt IDs to either the shared prompt directory or the role-local prompt directory.
+Loads and validates `roles/<role-id>/role.md`, lists available roles, and infers the current role from the working directory when possible.
 
 ### `src/prompt-library.ts`
 
-Loads the selected role's `AGENTS.md` and required prompts declared in `role.md`, then renders the small bootstrapping prompt bundle for the session with lightweight placeholders such as `{{workspaceRoot}}`, `{{roleRoot}}`, `{{entityId}}`, and `{{transcriptPath}}`.
+Auto-discovers all shared prompts from `prompts/`, loads the role's `AGENTS.md`, and renders them into a single system prompt with lightweight placeholders such as `{{workspaceRoot}}`, `{{roleRoot}}`, `{{entityId}}`, and `{{transcriptPath}}`.
 
 Those entity placeholders are optional context, not a requirement for normal chat. Most interactive sessions start unanchored, with `entityId` and `entityPath` left as `not-selected` until the agent resolves the target from the request and the files.
 
-Important: prompt loading is intentionally a little more explicit than template loading because prompts come from two different scopes and must stay non-ambiguous.
-
-- `prompt_catalog` in `role.md` maps a stable prompt ID to a `scope` (`shared` or `role`) and a file name.
-- `required_prompts` defines the full set of prompt IDs the role is allowed to load and that doctor should validate.
-- `prompt_bundles` defines the small set of base prompt groups the runtime injects automatically, typically `default`, `onboarding`, and `transcript-ingest`.
-- `AGENTS.md` is the human-readable prompt index for the role and must link to every required prompt file, including shared prompts referenced via relative paths like `../../prompts/...`.
+The system prompt is always: all shared prompts (sorted by filename) + role `AGENTS.md`. Role-specific on-demand prompts are read by the agent during the session when the task requires them. For transcript ingest sessions, additional role prompts listed in `transcript_ingest.system_prompts` are appended to the system prompt.
 
 ### `src/template-library.ts`
 
@@ -164,15 +157,14 @@ Builds configured agent sessions for the selected role, chooses the base prompt 
 
 Session prompt assembly works like this:
 
-1. Resolve the role and load its prompt catalog.
-2. Load all prompt IDs listed in `required_prompts`.
-3. Choose a base bundle from `prompt_bundles` based on session kind and initialization state.
-4. Render only that base bundle into one concatenated prompt string using the current prompt context.
-5. Append that rendered prompt string to the base system prompt for the agent runtime.
+1. Resolve the role and load its manifest.
+2. Auto-discover and load all shared prompts from `prompts/`.
+3. Load the role's `AGENTS.md`.
+4. If the session specifies additional role prompts (e.g., transcript ingest system prompts), load those too.
+5. Render all loaded prompts into one concatenated system prompt string using the current prompt context.
+6. Append that rendered prompt string to the base system prompt for the agent runtime.
 
 For normal `chat` and `ask`, prompt context usually includes the workspace and role but not a preselected entity. The startup prompt explicitly tells the agent to resolve the relevant deal, product, or person during the session before going deep, then read additional role prompt files on demand when they are relevant. Transcript ingest is the main path that still commonly starts with an explicit entity target.
-
-The runtime does not inject all prompts all the time. `required_prompts` is the validated prompt universe for the role. `prompt_bundles` is only the small startup set that gets injected automatically for a given session kind.
 
 ### `src/agent-tools.ts`
 
@@ -193,11 +185,9 @@ Validates the shared workspace plus the selected role contract, including prompt
 
 For prompts specifically, doctor verifies:
 
-- every required prompt ID resolves through the role's `prompt_catalog`
-- every required prompt file exists in the correct scope
-- every configured startup bundle references known prompt IDs
-- transcript-ingest prompt references stay inside the same prompt catalog
-- `AGENTS.md` links match the resolved prompt file paths
+- shared prompts directory exists
+- `AGENTS.md` exists and linked files resolve
+- transcript ingest prompt files exist when configured
 
 ## Workspace Contract
 
@@ -221,96 +211,28 @@ For prompts specifically, doctor verifies:
 
 ## Prompt Contract
 
-The prompt system uses four separate concepts on purpose, but only a small subset is injected automatically at session start:
+The prompt system uses two layers:
 
-### 1. `prompt_catalog`
+### 1. Shared prompts (`prompts/`)
 
-This is the authoritative map from prompt ID to file location.
+All `.md` files in the root `prompts/` directory are auto-discovered, sorted by filename, and included in every session's system prompt. These define the agent's core identity, file-first behavior, routing guidance, agent operating system, and maintenance rules.
 
-Each entry declares:
+Shared prompts are self-gating: each file declares when it applies (e.g., onboarding, self-improvement), so including all of them does not cause unwanted behavior in sessions where they are not relevant.
 
-- the stable prompt ID used by code and startup bundles
-- the `scope`: `shared` or `role`
-- the backing file name inside that scope
+### 2. Role `AGENTS.md`
 
-Example:
+This is both the role-level system prompt and the on-demand prompt index. It is appended to the system prompt after shared prompts.
 
-```yaml
-prompt_catalog:
-  core-soul:
-    scope: shared
-    file: 00-soul.md
-  sales-standard:
-    scope: role
-    file: 25-role-sales.md
-```
+`AGENTS.md` should contain:
 
-Why this exists:
+- the role's operating standard (leadership lens, core standard, operating expectations)
+- startup context (which files to read first at session start)
+- role-local context (which directories contain role-specific entities)
+- an on-demand prompt index linking to role prompt files in `prompts/`
 
-- avoids filename collisions between shared and role-local prompts
-- lets startup bundles stay stable even if file names change later
-- keeps scope explicit instead of inferring it from path conventions
+On-demand role prompts live in `roles/<role-id>/prompts/` and are read by the agent during the session when the task requires them. The runtime does not inject them automatically.
 
-### 2. `required_prompts`
-
-This is the validated prompt universe for the role.
-
-It means:
-
-- these prompt IDs must exist
-- these prompt files must be loadable
-- these prompt files must be indexed in `AGENTS.md`
-
-It does not mean every prompt is injected into every session.
-
-### 3. `prompt_bundles`
-
-This maps a session kind to the exact ordered list of prompt IDs that should be injected at startup.
-
-In practice, keep this small: it is mainly for `default`, `onboarding`, and `transcript-ingest`, not for every task-specific prompt the agent might later read on demand.
-
-Example:
-
-```yaml
-prompt_bundles:
-  default:
-    - core-soul
-    - file-rules
-    - routing
-    - sales-standard
-    - agent-ops
-```
-
-This is how the runtime combines a small shared-and-role startup prompt safely in one session without overlap-by-accident.
-
-### 4. `AGENTS.md`
-
-This is the human prompt index for the role.
-
-It is not the source of truth for prompt resolution, but it must stay aligned with the manifest because it gives both humans and the runtime a readable map of the available prompt files.
-
-For a role with shared and role-local prompts, `AGENTS.md` will usually link to both:
-
-- shared prompts via `../../prompts/...`
-- role prompts via `prompts/...`
-
-It should also be semantically readable by the agent and the operator. Prefer light grouping and short labels such as "base startup prompts", "deal", "pipeline", "incident", or "people" so the right prompt can be found quickly during a session.
-
-## Why Prompt Loading Is More Explicit Than It Looks
-
-The extra prompt-loading structure is deliberate, not accidental complexity.
-
-The runtime needs to support all of the following at once:
-
-- one shared prompt library reused by multiple roles
-- role-local prompt overlays
-- a small set of startup bundles for normal chat, onboarding, and transcript ingest
-- on-demand prompt discovery during the session
-- optional entity context instead of mandatory session preselection
-- deterministic validation with helpful doctor errors
-- no accidental shadowing where two prompts with the same filename mean different things
-
-Using prompt IDs plus explicit scope in `role.md` solves that cleanly while keeping the runtime generic.
+For transcript ingest sessions, `transcript_ingest.system_prompts` in `role.md` lists additional role prompt files to append to the system prompt alongside the shared prompts and `AGENTS.md`.
 
 ## Why The Template Mechanism Is Generic
 
@@ -326,10 +248,10 @@ That keeps the mechanism generic while keeping behavior deterministic.
 
 To add a new role:
 
-1. Create `roles/<role-id>/role.md`
-2. Add prompt catalog entries for shared and role-local prompts
-3. Add `AGENTS.md`, role prompts, and templates
-4. Define entity types, fields, and any startup bundles in frontmatter
+1. Create `roles/<role-id>/role.md` with entity types and fields
+2. Create `AGENTS.md` with the role operating standard, startup context, and on-demand prompt index
+3. Add role-specific prompts under `roles/<role-id>/prompts/`
+4. Add entity templates under `roles/<role-id>/templates/`
 5. Optionally declare transcript ingest if that role needs it
 
 No orchestration changes should be required for a standard role.

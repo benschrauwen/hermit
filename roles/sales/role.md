@@ -2,79 +2,6 @@
 id: sales
 name: Sales Leader
 description: File-first sales leadership role with deals and product context.
-prompt_catalog:
-  core-soul:
-    scope: shared
-    file: 00-soul.md
-  file-rules:
-    scope: shared
-    file: 05-file-rules.md
-  bootstrap:
-    scope: shared
-    file: 10-bootstrap.md
-  routing:
-    scope: shared
-    file: 15-routing.md
-  agent-ops:
-    scope: shared
-    file: 26-mode-agent-ops.md
-  self-improvement:
-    scope: shared
-    file: 90-self-improvement.md
-  sales-product:
-    scope: role
-    file: 20-mode-product.md
-  sales-people:
-    scope: role
-    file: 21-mode-people.md
-  sales-pipeline:
-    scope: role
-    file: 22-mode-pipeline.md
-  sales-transcript-workflow:
-    scope: role
-    file: 23-mode-transcript-ingest.md
-  sales-deal:
-    scope: role
-    file: 24-mode-deal.md
-  sales-standard:
-    scope: role
-    file: 25-role-sales.md
-  sales-transcript-command:
-    scope: role
-    file: 40-command-transcript-run.md
-required_prompts:
-  - core-soul
-  - file-rules
-  - bootstrap
-  - routing
-  - agent-ops
-  - self-improvement
-  - sales-product
-  - sales-people
-  - sales-pipeline
-  - sales-transcript-workflow
-  - sales-deal
-  - sales-standard
-  - sales-transcript-command
-prompt_bundles:
-  default:
-    - core-soul
-    - file-rules
-    - routing
-    - sales-standard
-    - agent-ops
-  onboarding:
-    - core-soul
-    - file-rules
-    - bootstrap
-    - routing
-    - sales-standard
-    - agent-ops
-  transcript-ingest:
-    - core-soul
-    - file-rules
-    - sales-transcript-workflow
-    - sales-standard
 role_directories:
   - deals
   - deals/active
@@ -200,7 +127,9 @@ explorer:
       deal: explorer/renderers/deal-detail.mjs
 transcript_ingest:
   entity_type: deal
-  prompt_file: sales-transcript-command
+  command_prompt: 40-command-transcript-run.md
+  system_prompts:
+    - 23-mode-transcript-ingest.md
   evidence_directory: transcripts
   unmatched_directory: supporting-files/unmatched-transcripts
   activity_log_file: activity-log.md

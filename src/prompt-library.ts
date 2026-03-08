@@ -3,65 +3,54 @@ import path from "node:path";
 
 import type { RoleDefinition } from "./types.js";
 import type { PromptContext } from "./types.js";
-import { getPromptDefinition, getPromptFilePath, getPromptLinkPath } from "./roles.js";
 
 export class PromptLibrary {
   private constructor(
     private readonly role: RoleDefinition,
+    private readonly sharedPromptContents: string[],
     private readonly agentsContent: string,
-    private readonly promptFiles: Map<string, string>,
   ) {}
 
   static async load(role: RoleDefinition): Promise<PromptLibrary> {
-    const agentsContent = await fs.readFile(role.agentsFile, "utf8");
-    const promptFiles = new Map<string, string>();
+    const entries = await fs.readdir(role.sharedPromptsDir);
+    const promptFileNames = entries.filter((f) => f.endsWith(".md")).sort();
 
-    await Promise.all(
-      role.requiredPromptIds.map(async (promptId) => {
-        const content = await fs.readFile(getPromptFilePath(role, promptId), "utf8");
-        promptFiles.set(promptId, content);
-      }),
+    const sharedPromptContents = await Promise.all(
+      promptFileNames.map((fileName) => fs.readFile(path.join(role.sharedPromptsDir, fileName), "utf8")),
     );
 
-    return new PromptLibrary(role, agentsContent, promptFiles);
+    const agentsContent = await fs.readFile(role.agentsFile, "utf8");
+
+    return new PromptLibrary(role, sharedPromptContents, agentsContent);
   }
 
-  getMissingAgentLinks(): string[] {
-    const linkedFiles = new Set(this.extractLinkedPromptFiles());
-    return this.role.requiredPromptIds
-      .filter((promptId) => !linkedFiles.has(getPromptLinkPath(this.role, promptId)))
-      .map((promptId) => getPromptLinkPath(this.role, promptId));
+  async renderSystemPrompt(context: PromptContext, additionalRolePromptFiles: string[] = []): Promise<string> {
+    const parts: string[] = [];
+
+    for (const content of this.sharedPromptContents) {
+      parts.push(this.renderTemplate(content, context));
+    }
+
+    parts.push(this.renderTemplate(this.agentsContent, context));
+
+    for (const fileName of additionalRolePromptFiles) {
+      const content = await fs.readFile(path.join(this.role.rolePromptsDir, fileName), "utf8");
+      parts.push(this.renderTemplate(content, context));
+    }
+
+    return parts.join("\n\n");
   }
 
-  renderBundle(fileNames: readonly string[], context: PromptContext): string {
-    const renderedFiles = fileNames.map((fileName) => this.renderTemplate(this.requirePromptFile(fileName), context));
-
-    return renderedFiles.join("\n\n");
+  async renderRolePrompt(fileName: string, context: PromptContext): Promise<string> {
+    const content = await fs.readFile(path.join(this.role.rolePromptsDir, fileName), "utf8");
+    return this.renderTemplate(content, context);
   }
 
-  renderNamedPrompt(fileName: string, context: PromptContext): string {
-    return this.renderTemplate(this.requirePromptFile(fileName), context);
-  }
-
-  listPromptIds(): string[] {
-    return [...this.promptFiles.keys()].sort();
-  }
-
-  private extractLinkedPromptFiles(): string[] {
+  extractLinkedFiles(): string[] {
     const matches = this.agentsContent.matchAll(/\(([^)]+\.md)\)/g);
     return [...matches]
       .map((match) => match[1])
       .filter((value): value is string => value !== undefined);
-  }
-
-  private requirePromptFile(fileName: string): string {
-    const content = this.promptFiles.get(fileName);
-    if (!content) {
-      const prompt = getPromptDefinition(this.role, fileName);
-      throw new Error(`Missing prompt file: ${path.relative(this.role.root, getPromptFilePath(this.role, prompt.id))}`);
-    }
-
-    return content;
   }
 
   private renderTemplate(template: string, context: PromptContext): string {
