@@ -50,6 +50,10 @@ The agent is expected to operate like a disciplined enterprise sales leader who 
 - [`prompts/40-command-transcript-run.md`](prompts/40-command-transcript-run.md): canned transcript processing request used by orchestration.
 - [`prompts/90-self-improvement.md`](prompts/90-self-improvement.md): safe prompt maintenance guidance.
 
+## Internal Architecture Reference
+
+- [`docs/architecture.md`](docs/architecture.md): implementation design document for understanding how the agent is built and why the architecture was chosen. Read this only when the task requires understanding or changing the agent's internal implementation. Do not treat it as required context for normal sales leadership work.
+
 ## Prompt Maintenance
 
 - Prompt files may be improved over time, but changes should preserve the file-first operating model.
