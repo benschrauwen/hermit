@@ -77,10 +77,12 @@ function buildSortHref(nextSort: string): string {
   <div class="breadcrumb">
     <a href={`/roles/${roleId}`}>{role.name}</a> → {entityDef.label}
   </div>
-  <h1>{entityDef.label}</h1>
-  <p class="meta">
-    {entities.length} of {allEntities.length} record{allEntities.length !== 1 ? "s" : ""}
-  </p>
+  <div class="page-intro">
+    <h1>{entityDef.label}</h1>
+    <p class="meta">
+      {entities.length} of {allEntities.length} record{allEntities.length !== 1 ? "s" : ""}
+    </p>
+  </div>
   <form method="get" class="toolbar">
     <input
       type="search"

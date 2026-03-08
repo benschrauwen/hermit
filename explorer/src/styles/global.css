@@ -1,0 +1,240 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    @apply min-h-screen bg-slate-100 text-slate-900 antialiased;
+  }
+
+  code,
+  pre,
+  kbd,
+  samp {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
+
+  ::selection {
+    @apply bg-sky-200 text-slate-950;
+  }
+
+  a {
+    @apply text-sky-700 transition-colors duration-150;
+  }
+
+  a:hover {
+    @apply text-sky-900;
+  }
+
+  h1 {
+    @apply text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl;
+  }
+
+  h2 {
+    @apply text-xl font-semibold tracking-tight text-slate-950;
+  }
+
+  h3 {
+    @apply text-base font-semibold text-slate-900;
+  }
+}
+
+@layer components {
+  .nav-link {
+    @apply rounded-full px-3 py-1.5 text-sm font-medium text-slate-300 no-underline transition hover:bg-white/10 hover:text-white;
+  }
+
+  .page-shell {
+    @apply mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10;
+  }
+
+  .page-intro {
+    @apply mb-6 space-y-2;
+  }
+
+  .breadcrumb {
+    @apply mb-4 flex flex-wrap items-center gap-2 text-sm text-slate-500;
+  }
+
+  .breadcrumb a {
+    @apply text-slate-500 no-underline hover:text-slate-700;
+  }
+
+  .meta {
+    @apply text-sm text-slate-500;
+  }
+
+  .section-title {
+    @apply mb-3 text-lg font-semibold tracking-tight text-slate-950;
+  }
+
+  .card {
+    @apply overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-panel;
+  }
+
+  .file-section {
+    @apply mb-6;
+  }
+
+  .file-section > h3 {
+    @apply border-b border-slate-200 bg-slate-50/70 px-6 py-4;
+  }
+
+  .file-section > .markdown-body,
+  .file-section > .meta-list,
+  .file-section > dl.meta,
+  .file-section > .plain-pre {
+    @apply px-6 py-5;
+  }
+
+  .file-section > .meta-list + .markdown-body,
+  .file-section > dl.meta + .markdown-body {
+    @apply pt-0;
+  }
+
+  .meta-list {
+    @apply grid gap-x-4 gap-y-2 border-b border-slate-100 text-sm text-slate-600 sm:grid-cols-[minmax(160px,auto)_1fr];
+  }
+
+  .meta-list dt {
+    @apply font-semibold text-slate-900;
+  }
+
+  .meta-list dd {
+    @apply m-0;
+  }
+
+  .markdown-body {
+    @apply prose prose-slate max-w-none text-base leading-7;
+    @apply prose-headings:scroll-mt-24 prose-headings:font-semibold prose-headings:tracking-tight prose-headings:text-slate-950;
+    @apply prose-p:text-slate-800 prose-p:leading-7;
+    @apply prose-lead:text-slate-600;
+    @apply prose-li:text-slate-800 prose-li:leading-7;
+    @apply prose-strong:font-semibold prose-strong:text-slate-900;
+    @apply prose-a:font-normal prose-a:text-sky-700 prose-a:no-underline hover:prose-a:text-sky-900;
+    @apply prose-code:rounded prose-code:bg-slate-100 prose-code:px-1 prose-code:py-0.5 prose-code:text-[0.85em] prose-code:font-normal prose-code:text-slate-900;
+    @apply prose-code:before:content-none prose-code:after:content-none;
+    @apply prose-pre:overflow-x-auto prose-pre:rounded-md prose-pre:border prose-pre:border-slate-200 prose-pre:bg-slate-50 prose-pre:px-4 prose-pre:py-3 prose-pre:text-[0.85rem] prose-pre:leading-6 prose-pre:text-slate-800 prose-pre:shadow-none;
+    @apply prose-blockquote:border-l-4 prose-blockquote:border-slate-300 prose-blockquote:bg-transparent prose-blockquote:py-0 prose-blockquote:pr-0 prose-blockquote:text-slate-600;
+    @apply prose-hr:my-6 prose-hr:border-slate-200;
+    @apply prose-th:border prose-th:border-slate-300 prose-th:bg-slate-50 prose-th:font-semibold prose-th:text-slate-900;
+    @apply prose-td:border prose-td:border-slate-200;
+    @apply prose-img:rounded-md prose-img:border prose-img:border-slate-200 prose-img:shadow-none;
+    @apply prose-ol:pl-6 prose-ul:pl-6;
+    @apply prose-li:marker:text-slate-500;
+  }
+
+  .markdown-body :where(h1, h2, h3, h4, h5, h6, p, ul, ol, blockquote, dl, table, pre, hr) {
+    max-width: none;
+  }
+
+  .markdown-body > :where(table) {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    border-radius: 0.375rem;
+  }
+
+  .markdown-body img {
+    @apply rounded-md border border-slate-200 shadow-none;
+  }
+
+  .markdown-body pre {
+    background-image: none;
+  }
+
+  .markdown-body pre code {
+    @apply bg-transparent p-0 font-normal text-inherit;
+    border: 0;
+  }
+
+  .markdown-body h1,
+  .markdown-body h2 {
+    @apply mt-8 border-b border-slate-200 pb-2;
+  }
+
+  .markdown-body h3,
+  .markdown-body h4,
+  .markdown-body h5,
+  .markdown-body h6 {
+    @apply mt-6;
+  }
+
+  .markdown-body p,
+  .markdown-body ul,
+  .markdown-body ol,
+  .markdown-body pre,
+  .markdown-body table,
+  .markdown-body blockquote {
+    @apply my-4;
+  }
+
+  .markdown-body li > p {
+    @apply my-1;
+  }
+
+  .entity-type-list {
+    @apply grid gap-4;
+  }
+
+  .entity-type-list > a {
+    @apply block rounded-2xl border border-slate-200 bg-white px-5 py-4 text-slate-900 no-underline shadow-sm transition duration-150 hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-md;
+  }
+
+  .table-wrap {
+    @apply overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm;
+  }
+
+  table {
+    @apply min-w-full border-collapse;
+  }
+
+  th,
+  td {
+    @apply border-b border-slate-200 px-4 py-3 text-left align-top;
+  }
+
+  thead th {
+    @apply bg-slate-50 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500;
+  }
+
+  tbody tr:hover td {
+    @apply bg-slate-50/80;
+  }
+
+  .sort-link {
+    @apply whitespace-nowrap text-inherit no-underline hover:text-sky-700;
+  }
+
+  .toolbar {
+    @apply mb-6 flex flex-wrap items-center gap-3;
+  }
+
+  .toolbar input,
+  .toolbar button {
+    @apply rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition;
+    @apply focus:border-sky-500 focus:ring-4 focus:ring-sky-500/15;
+  }
+
+  .toolbar input {
+    @apply min-w-[18rem];
+  }
+
+  .toolbar button {
+    @apply cursor-pointer font-medium hover:border-slate-400 hover:bg-slate-50;
+  }
+
+  .toolbar a {
+    @apply text-sm font-medium no-underline;
+  }
+
+  .plain-pre {
+    @apply m-0 whitespace-pre-wrap rounded-md border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700;
+  }
+}

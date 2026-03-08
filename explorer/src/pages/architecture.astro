@@ -1,0 +1,30 @@
+---
+import path from "node:path";
+import { promises as fs } from "node:fs";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { getWorkspaceRoot } from "../lib/workspace.js";
+import { marked } from "marked";
+
+const root = getWorkspaceRoot();
+const filePath = path.join(root, "docs", "architecture.md");
+
+marked.setOptions({ gfm: true });
+const raw = await fs.readFile(filePath, "utf8").catch(() => "");
+const html = raw ? await marked.parse(raw) : "";
+---
+<BaseLayout title="Architecture">
+  <div class="breadcrumb">
+    <a href="/">Explorer</a> → Architecture
+  </div>
+  <div class="page-intro">
+    <h1>Architecture</h1>
+    <p class="meta">Design document for the Hermit runtime.</p>
+  </div>
+  {html ? (
+    <section class="file-section card">
+      <div class="markdown-body" set:html={html} />
+    </section>
+  ) : (
+    <p>File not found.</p>
+  )}
+</BaseLayout>

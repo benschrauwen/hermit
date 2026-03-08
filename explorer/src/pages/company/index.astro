@@ -23,17 +23,19 @@ const companyName = String(record?.frontmatter.name ?? "Company");
   <div class="breadcrumb">
     <a href="/">Explorer</a> → Company
   </div>
-  <h1>{companyName}</h1>
-  <p class="meta">{files.length} markdown file{files.length !== 1 ? "s" : ""}</p>
+  <div class="page-intro">
+    <h1>{companyName}</h1>
+    <p class="meta">{files.length} markdown file{files.length !== 1 ? "s" : ""}</p>
+  </div>
 
   {files.map((file) => (
     <section class="file-section card">
       <h3>{file.relativePath}</h3>
       {Object.keys(file.frontmatter).length > 0 && (
-        <dl class="meta" style="margin: 0 0 0.75rem; font-size: 0.85rem;">
+        <dl class="meta-list">
           {Object.entries(file.frontmatter).map(([k, v]) => [
-            <dt style="margin: 0.25rem 0 0; font-weight: 600;">{k}</dt>,
-            <dd style="margin: 0 0 0 1rem;">{Array.isArray(v) ? v.join(", ") : String(v)}</dd>,
+            <dt>{k}</dt>,
+            <dd>{Array.isArray(v) ? v.join(", ") : String(v)}</dd>,
           ])}
         </dl>
       )}

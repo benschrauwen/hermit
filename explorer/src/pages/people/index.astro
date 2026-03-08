@@ -30,26 +30,30 @@ const people = (
   <div class="breadcrumb">
     <a href="/">Explorer</a> → People
   </div>
-  <h1>People</h1>
-  <p class="meta">{people.length} record{people.length !== 1 ? "s" : ""}</p>
-  <table>
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>ID</th>
-        <th>Status</th>
-        <th>Owner</th>
-      </tr>
-    </thead>
-    <tbody>
-      {people.map((person) => (
+  <div class="page-intro">
+    <h1>People</h1>
+    <p class="meta">{people.length} record{people.length !== 1 ? "s" : ""}</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
         <tr>
-          <td><a href={`/people/${person.id}`}>{person.name}</a></td>
-          <td class="meta">{person.id}</td>
-          <td>{person.status || "—"}</td>
-          <td>{person.owner || "—"}</td>
+          <th>Name</th>
+          <th>ID</th>
+          <th>Status</th>
+          <th>Owner</th>
         </tr>
-      ))}
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        {people.map((person) => (
+          <tr>
+            <td><a href={`/people/${person.id}`}>{person.name}</a></td>
+            <td class="meta">{person.id}</td>
+            <td>{person.status || "—"}</td>
+            <td>{person.owner || "—"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
 </BaseLayout>

@@ -21,15 +21,17 @@ for (const entity of role.entities) {
 }
 ---
 <BaseLayout title={role.name} roleId={roleId} roleName={role.name}>
-  <h1>{role.name}</h1>
-  <p class="meta">{role.description}</p>
-  <div class="entity-type-list" style="margin-bottom: 1.5rem;">
+  <div class="page-intro">
+    <h1>{role.name}</h1>
+    <p class="meta">{role.description}</p>
+  </div>
+  <div class="entity-type-list mb-8">
     <a href={`/roles/${roleId}/agent`}>
       <strong>Agent Workspace</strong>
       <span class="meta"> — browse `agent/record.md` and `agent/inbox.md`</span>
     </a>
   </div>
-  <h2 style="font-size: 1.15rem; margin: 0 0 0.75rem;">Entities</h2>
+  <h2 class="section-title">Entities</h2>
   <div class="entity-type-list">
     {role.entities.map((entity) => {
       const info = byType.get(entity.type);

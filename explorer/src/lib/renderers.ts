@@ -93,11 +93,11 @@ function renderFrontmatterBlock(frontmatter: Record<string, unknown>): string {
   const items = entries
     .map(
       ([key, value]) =>
-        `<dt style="margin: 0.25rem 0 0; font-weight: 600;">${escapeHtml(key)}</dt><dd style="margin: 0 0 0 1rem;">${escapeHtml(formatFrontmatterValue(value))}</dd>`,
+        `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(formatFrontmatterValue(value))}</dd>`,
     )
     .join("");
 
-  return `<dl class="meta" style="margin: 0 0 0.75rem; font-size: 0.85rem;">${items}</dl>`;
+  return `<dl class="meta-list">${items}</dl>`;
 }
 
 export async function renderMarkdown(markdown: string): Promise<string> {

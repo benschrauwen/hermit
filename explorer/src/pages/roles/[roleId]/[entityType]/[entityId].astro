@@ -38,8 +38,10 @@ const rendered = await renderRoleEntityDetail({
     <a href={`/roles/${roleId}/${entityType}`}>{entityDef?.label ?? entityType}</a> →
     {entity.name}
   </div>
-  <h1>{entity.name}</h1>
-  <p class="meta">ID: {entity.id} · Type: {entity.type}</p>
+  <div class="page-intro">
+    <h1>{entity.name}</h1>
+    <p class="meta">ID: {entity.id} · Type: {entity.type}</p>
+  </div>
 
   {rendered.mode === "detail-plugin" ? (
     <div set:html={rendered.html} />
@@ -51,10 +53,10 @@ const rendered = await renderRoleEntityDetail({
         <section class="file-section card">
           <h3>{section.file.relativePath}</h3>
           {Object.keys(section.file.frontmatter).length > 0 && (
-            <dl class="meta" style="margin: 0 0 0.75rem; font-size: 0.85rem;">
+            <dl class="meta-list">
               {Object.entries(section.file.frontmatter).map(([k, v]) => [
-                <dt style="margin: 0.25rem 0 0; font-weight: 600;">{k}</dt>,
-                <dd style="margin: 0 0 0 1rem;">{Array.isArray(v) ? v.join(", ") : String(v)}</dd>,
+                <dt>{k}</dt>,
+                <dd>{Array.isArray(v) ? v.join(", ") : String(v)}</dd>,
               ])}
             </dl>
           )}
