@@ -6,7 +6,14 @@ import process from "node:process";
 import { PromptLibrary } from "./prompt-library.js";
 import { createSalesLeaderSession, runOneShotPrompt } from "./session.js";
 import type { EntityRecord } from "./types.js";
-import { appendLine, copyTranscriptIntoDeal, copyTranscriptToInbox, findDeals, resolveTranscriptDeal } from "./workspace.js";
+import {
+  appendLine,
+  copyTranscriptIntoDeal,
+  copyTranscriptToInbox,
+  findDeals,
+  findTranscriptDealCandidates,
+  resolveTranscriptDeal,
+} from "./workspace.js";
 
 async function chooseDeal(deals: EntityRecord[]): Promise<EntityRecord | undefined> {
   if (deals.length === 0) {
@@ -47,8 +54,8 @@ export async function runTranscriptIngest(options: {
 
   let deal = await resolveTranscriptDeal(options.root, options.dealId, options.transcriptPath);
   if (!deal && !options.dealId) {
-    const deals = await findDeals(options.root);
-    deal = await chooseDeal(deals);
+    const candidateDeals = await findTranscriptDealCandidates(options.root, options.transcriptPath);
+    deal = await chooseDeal(candidateDeals.length > 0 ? candidateDeals : await findDeals(options.root));
   }
 
   if (!deal) {

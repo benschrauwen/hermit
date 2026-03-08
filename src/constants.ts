@@ -10,6 +10,7 @@ export const REQUIRED_PROMPT_FILES = [
   "22-mode-pipeline.md",
   "23-mode-transcript-ingest.md",
   "24-mode-deal.md",
+  "25-mode-sales-leadership.md",
   "26-mode-agent-ops.md",
   "40-command-transcript-run.md",
   "90-self-improvement.md",

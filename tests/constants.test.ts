@@ -13,6 +13,7 @@ describe("constants", () => {
   it("REQUIRED_PROMPT_FILES lists all expected prompt files", () => {
     expect(REQUIRED_PROMPT_FILES).toContain("00-soul.md");
     expect(REQUIRED_PROMPT_FILES).toContain("15-routing.md");
+    expect(REQUIRED_PROMPT_FILES).toContain("25-mode-sales-leadership.md");
     expect(REQUIRED_PROMPT_FILES).toContain("26-mode-agent-ops.md");
     expect(REQUIRED_PROMPT_FILES).toContain("90-self-improvement.md");
     expect(REQUIRED_PROMPT_FILES.length).toBeGreaterThanOrEqual(10);

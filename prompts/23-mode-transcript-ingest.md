@@ -19,15 +19,17 @@ Use the transcript as evidence to update the right deal files without corrupting
 - the deal `record.md`
 - the deal `meddicc.md`
 - the deal `activity-log.md`
-- any recent transcript files for the same deal
+- the most recent transcript files for the same deal before deciding what changed
 
 ## Update Rules
 
 - Preserve the transcript as raw evidence.
 - Update canonical files only where the transcript supports the change.
-- Capture what changed, what remains uncertain, and what should happen next.
+- State explicitly what changed, what did not change, what remains uncertain, and what should happen next.
+- Add a dated summary entry to `activity-log.md`, not just the raw ingest line.
 - Cite the transcript file in `source_refs`.
 - If the transcript conflicts with prior notes, resolve the conflict explicitly instead of silently overwriting.
+- If evidence is partial, use confidence language and leave the gap explicit instead of overstating certainty.
 
 ## MEDDICC Expectations
 

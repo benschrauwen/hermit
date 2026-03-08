@@ -21,6 +21,7 @@ import {
   scanEntities,
   findEntityById,
   findDeals,
+  findTranscriptDealCandidates,
   resolveTranscriptDeal,
 } from "../src/workspace.js";
 
@@ -333,6 +334,31 @@ name: Jane Doe
         "/path/acme-deal-call.md",
       );
       expect(deal?.id).toBe("d-2025-0001-acme");
+    });
+
+    it("returns ranked transcript deal candidates for manual confirmation when matches are ambiguous", async () => {
+      await ensureWorkspaceScaffold(tmpRoot);
+      const firstDealDir = path.join(tmpRoot, "deals", "d-2025-0001-acme");
+      const secondDealDir = path.join(tmpRoot, "deals", "d-2025-0002-acme");
+      mkdirSync(firstDealDir, { recursive: true });
+      mkdirSync(secondDealDir, { recursive: true });
+      writeFileSync(
+        path.join(firstDealDir, "record.md"),
+        "---\nid: d-2025-0001-acme\ntype: deal\nname: Acme Platform\n---\n",
+      );
+      writeFileSync(
+        path.join(secondDealDir, "record.md"),
+        "---\nid: d-2025-0002-acme\ntype: deal\nname: Acme Expansion\n---\n",
+      );
+
+      const candidates = await findTranscriptDealCandidates(tmpRoot, "/path/d-2025-acme-call.md");
+      expect(candidates.map((candidate) => candidate.id)).toHaveLength(2);
+      expect(candidates.map((candidate) => candidate.id)).toEqual(
+        expect.arrayContaining(["d-2025-0001-acme", "d-2025-0002-acme"]),
+      );
+
+      const deal = await resolveTranscriptDeal(tmpRoot, undefined, "/path/d-2025-acme-call.md");
+      expect(deal).toBeUndefined();
     });
   });
 

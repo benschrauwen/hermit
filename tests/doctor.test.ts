@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, cpSync } from "node:fs";
 import { tmpdir } from "node:os";
 
 import { runDoctor } from "../src/doctor.js";
@@ -58,5 +58,42 @@ describe("runDoctor", () => {
     expect(
       logged.some((m) => m.includes("healthy") || m.startsWith("warning:")),
     ).toBe(true);
+  });
+
+  it("warns on placeholder text and missing canonical deal files without failing the workspace", async () => {
+    const { ensureWorkspaceScaffold } = await import("../src/workspace.js");
+    const root = mkdtempSync(path.join(tmpdir(), "doctor-quality-"));
+
+    try {
+      await ensureWorkspaceScaffold(root);
+      cpSync(path.join(fixtureRoot, "prompts"), path.join(root, "prompts"), { recursive: true });
+      cpSync(path.join(fixtureRoot, "AGENTS.md"), path.join(root, "AGENTS.md"));
+
+      const dealDir = path.join(root, "deals", "d-2026-0001-acme");
+      mkdirSync(dealDir, { recursive: true });
+      writeFileSync(
+        path.join(dealDir, "record.md"),
+        `---
+id: d-2026-0001-acme
+type: deal
+name: Acme - Expansion
+updated_at: 2026-03-08T12:00:00.000Z
+---
+
+## Next Step
+
+- Add next step.
+`,
+      );
+
+      const result = await runDoctor(root);
+      const logged = consoleSpy.log.mock.calls.map((c) => c[0] as string);
+      expect(result).toBe(true);
+      expect(logged.some((m) => m.includes("placeholder text"))).toBe(true);
+      expect(logged.some((m) => m.includes("meddicc.md is missing or unreadable"))).toBe(true);
+      expect(logged.some((m) => m.includes("activity-log.md is missing or unreadable"))).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

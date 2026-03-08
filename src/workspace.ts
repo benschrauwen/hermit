@@ -254,6 +254,58 @@ export async function findDeals(root: string): Promise<EntityRecord[]> {
   return entities.filter((entity) => entity.type === "deal");
 }
 
+function scoreTranscriptDealMatch(deal: EntityRecord, transcriptSlug: string): number {
+  const dealIdSlug = makeSlug(deal.id);
+  const dealNameSlug = makeSlug(deal.name);
+
+  if (transcriptSlug.includes(dealIdSlug)) {
+    return 100;
+  }
+
+  if (transcriptSlug === dealNameSlug) {
+    return 95;
+  }
+
+  if (transcriptSlug.includes(dealNameSlug)) {
+    return 90;
+  }
+
+  const overlapTokens = [...new Set([...dealNameSlug.split("-"), ...dealIdSlug.split("-")])].filter(
+    (token) => token.length >= 4 && !/^\d+$/.test(token) && transcriptSlug.includes(token),
+  ).length;
+
+  if (overlapTokens >= 2) {
+    return 70 + Math.min(overlapTokens, 10);
+  }
+
+  if (overlapTokens === 1) {
+    return 60;
+  }
+
+  return 0;
+}
+
+async function getTranscriptDealMatches(
+  root: string,
+  transcriptPath: string,
+): Promise<Array<{ deal: EntityRecord; score: number }>> {
+  const deals = await findDeals(root);
+  const transcriptSlug = makeSlug(path.basename(transcriptPath, path.extname(transcriptPath)));
+
+  return deals
+    .map((deal) => ({
+      deal,
+      score: scoreTranscriptDealMatch(deal, transcriptSlug),
+    }))
+    .filter((candidate) => candidate.score > 0)
+    .sort((left, right) => right.score - left.score || left.deal.name.localeCompare(right.deal.name));
+}
+
+export async function findTranscriptDealCandidates(root: string, transcriptPath: string): Promise<EntityRecord[]> {
+  const matches = await getTranscriptDealMatches(root, transcriptPath);
+  return matches.map((candidate) => candidate.deal);
+}
+
 export async function resolveTranscriptDeal(
   root: string,
   explicitDealId: string | undefined,
@@ -263,10 +315,14 @@ export async function resolveTranscriptDeal(
     return findEntityById(root, explicitDealId);
   }
 
-  const deals = await findDeals(root);
-  const transcriptName = makeSlug(path.basename(transcriptPath, path.extname(transcriptPath)));
+  const matches = await getTranscriptDealMatches(root, transcriptPath);
+  const [bestMatch, secondMatch] = matches;
 
-  return deals.find((deal) => transcriptName.includes(makeSlug(deal.name)) || transcriptName.includes(makeSlug(deal.id)));
+  if (bestMatch && bestMatch.score >= 90 && (!secondMatch || bestMatch.score > secondMatch.score)) {
+    return bestMatch.deal;
+  }
+
+  return undefined;
 }
 
 export async function copyTranscriptIntoDeal(root: string, deal: EntityRecord, sourcePath: string): Promise<string> {

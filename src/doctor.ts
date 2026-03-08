@@ -17,6 +17,38 @@ interface DoctorFinding {
   message: string;
 }
 
+const REQUIRED_RECORD_FIELDS = ["id", "type", "name", "updated_at"] as const;
+
+function addMissingFrontmatterWarnings(findings: DoctorFinding[], recordPath: string, data: Record<string, unknown>): void {
+  for (const field of REQUIRED_RECORD_FIELDS) {
+    if (!data[field]) {
+      findings.push({ level: "warning", message: `${recordPath} is missing frontmatter field: ${field}` });
+    }
+  }
+}
+
+function extractPlaceholderLines(content: string): string[] {
+  return [...new Set(content.split(/\r?\n/).map((line) => line.trim()).filter((line) => /^(?:-\s*)?Add\b/.test(line)))];
+}
+
+function addPlaceholderWarnings(findings: DoctorFinding[], filePath: string, content: string): void {
+  for (const line of extractPlaceholderLines(content).slice(0, 3)) {
+    findings.push({ level: "warning", message: `${filePath} still contains placeholder text: ${line}` });
+  }
+}
+
+async function validateMarkdownRecord(findings: DoctorFinding[], recordPath: string): Promise<void> {
+  try {
+    const content = await fs.readFile(recordPath, "utf8");
+    const parsed = matter(content);
+    const data = parsed.data as Record<string, unknown>;
+    addMissingFrontmatterWarnings(findings, recordPath, data);
+    addPlaceholderWarnings(findings, recordPath, content);
+  } catch {
+    findings.push({ level: "warning", message: `${recordPath} is missing or unreadable.` });
+  }
+}
+
 export async function runDoctor(root: string): Promise<boolean> {
   const findings: DoctorFinding[] = [];
   const paths = getWorkspacePaths(root);
@@ -67,6 +99,14 @@ export async function runDoctor(root: string): Promise<boolean> {
     }
   }
 
+  const companyRecordPath = path.join(paths.companyDir, "record.md");
+  try {
+    await fs.access(companyRecordPath);
+    await validateMarkdownRecord(findings, companyRecordPath);
+  } catch {
+    // Partial workspaces are allowed during onboarding.
+  }
+
   const entities = await scanEntities(root);
   const seenIds = new Set<string>();
 
@@ -77,17 +117,18 @@ export async function runDoctor(root: string): Promise<boolean> {
     seenIds.add(entity.id);
 
     const recordPath = path.join(entity.path, "record.md");
-    try {
-      const content = await fs.readFile(recordPath, "utf8");
-      const parsed = matter(content);
-      const data = parsed.data as Record<string, unknown>;
-      for (const field of ["id", "type", "name", "updated_at"]) {
-        if (!data[field]) {
-          findings.push({ level: "warning", message: `${recordPath} is missing frontmatter field: ${field}` });
+    await validateMarkdownRecord(findings, recordPath);
+
+    if (entity.type === "deal") {
+      for (const requiredFile of ["meddicc.md", "activity-log.md"]) {
+        const requiredPath = path.join(entity.path, requiredFile);
+        try {
+          const content = await fs.readFile(requiredPath, "utf8");
+          addPlaceholderWarnings(findings, requiredPath, content);
+        } catch {
+          findings.push({ level: "warning", message: `${requiredPath} is missing or unreadable.` });
         }
       }
-    } catch {
-      findings.push({ level: "warning", message: `${recordPath} is missing or unreadable.` });
     }
   }
 
