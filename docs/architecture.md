@@ -60,11 +60,24 @@ Markdown defines structure and starter content. Code defines behavior that must 
 
 The runtime should not know what a deal, ticket, or campaign is. It should know how to load a role manifest, render templates, scan entities, and run a session for the selected role.
 
+### 5. Read-only explorer on top of the same workspace
+
+The local explorer is a separate Astro app under `explorer/`, but it is intentionally not a second source of truth and not a second domain model. It is a read-only browser for the same file-first workspace.
+
+The explorer should:
+
+- read the shared root context from `company/` and `people/`
+- read role manifests and scanned entities from the same root TypeScript runtime used by the CLI
+- render markdown files directly instead of copying data into a database or API layer
+- stay thin enough that adding a new role or entity type is still primarily a manifest-and-files exercise
+
 ## High-Level Flow
 
 ```mermaid
 flowchart TD
   cli[CLI] --> roleResolver[RoleResolver]
+  explorer[Explorer] --> explorerLoader[Explorer Loader]
+  explorerLoader --> workspaceDist[dist roles_workspace]
   roleResolver --> roleManifest[role.md]
   roleManifest --> promptCatalog[prompt_catalog]
   promptCatalog --> promptLibrary[PromptLibrary]
@@ -76,6 +89,7 @@ flowchart TD
   promptLibrary --> sessionFactory[SessionFactory]
   promptBundles --> sessionFactory
   templateLibrary --> workspaceCore[WorkspaceCore]
+  workspaceDist --> workspaceRules
   workspaceRules --> doctor[Doctor]
 ```
 
@@ -107,6 +121,38 @@ Loads markdown starter templates from disk and performs simple placeholder subst
 ### `src/workspace.ts`
 
 Owns shared and role-local path resolution, scaffold creation, shared record creation, generic role-entity creation, entity scanning, transcript matching, and evidence placement.
+
+### `explorer/`
+
+A local Astro SSR app that provides a read-only browser for the workspace.
+
+It is intentionally thin:
+
+- routes live under `explorer/src/pages/`
+- shared markdown parsing helpers live under `explorer/src/lib/entity-content.ts`
+- root workspace and role loading adapters live under `explorer/src/lib/workspace.ts`
+
+Instead of duplicating business logic, the explorer dynamically imports the built root modules from `dist/roles.js` and `dist/workspace.js`, then reuses:
+
+- role listing
+- role manifest loading
+- generic entity scanning
+- entity lookup by type
+
+This means the CLI and explorer read the same role and entity model, while the explorer stays read-only.
+
+Current route model:
+
+- `/` shows the explorer home page with links to shared and role-local areas
+- `/company` renders the shared company markdown files
+- `/people` lists shared people records
+- `/people/:personId` renders a person's markdown files such as `record.md` and `development-plan.md`
+- `/roles/:roleId` shows a role overview
+- `/roles/:roleId/agent` renders `agent/record.md` and `agent/inbox.md` for that role
+- `/roles/:roleId/:entityType` renders a generic list view for that entity type using role manifest field metadata
+- `/roles/:roleId/:entityType/:entityId` renders the entity detail view from the markdown files declared in the role manifest
+
+The explorer has no write path. Any canonical update still happens through normal file edits or the CLI runtime.
 
 ### `src/session.ts`
 
@@ -156,6 +202,7 @@ For prompts specifically, doctor verifies:
 - `prompts/`
 - `roles/`
 - `templates/shared/`
+- `explorer/`
 
 ### Per role
 
@@ -274,3 +321,22 @@ To add a new role:
 5. Optionally declare transcript ingest if that role needs it
 
 No orchestration changes should be required for a standard role.
+
+## Explorer Design Notes
+
+The explorer deliberately sits one level above the canonical files rather than in front of a custom API.
+
+Why:
+
+- the workspace is already the system of record
+- the root runtime already knows how to load roles and scan entities generically
+- markdown files are the display payload, so adding a persistence or serialization layer would add complexity without changing the source of truth
+
+In practice, this means:
+
+- shared pages such as `company` and `people` read markdown from disk directly
+- role pages reuse the root `dist/` modules for manifest-aware scanning
+- role entity lists are driven by manifest metadata, not hardcoded per entity type
+- role detail pages render the markdown files declared by each entity definition
+
+If the explorer grows later, optional role-local presentation metadata or overrides can be added, but the first implementation keeps the extension model mostly declarative and file-driven.

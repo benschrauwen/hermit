@@ -3,16 +3,21 @@
   "version": "0.1.0",
   "description": "Local file-first multi-role leadership agent powered by pi-mono.",
   "type": "module",
+  "packageManager": "bun@1.3.8",
   "bin": {
     "leadership-agent": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit",
-    "start": "tsx src/cli.ts",
+    "start": "bun src/cli.ts",
+    "cli": "bun src/cli.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "explorer": "bun run build && (cd explorer && WORKSPACE_ROOT=\"$(cd .. && pwd)\" bun run dev)",
+    "explorer:build": "bun run build && (cd explorer && WORKSPACE_ROOT=\"$(cd .. && pwd)\" bun run build)",
+    "explorer:preview": "(cd explorer && WORKSPACE_ROOT=\"$(cd .. && pwd)\" bun run preview)"
   },
   "keywords": [
     "leadership",
@@ -36,7 +41,6 @@
   "devDependencies": {
     "@types/node": "^25.3.5",
     "@vitest/coverage-v8": "^3.2.4",
-    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   }

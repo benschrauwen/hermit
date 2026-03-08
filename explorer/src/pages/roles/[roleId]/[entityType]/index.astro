@@ -1,0 +1,119 @@
+---
+import BaseLayout from "../../../../layouts/BaseLayout.astro";
+import { getWorkspaceRoot, loadRole, findEntitiesByType } from "../../../../lib/workspace.js";
+import type { EntityRecord } from "../../../../lib/workspace.js";
+import { formatEntityFieldValue, readEntityFrontmatter } from "../../../../lib/entity-content.js";
+
+interface EntityListRow extends EntityRecord {
+  fieldValues: Record<string, string>;
+}
+
+const { roleId, entityType } = Astro.params;
+if (!roleId || !entityType) return Astro.redirect("/");
+
+const root = getWorkspaceRoot();
+let role;
+try {
+  role = await loadRole(root, roleId);
+} catch {
+  return Astro.redirect("/");
+}
+
+const entityDef = role.entities.find((e) => e.type === entityType);
+if (!entityDef) return Astro.redirect(`/roles/${roleId}`);
+
+const rawEntities = await findEntitiesByType(root, role, entityType);
+const allEntities: EntityListRow[] = await Promise.all(
+  rawEntities.map(async (entity) => {
+    const frontmatter = await readEntityFrontmatter(entity.path);
+    const fieldValues = Object.fromEntries(
+      entityDef.fields.map((field) => [field.key, formatEntityFieldValue(frontmatter[field.key])]),
+    ) as Record<string, string>;
+
+    return {
+      ...entity,
+      fieldValues,
+    };
+  }),
+);
+
+const searchQuery = (Astro.url.searchParams.get("q") ?? "").trim();
+const normalizedQuery = searchQuery.toLowerCase();
+const filteredEntities = normalizedQuery
+  ? allEntities.filter((entity) =>
+      [entity.name, entity.id, ...Object.values(entity.fieldValues)]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedQuery),
+    )
+  : allEntities;
+
+const sortKey = Astro.url.searchParams.get("sort") ?? "name";
+const validSortKeys = new Set(["name", "id", ...entityDef.fields.map((field) => field.key)]);
+const sort = validSortKeys.has(sortKey) ? sortKey : "name";
+
+function getSortValue(entity: EntityListRow, key: string): string {
+  if (key === "name" || key === "id") {
+    return entity[key] ?? "";
+  }
+  return entity.fieldValues[key] ?? "";
+}
+
+const entities = [...filteredEntities].sort((a, b) =>
+  getSortValue(a, sort).localeCompare(getSortValue(b, sort), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  }),
+);
+
+function buildSortHref(nextSort: string): string {
+  const params = new URLSearchParams(Astro.url.searchParams);
+  params.set("sort", nextSort);
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+---
+<BaseLayout title={`${entityDef.label} · ${role.name}`} roleId={roleId} roleName={role.name}>
+  <div class="breadcrumb">
+    <a href={`/roles/${roleId}`}>{role.name}</a> → {entityDef.label}
+  </div>
+  <h1>{entityDef.label}</h1>
+  <p class="meta">
+    {entities.length} of {allEntities.length} record{allEntities.length !== 1 ? "s" : ""}
+  </p>
+  <form method="get" class="toolbar">
+    <input
+      type="search"
+      name="q"
+      value={searchQuery}
+      placeholder={`Filter ${entityDef.label.toLowerCase()} records`}
+    />
+    {sort !== "name" && <input type="hidden" name="sort" value={sort} />}
+    <button type="submit">Filter</button>
+    {searchQuery && <a href={sort === "name" ? "" : buildSortHref(sort)}>Clear</a>}
+  </form>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th><a href={buildSortHref("name")} class="sort-link">Name</a></th>
+          <th><a href={buildSortHref("id")} class="sort-link">ID</a></th>
+          {entityDef.fields.map((field) => (
+            <th><a href={buildSortHref(field.key)} class="sort-link">{field.label}</a></th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {entities.map((entity) => (
+          <tr>
+            <td><a href={`/roles/${roleId}/${entityType}/${entity.id}`}>{entity.name}</a></td>
+            <td class="meta">{entity.id}</td>
+            {entityDef.fields.map((field) => (
+              <td>{entity.fieldValues[field.key] || "—"}</td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</BaseLayout>

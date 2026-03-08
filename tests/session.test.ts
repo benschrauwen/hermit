@@ -125,7 +125,7 @@ describe("formatActivityStatus", () => {
   });
 
   it("renders bash commands compactly", () => {
-    expect(formatActivityStatus("bash", { command: "npm run check" })).toBe("bash npm run check");
+    expect(formatActivityStatus("bash", { command: "bun run check" })).toBe("bash bun run check");
   });
 
   it("renders read paths with line ranges", () => {

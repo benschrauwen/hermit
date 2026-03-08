@@ -1,0 +1,57 @@
+---
+import BaseLayout from "../../../../layouts/BaseLayout.astro";
+import { getWorkspaceRoot, loadRole, findEntitiesByType } from "../../../../lib/workspace.js";
+import { readEntityRecordContent } from "../../../../lib/entity-content.js";
+import { marked } from "marked";
+
+const { roleId, entityType, entityId } = Astro.params;
+if (!roleId || !entityType || !entityId) return Astro.redirect("/");
+
+const root = getWorkspaceRoot();
+let role;
+try {
+  role = await loadRole(root, roleId);
+} catch {
+  return Astro.redirect("/");
+}
+
+const entityDef = role.entities.find((e) => e.type === entityType);
+if (!entityDef) return Astro.redirect(`/roles/${roleId}`);
+
+const entities = await findEntitiesByType(root, role, entityType);
+const entity = entities.find((candidate) => candidate.id === entityId);
+if (!entity) return Astro.redirect(`/roles/${roleId}/${entityType}`);
+
+const rawFiles = await readEntityRecordContent(entity.path, role, entityType);
+marked.setOptions({ gfm: true });
+const files = await Promise.all(
+  rawFiles.map(async (file) => ({
+    ...file,
+    html: file.content ? await marked.parse(file.content) : "",
+  }))
+);
+---
+<BaseLayout title={`${entity.name} · ${role.name}`} roleId={roleId} roleName={role.name}>
+  <div class="breadcrumb">
+    <a href={`/roles/${roleId}`}>{role.name}</a> →
+    <a href={`/roles/${roleId}/${entityType}`}>{entityDef?.label ?? entityType}</a> →
+    {entity.name}
+  </div>
+  <h1>{entity.name}</h1>
+  <p class="meta">ID: {entity.id} · Type: {entity.type}</p>
+
+  {files.map((file) => (
+    <section class="file-section card">
+      <h3>{file.relativePath}</h3>
+      {Object.keys(file.frontmatter).length > 0 && (
+        <dl class="meta" style="margin: 0 0 0.75rem; font-size: 0.85rem;">
+          {Object.entries(file.frontmatter).map(([k, v]) => [
+            <dt style="margin: 0.25rem 0 0; font-weight: 600;">{k}</dt>,
+            <dd style="margin: 0 0 0 1rem;">{Array.isArray(v) ? v.join(", ") : String(v)}</dd>,
+          ])}
+        </dl>
+      )}
+      <div class="markdown-body" set:html={file.html} />
+    </section>
+  ))}
+</BaseLayout>

@@ -1,0 +1,45 @@
+---
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import { getWorkspaceRoot, loadRole, scanEntities } from "../../../lib/workspace.js";
+
+const { roleId } = Astro.params;
+if (!roleId) return Astro.redirect("/");
+
+const root = getWorkspaceRoot();
+let role;
+try {
+  role = await loadRole(root, roleId);
+} catch {
+  return Astro.redirect("/");
+}
+
+const entities = await scanEntities(root, role);
+const byType = new Map<string, { label: string; count: number }>();
+for (const entity of role.entities) {
+  const count = entities.filter((e) => e.type === entity.type).length;
+  byType.set(entity.type, { label: entity.label, count });
+}
+---
+<BaseLayout title={role.name} roleId={roleId} roleName={role.name}>
+  <h1>{role.name}</h1>
+  <p class="meta">{role.description}</p>
+  <div class="entity-type-list" style="margin-bottom: 1.5rem;">
+    <a href={`/roles/${roleId}/agent`}>
+      <strong>Agent Workspace</strong>
+      <span class="meta"> — browse `agent/record.md` and `agent/inbox.md`</span>
+    </a>
+  </div>
+  <h2 style="font-size: 1.15rem; margin: 0 0 0.75rem;">Entities</h2>
+  <div class="entity-type-list">
+    {role.entities.map((entity) => {
+      const info = byType.get(entity.type);
+      const count = info?.count ?? 0;
+      return (
+        <a href={`/roles/${roleId}/${entity.type}`}>
+          <strong>{entity.label}</strong>
+          <span class="meta"> — {count} record{count !== 1 ? "s" : ""}</span>
+        </a>
+      );
+    })}
+  </div>
+</BaseLayout>

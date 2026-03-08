@@ -1,0 +1,29 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { getWorkspaceRoot, listRoleIds } from "../lib/workspace.js";
+
+const root = getWorkspaceRoot();
+const roleIds = await listRoleIds(root);
+---
+<BaseLayout title="Explorer">
+  <h1>Explorer</h1>
+  <p class="meta">Browse shared company context, people records, and role-specific workspaces.</p>
+
+  <div class="entity-type-list" style="margin-bottom: 1.5rem;">
+    <a href="/company">
+      <strong>Company</strong>
+      <span class="meta"> — shared company records and strategy notes</span>
+    </a>
+    <a href="/people">
+      <strong>People</strong>
+      <span class="meta"> — shared people records and development plans</span>
+    </a>
+  </div>
+
+  <h2 style="font-size: 1.15rem; margin: 0 0 0.75rem;">Roles</h2>
+  <div class="entity-type-list">
+    {roleIds.map((id) => (
+      <a href={`/roles/${id}`}>{id}</a>
+    ))}
+  </div>
+</BaseLayout>

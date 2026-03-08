@@ -1,0 +1,65 @@
+---
+interface Props {
+  title: string;
+  roleId?: string;
+  roleName?: string;
+}
+const { title, roleId, roleName } = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title} · Leadership Explorer</title>
+    <style is:global>
+      * { box-sizing: border-box; }
+      body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 0; background: #f8f9fa; color: #1a1a1a; line-height: 1.5; }
+      a { color: #0d6efd; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .container { max-width: 960px; margin: 0 auto; padding: 1rem 1.5rem; }
+      nav { background: #fff; border-bottom: 1px solid #dee2e6; padding: 0.75rem 1.5rem; }
+      nav a { margin-right: 1rem; }
+      .breadcrumb { font-size: 0.9rem; color: #6c757d; margin-bottom: 1rem; }
+      .breadcrumb a { color: #6c757d; }
+      h1 { font-size: 1.5rem; margin: 0 0 1rem; }
+      table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 6px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+      th, td { padding: 0.6rem 0.75rem; text-align: left; border-bottom: 1px solid #eee; }
+      th { background: #f8f9fa; font-weight: 600; font-size: 0.85rem; }
+      th a { color: inherit; }
+      tr:hover td { background: #f8f9fa; }
+      .card { background: #fff; border-radius: 6px; padding: 1rem 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+      .card h2 { font-size: 1.1rem; margin: 0 0 0.5rem; }
+      .card p { margin: 0; font-size: 0.9rem; color: #495057; }
+      .entity-type-list { display: grid; gap: 0.75rem; }
+      .entity-type-list a { display: block; padding: 0.75rem 1rem; background: #fff; border-radius: 6px; border: 1px solid #dee2e6; color: inherit; }
+      .entity-type-list a:hover { border-color: #0d6efd; background: #f8f9fa; text-decoration: none; }
+      .meta { font-size: 0.85rem; color: #6c757d; }
+      .markdown-body { font-size: 0.95rem; }
+      .markdown-body h2 { font-size: 1.1rem; margin: 1rem 0 0.5rem; }
+      .markdown-body h3 { font-size: 1rem; }
+      .markdown-body ul { margin: 0.5rem 0; padding-left: 1.25rem; }
+      .markdown-body pre { background: #f1f3f4; padding: 0.75rem; border-radius: 4px; overflow-x: auto; font-size: 0.85rem; }
+      .file-section { margin-bottom: 1.5rem; }
+      .file-section h3 { font-size: 1rem; margin: 0 0 0.5rem; color: #495057; }
+      .sort-link { white-space: nowrap; }
+      .toolbar { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
+      .toolbar input,
+      .toolbar button { font: inherit; padding: 0.5rem 0.75rem; border: 1px solid #ced4da; border-radius: 4px; }
+      .toolbar input { min-width: 18rem; background: #fff; }
+      .toolbar button { background: #fff; cursor: pointer; }
+      .table-wrap { overflow-x: auto; }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <a href="/">Explorer</a>
+      <a href="/company">Company</a>
+      <a href="/people">People</a>
+      {roleId && (<a href={`/roles/${roleId}`}>{roleName ?? roleId}</a>)}
+    </nav>
+    <main class="container">
+      <slot />
+    </main>
+  </body>
+</html>

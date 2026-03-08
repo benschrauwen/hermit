@@ -38,23 +38,24 @@ templates/shared/
 ## Quick Start
 
 ```bash
-npm install
-npm run build
+bun install
 export OPENAI_API_KEY=your_key_here
-node ./dist/cli.js chat --role sales
+bun cli chat --role sales
 ```
 
 ## Commands
 
 ```bash
-node ./dist/cli.js chat --role sales
-node ./dist/cli.js chat --role engineering
-node ./dist/cli.js ask --role sales "Review the top open deals"
-node ./dist/cli.js ingest transcript ./notes/acme-call.md --role sales --entity d-2026-0001-acme-expansion
-node ./dist/cli.js doctor --role sales
+bun cli chat --role sales
+bun cli chat --role engineering
+bun cli ask --role sales "Review the top open deals"
+bun cli ingest transcript ./notes/acme-call.md --role sales --entity d-2026-0001-acme-expansion
+bun cli doctor --role sales
 ```
 
 If you run the CLI from inside `roles/<role-id>/`, the role is inferred automatically. If multiple roles exist and none can be inferred, pass `--role`.
+
+For the explorer, use `bun run explorer`; it builds the workspace first automatically.
 
 ## Role Contract
 
