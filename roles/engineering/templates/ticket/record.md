@@ -9,6 +9,10 @@ source_refs:
 {{sourceRefsYaml}}
 ---
 
+## Summary
+
+- Add a short problem statement or outcome.
+
 ## Owner
 
 {{owner}}
@@ -21,10 +25,26 @@ source_refs:
 
 {{priority}}
 
+## Initiative
+
+{{initiative}}
+
+## System
+
+{{system}}
+
+## Acceptance Criteria
+
+{{acceptanceCriteria}}
+
+## Due Date
+
+{{dueDate}}
+
 ## Next Step
 
 {{nextStep}}
 
-## Notes
+## Risks Or Blockers
 
 - Add implementation detail or delivery risk.
