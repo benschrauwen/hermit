@@ -19,7 +19,9 @@ The agent is expected to operate like a disciplined enterprise sales leader who 
 - `company/`: company-level context, strategy, GTM, and operating cadence.
 - `people/`: one directory per person with `record.md`, `development-plan.md`, `notes/`, and `artifacts/`.
 - `product/`: one directory per product with `record.md`, product sales assets, `notes/`, and `artifacts/`.
-- `deals/`: one directory per deal with `record.md`, `meddicc.md`, `activity-log.md`, `transcripts/`, `notes/`, and `artifacts/`.
+- `deals/active/`: one directory per in-flight deal with `record.md`, `meddicc.md`, `activity-log.md`, `transcripts/`, `notes/`, and `artifacts/`.
+- `deals/closed-won/`: one directory per won deal, preserving the same canonical files and history.
+- `deals/closed-lost/`: one directory per lost deal, preserving the same canonical files and history.
 - `supporting-files/`: intake area for loose files that have not yet been attached to a canonical record.
 - `prompts/`: every reusable instruction template for the agent. The default agent may read additional prompt files at runtime based on the task.
 

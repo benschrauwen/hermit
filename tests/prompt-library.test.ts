@@ -45,7 +45,7 @@ describe("PromptLibrary", () => {
       const out = lib.renderBundle(DEFAULT_PROMPT_BUNDLE, {
         workspaceRoot: "/my/root",
         entityId: "d-1",
-        entityPath: "/my/root/deals/d-1",
+        entityPath: "/my/root/deals/active/d-1",
         transcriptPath: "/path/to/transcript.md",
       });
       expect(out).toContain("Soul.");
@@ -77,10 +77,10 @@ describe("PromptLibrary", () => {
       const lib = await PromptLibrary.load(fixtureRoot);
       const out = lib.renderNamedPrompt("40-command-transcript-run.md", {
         workspaceRoot: "/root",
-        transcriptPath: "/root/deals/d-1/transcripts/call.md",
+        transcriptPath: "/root/deals/active/d-1/transcripts/call.md",
       });
       expect(out).toContain("Transcript run.");
-      expect(out).toContain("/root/deals/d-1/transcripts/call.md");
+      expect(out).toContain("/root/deals/active/d-1/transcripts/call.md");
     });
 
     it("uses not-selected for missing optional context", async () => {

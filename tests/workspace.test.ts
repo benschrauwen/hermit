@@ -21,6 +21,7 @@ import {
   scanEntities,
   findEntityById,
   findDeals,
+  findActiveDeals,
   findTranscriptDealCandidates,
   resolveTranscriptDeal,
 } from "../src/workspace.js";
@@ -36,6 +37,9 @@ describe("getWorkspacePaths", () => {
     expect(paths.peopleDir).toBe(path.join(root, "people"));
     expect(paths.productDir).toBe(path.join(root, "product"));
     expect(paths.dealsDir).toBe(path.join(root, "deals"));
+    expect(paths.activeDealsDir).toBe(path.join(root, "deals", "active"));
+    expect(paths.closedWonDealsDir).toBe(path.join(root, "deals", "closed-won"));
+    expect(paths.closedLostDealsDir).toBe(path.join(root, "deals", "closed-lost"));
     expect(paths.supportingFilesDir).toBe(path.join(root, "supporting-files"));
     expect(paths.sessionsDir).toBe(path.join(root, ".sales-agent", "sessions"));
   });
@@ -83,9 +87,9 @@ describe("buildEntityPath", () => {
     );
   });
 
-  it("returns path under deals for deal", () => {
+  it("returns path under active deals for deal", () => {
     expect(buildEntityPath(root, "deal", "d-2025-0001-acme")).toBe(
-      path.join(root, "deals", "d-2025-0001-acme"),
+      path.join(root, "deals", "active", "d-2025-0001-acme"),
     );
   });
 });
@@ -107,6 +111,9 @@ describe("workspace fs operations", () => {
       const companyDir = path.join(tmpRoot, "company");
       const inboxDir = path.join(tmpRoot, "supporting-files", "inbox");
       expect(readdirSync(tmpRoot)).toContain("company");
+      expect(readdirSync(path.join(tmpRoot, "deals"))).toEqual(
+        expect.arrayContaining(["active", "closed-won", "closed-lost"]),
+      );
       expect(readdirSync(path.join(tmpRoot, "supporting-files"))).toContain(
         "inbox",
       );
@@ -207,12 +214,12 @@ describe("workspace fs operations", () => {
 
     it("increments sequence when deals exist", async () => {
       await ensureWorkspaceScaffold(tmpRoot);
-      const dealsDir = path.join(tmpRoot, "deals");
+      const dealsDir = path.join(tmpRoot, "deals", "active");
       const year = new Date().getFullYear();
       mkdirSync(path.join(dealsDir, `d-${year}-0001-existing`), {
         recursive: true,
       });
-      mkdirSync(path.join(dealsDir, `d-${year}-0002-another`), {
+      mkdirSync(path.join(tmpRoot, "deals", "closed-won", `d-${year}-0002-another`), {
         recursive: true,
       });
       const id = await makeDealId(tmpRoot, "New", "Deal");
@@ -282,31 +289,68 @@ name: Jane Doe
   });
 
   describe("findDeals", () => {
-    it("returns only entities with type deal", async () => {
+    it("returns only entities with type deal across active and closed buckets", async () => {
       await ensureWorkspaceScaffold(tmpRoot);
       const peopleDir = path.join(tmpRoot, "people", "p-jane");
-      const dealsDir = path.join(tmpRoot, "deals", "d-2025-0001-acme");
+      const activeDealDir = path.join(tmpRoot, "deals", "active", "d-2025-0001-acme");
+      const closedDealDir = path.join(tmpRoot, "deals", "closed-won", "d-2025-0002-beta");
       mkdirSync(peopleDir, { recursive: true });
-      mkdirSync(dealsDir, { recursive: true });
+      mkdirSync(activeDealDir, { recursive: true });
+      mkdirSync(closedDealDir, { recursive: true });
       writeFileSync(
         path.join(peopleDir, "record.md"),
         "---\nid: p-jane\ntype: person\nname: Jane\n---\n",
       );
       writeFileSync(
-        path.join(dealsDir, "record.md"),
+        path.join(activeDealDir, "record.md"),
         "---\nid: d-2025-0001-acme\ntype: deal\nname: Acme\n---\n",
       );
+      writeFileSync(
+        path.join(closedDealDir, "record.md"),
+        "---\nid: d-2025-0002-beta\ntype: deal\nname: Beta\n---\n",
+      );
       const deals = await findDeals(tmpRoot);
-      expect(deals.length).toBe(1);
-      expect(deals[0].type).toBe("deal");
-      expect(deals[0].id).toBe("d-2025-0001-acme");
+      expect(deals).toHaveLength(2);
+      expect(deals.map((deal) => deal.id)).toEqual(
+        expect.arrayContaining(["d-2025-0001-acme", "d-2025-0002-beta"]),
+      );
+    });
+  });
+
+  describe("findActiveDeals", () => {
+    it("returns active deals and treats legacy top-level deal paths as active", async () => {
+      await ensureWorkspaceScaffold(tmpRoot);
+      const activeDealDir = path.join(tmpRoot, "deals", "active", "d-2025-0001-acme");
+      const legacyDealDir = path.join(tmpRoot, "deals", "d-2025-0002-legacy");
+      const closedDealDir = path.join(tmpRoot, "deals", "closed-lost", "d-2025-0003-gamma");
+      mkdirSync(activeDealDir, { recursive: true });
+      mkdirSync(legacyDealDir, { recursive: true });
+      mkdirSync(closedDealDir, { recursive: true });
+      writeFileSync(
+        path.join(activeDealDir, "record.md"),
+        "---\nid: d-2025-0001-acme\ntype: deal\nname: Acme\n---\n",
+      );
+      writeFileSync(
+        path.join(legacyDealDir, "record.md"),
+        "---\nid: d-2025-0002-legacy\ntype: deal\nname: Legacy\n---\n",
+      );
+      writeFileSync(
+        path.join(closedDealDir, "record.md"),
+        "---\nid: d-2025-0003-gamma\ntype: deal\nname: Gamma\n---\n",
+      );
+
+      const deals = await findActiveDeals(tmpRoot);
+      expect(deals.map((deal) => deal.id)).toEqual(
+        expect.arrayContaining(["d-2025-0001-acme", "d-2025-0002-legacy"]),
+      );
+      expect(deals.map((deal) => deal.id)).not.toContain("d-2025-0003-gamma");
     });
   });
 
   describe("resolveTranscriptDeal", () => {
     it("returns entity when explicitDealId is given", async () => {
       await ensureWorkspaceScaffold(tmpRoot);
-      const dealsDir = path.join(tmpRoot, "deals", "d-2025-0001-acme");
+      const dealsDir = path.join(tmpRoot, "deals", "active", "d-2025-0001-acme");
       mkdirSync(dealsDir, { recursive: true });
       writeFileSync(
         path.join(dealsDir, "record.md"),
@@ -322,7 +366,7 @@ name: Jane Doe
 
     it("matches by deal name slug in transcript path when no explicit id", async () => {
       await ensureWorkspaceScaffold(tmpRoot);
-      const dealsDir = path.join(tmpRoot, "deals", "d-2025-0001-acme");
+      const dealsDir = path.join(tmpRoot, "deals", "active", "d-2025-0001-acme");
       mkdirSync(dealsDir, { recursive: true });
       writeFileSync(
         path.join(dealsDir, "record.md"),
@@ -338,8 +382,8 @@ name: Jane Doe
 
     it("returns ranked transcript deal candidates for manual confirmation when matches are ambiguous", async () => {
       await ensureWorkspaceScaffold(tmpRoot);
-      const firstDealDir = path.join(tmpRoot, "deals", "d-2025-0001-acme");
-      const secondDealDir = path.join(tmpRoot, "deals", "d-2025-0002-acme");
+      const firstDealDir = path.join(tmpRoot, "deals", "active", "d-2025-0001-acme");
+      const secondDealDir = path.join(tmpRoot, "deals", "active", "d-2025-0002-acme");
       mkdirSync(firstDealDir, { recursive: true });
       mkdirSync(secondDealDir, { recursive: true });
       writeFileSync(
@@ -366,7 +410,7 @@ name: Jane Doe
     it("copies transcript into deal transcripts dir and returns path", async () => {
       const { copyTranscriptIntoDeal } = await import("../src/workspace.js");
       await ensureWorkspaceScaffold(tmpRoot);
-      const dealsDir = path.join(tmpRoot, "deals", "d-2025-0001-acme");
+      const dealsDir = path.join(tmpRoot, "deals", "active", "d-2025-0001-acme");
       mkdirSync(dealsDir, { recursive: true });
       writeFileSync(
         path.join(dealsDir, "record.md"),
@@ -454,6 +498,7 @@ name: Jane Doe
       expect(person.id).toBe("p-jane-doe");
       expect(product.id).toBe("prd-widget");
       expect(deal.id).toMatch(/^d-\d{4}-\d{4}-acme-expansion$/);
+      expect(deal.path).toContain(path.join("deals", "active"));
       expect(readFileSync(path.join(person.path, "record.md"), "utf8")).toContain("agent onboarding");
       expect(readFileSync(path.join(product.path, "playbook.md"), "utf8")).toContain("Ideal Buyers");
       expect(readFileSync(path.join(deal.path, "activity-log.md"), "utf8")).toContain(

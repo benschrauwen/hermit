@@ -69,7 +69,7 @@ describe("runDoctor", () => {
       cpSync(path.join(fixtureRoot, "prompts"), path.join(root, "prompts"), { recursive: true });
       cpSync(path.join(fixtureRoot, "AGENTS.md"), path.join(root, "AGENTS.md"));
 
-      const dealDir = path.join(root, "deals", "d-2026-0001-acme");
+      const dealDir = path.join(root, "deals", "active", "d-2026-0001-acme");
       mkdirSync(dealDir, { recursive: true });
       writeFileSync(
         path.join(dealDir, "record.md"),

@@ -10,7 +10,7 @@ import {
   appendLine,
   copyTranscriptIntoDeal,
   copyTranscriptToInbox,
-  findDeals,
+  findActiveDeals,
   findTranscriptDealCandidates,
   resolveTranscriptDeal,
 } from "./workspace.js";
@@ -55,7 +55,7 @@ export async function runTranscriptIngest(options: {
   let deal = await resolveTranscriptDeal(options.root, options.dealId, options.transcriptPath);
   if (!deal && !options.dealId) {
     const candidateDeals = await findTranscriptDealCandidates(options.root, options.transcriptPath);
-    deal = await chooseDeal(candidateDeals.length > 0 ? candidateDeals : await findDeals(options.root));
+    deal = await chooseDeal(candidateDeals.length > 0 ? candidateDeals : await findActiveDeals(options.root));
   }
 
   if (!deal) {

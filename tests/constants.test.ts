@@ -42,12 +42,15 @@ describe("constants", () => {
     }
   });
 
-  it("REQUIRED_ROOT_DIRECTORIES includes agent, company, people, product, deals, prompts", () => {
+  it("REQUIRED_ROOT_DIRECTORIES includes active and closed deal buckets", () => {
     expect(REQUIRED_ROOT_DIRECTORIES).toContain("agent");
     expect(REQUIRED_ROOT_DIRECTORIES).toContain("company");
     expect(REQUIRED_ROOT_DIRECTORIES).toContain("people");
     expect(REQUIRED_ROOT_DIRECTORIES).toContain("product");
     expect(REQUIRED_ROOT_DIRECTORIES).toContain("deals");
+    expect(REQUIRED_ROOT_DIRECTORIES).toContain("deals/active");
+    expect(REQUIRED_ROOT_DIRECTORIES).toContain("deals/closed-won");
+    expect(REQUIRED_ROOT_DIRECTORIES).toContain("deals/closed-lost");
     expect(REQUIRED_ROOT_DIRECTORIES).toContain("prompts");
     expect(REQUIRED_ROOT_DIRECTORIES).toContain("supporting-files");
   });

@@ -10,7 +10,7 @@ The design intentionally favors a small CLI and deterministic TypeScript orchest
 
 ### 1. File-first system of record
 
-The workspace is the product. Company, people, product, and deal state are stored as files under canonical directories such as `company/`, `people/`, `product/`, and `deals/`.
+The workspace is the product. Company, people, product, and deal state are stored as files under canonical directories such as `company/`, `people/`, `product/`, and the deal buckets under `deals/`.
 
 Why:
 
@@ -57,7 +57,7 @@ The system has four layers:
 1. CLI entrypoints in `src/cli.ts`
 2. Deterministic orchestration modules in `src/`
 3. Prompt and workspace contracts in `AGENTS.md` and `prompts/`
-4. Canonical business data in workspace directories such as `company/`, `people/`, `product/`, and `deals/`
+4. Canonical business data in workspace directories such as `company/`, `people/`, `product/`, and the deal buckets under `deals/`
 
 In practice, the flow looks like this:
 
@@ -206,7 +206,9 @@ The workspace layout is a core architectural decision, not just a storage detail
 - `company/` for company-level operating context
 - `people/` for one directory per person
 - `product/` for one directory per product
-- `deals/` for one directory per deal
+- `deals/active/` for in-flight deals that belong in the working pipeline
+- `deals/closed-won/` for won deals that should stay searchable but out of the active view
+- `deals/closed-lost/` for lost deals that should stay searchable but out of the active view
 - `supporting-files/` for loose or unmatched evidence
 - `prompts/` for reusable AI instructions
 - `.sales-agent/sessions/` for persisted session history

@@ -15,7 +15,7 @@ Run inspection-quality pipeline review with forecast discipline.
 ## Start By Reading
 
 - the target deal if one is selected
-- otherwise the highest priority deals in `deals/`
+- otherwise the highest priority deals in `deals/active/`
 - each deal `record.md`
 - each deal `meddicc.md`
 - each deal `activity-log.md`
@@ -37,4 +37,5 @@ Run inspection-quality pipeline review with forecast discipline.
 - Maintain `meddicc.md` as the current inspection snapshot.
 - Record review outcomes in dated notes or `activity-log.md`.
 - Document what changed since the last review when forecast confidence moves.
+- Keep `deals/active/` clean by moving conclusively won or lost deals into the appropriate closed bucket instead of leaving them in the working pipeline.
 - Keep recommendations operational and tied to the next inspection step.

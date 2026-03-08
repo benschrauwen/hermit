@@ -37,6 +37,8 @@ const slugify = slugifyImport as unknown as (
   options?: { lower?: boolean; strict?: boolean; trim?: boolean },
 ) => string;
 
+const DEAL_BUCKET_DIRECTORY_NAMES = ["active", "closed-won", "closed-lost"] as const;
+
 export interface WorkspacePaths {
   root: string;
   agentsFile: string;
@@ -46,11 +48,16 @@ export interface WorkspacePaths {
   peopleDir: string;
   productDir: string;
   dealsDir: string;
+  activeDealsDir: string;
+  closedWonDealsDir: string;
+  closedLostDealsDir: string;
   supportingFilesDir: string;
   sessionsDir: string;
 }
 
 export function getWorkspacePaths(root: string): WorkspacePaths {
+  const dealsDir = path.join(root, "deals");
+
   return {
     root,
     agentsFile: path.join(root, "AGENTS.md"),
@@ -59,7 +66,10 @@ export function getWorkspacePaths(root: string): WorkspacePaths {
     companyDir: path.join(root, "company"),
     peopleDir: path.join(root, "people"),
     productDir: path.join(root, "product"),
-    dealsDir: path.join(root, "deals"),
+    dealsDir,
+    activeDealsDir: path.join(dealsDir, "active"),
+    closedWonDealsDir: path.join(dealsDir, "closed-won"),
+    closedLostDealsDir: path.join(dealsDir, "closed-lost"),
     supportingFilesDir: path.join(root, "supporting-files"),
     sessionsDir: path.join(root, ".sales-agent", "sessions"),
   };
@@ -120,27 +130,44 @@ export async function makeDealId(root: string, accountName: string, opportunityN
   return `d-${year}-${String(sequence).padStart(DEAL_SEQUENCE_WIDTH, "0")}-${slug}`;
 }
 
-async function getNextDealSequence(root: string, year: number): Promise<number> {
-  const dealsDir = getWorkspacePaths(root).dealsDir;
+function isDealBucketDirectoryName(value: string): boolean {
+  return DEAL_BUCKET_DIRECTORY_NAMES.includes(value as (typeof DEAL_BUCKET_DIRECTORY_NAMES)[number]);
+}
 
+function getDealBucketDirectories(paths: WorkspacePaths): string[] {
+  return [paths.activeDealsDir, paths.closedWonDealsDir, paths.closedLostDealsDir];
+}
+
+async function listDirectoryNames(directory: string): Promise<string[]> {
   try {
-    const entries = await fs.readdir(dealsDir, { withFileTypes: true });
-    const values = entries
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => {
-        const match = entry.name.match(/^d-(\d{4})-(\d{4})-/);
-        if (!match) {
-          return undefined;
-        }
-
-        return Number(match[1]) === year ? Number(match[2]) : undefined;
-      })
-      .filter((value): value is number => value !== undefined);
-
-    return (values.length > 0 ? Math.max(...values) : 0) + 1;
+    const entries = await fs.readdir(directory, { withFileTypes: true });
+    return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
   } catch {
-    return 1;
+    return [];
   }
+}
+
+async function listDealDirectoryNames(paths: WorkspacePaths): Promise<string[]> {
+  const legacyDealNames = (await listDirectoryNames(paths.dealsDir)).filter((name) => !isDealBucketDirectoryName(name));
+  const bucketDealNames = await Promise.all(getDealBucketDirectories(paths).map((directory) => listDirectoryNames(directory)));
+
+  return [...legacyDealNames, ...bucketDealNames.flat()];
+}
+
+async function getNextDealSequence(root: string, year: number): Promise<number> {
+  const dealDirectoryNames = await listDealDirectoryNames(getWorkspacePaths(root));
+  const values = dealDirectoryNames
+    .map((name) => {
+      const match = name.match(/^d-(\d{4})-(\d{4})-/);
+      if (!match) {
+        return undefined;
+      }
+
+      return Number(match[1]) === year ? Number(match[2]) : undefined;
+    })
+    .filter((value): value is number => value !== undefined);
+
+  return (values.length > 0 ? Math.max(...values) : 0) + 1;
 }
 
 export async function writeFileSafely(filePath: string, content: string, force = false): Promise<void> {
@@ -170,7 +197,7 @@ export async function getWorkspaceInitializationState(root: string): Promise<Wor
   const [people, products, deals, hasCompanyRecord] = await Promise.all([
     scanEntityDirectory(paths.peopleDir),
     scanEntityDirectory(paths.productDir),
-    scanEntityDirectory(paths.dealsDir),
+    scanDealDirectories(paths),
     fileExists(path.join(paths.companyDir, "record.md")),
   ]);
 
@@ -193,17 +220,35 @@ export async function scanEntities(root: string): Promise<EntityRecord[]> {
 
   entities.push(...(await scanEntityDirectory(paths.peopleDir)));
   entities.push(...(await scanEntityDirectory(paths.productDir)));
-  entities.push(...(await scanEntityDirectory(paths.dealsDir)));
+  entities.push(...(await scanDealDirectories(paths)));
 
   return entities.sort((left, right) => left.name.localeCompare(right.name));
 }
 
-async function scanEntityDirectory(directory: string): Promise<EntityRecord[]> {
+async function scanDealDirectories(paths: WorkspacePaths): Promise<EntityRecord[]> {
+  const [legacyDeals, activeDeals, closedWonDeals, closedLostDeals] = await Promise.all([
+    scanEntityDirectory(paths.dealsDir, { excludeDirectoryNames: DEAL_BUCKET_DIRECTORY_NAMES }),
+    scanEntityDirectory(paths.activeDealsDir),
+    scanEntityDirectory(paths.closedWonDealsDir),
+    scanEntityDirectory(paths.closedLostDealsDir),
+  ]);
+
+  return [...legacyDeals, ...activeDeals, ...closedWonDeals, ...closedLostDeals];
+}
+
+async function scanEntityDirectory(
+  directory: string,
+  options: { excludeDirectoryNames?: readonly string[] } = {},
+): Promise<EntityRecord[]> {
   try {
     const entries = await fs.readdir(directory, { withFileTypes: true });
     const entities = await Promise.all(
       entries
-        .filter((entry) => entry.isDirectory())
+        .filter(
+          (entry) =>
+            entry.isDirectory() &&
+            !(options.excludeDirectoryNames ?? []).includes(entry.name),
+        )
         .map(async (entry) => {
           const recordPath = path.join(directory, entry.name, "record.md");
 
@@ -254,6 +299,16 @@ export async function findDeals(root: string): Promise<EntityRecord[]> {
   return entities.filter((entity) => entity.type === "deal");
 }
 
+export async function findActiveDeals(root: string): Promise<EntityRecord[]> {
+  const paths = getWorkspacePaths(root);
+  const deals = await findDeals(root);
+
+  return deals.filter((deal) => {
+    const parentDirectory = path.dirname(deal.path);
+    return parentDirectory === paths.activeDealsDir || parentDirectory === paths.dealsDir;
+  });
+}
+
 function scoreTranscriptDealMatch(deal: EntityRecord, transcriptSlug: string): number {
   const dealIdSlug = makeSlug(deal.id);
   const dealNameSlug = makeSlug(deal.name);
@@ -285,13 +340,10 @@ function scoreTranscriptDealMatch(deal: EntityRecord, transcriptSlug: string): n
   return 0;
 }
 
-async function getTranscriptDealMatches(
-  root: string,
-  transcriptPath: string,
-): Promise<Array<{ deal: EntityRecord; score: number }>> {
-  const deals = await findDeals(root);
-  const transcriptSlug = makeSlug(path.basename(transcriptPath, path.extname(transcriptPath)));
-
+function rankTranscriptDealMatches(
+  deals: EntityRecord[],
+  transcriptSlug: string,
+): Array<{ deal: EntityRecord; score: number }> {
   return deals
     .map((deal) => ({
       deal,
@@ -299,6 +351,20 @@ async function getTranscriptDealMatches(
     }))
     .filter((candidate) => candidate.score > 0)
     .sort((left, right) => right.score - left.score || left.deal.name.localeCompare(right.deal.name));
+}
+
+async function getTranscriptDealMatches(
+  root: string,
+  transcriptPath: string,
+): Promise<Array<{ deal: EntityRecord; score: number }>> {
+  const transcriptSlug = makeSlug(path.basename(transcriptPath, path.extname(transcriptPath)));
+  const activeMatches = rankTranscriptDealMatches(await findActiveDeals(root), transcriptSlug);
+
+  if (activeMatches.length > 0) {
+    return activeMatches;
+  }
+
+  return rankTranscriptDealMatches(await findDeals(root), transcriptSlug);
 }
 
 export async function findTranscriptDealCandidates(root: string, transcriptPath: string): Promise<EntityRecord[]> {
@@ -352,7 +418,11 @@ export async function copyTranscriptToInbox(root: string, sourcePath: string): P
 
 export function buildEntityPath(root: string, entityType: "person" | "product" | "deal", entityId: string): string {
   const paths = getWorkspacePaths(root);
-  const baseDir = entityType === "person" ? paths.peopleDir : entityType === "product" ? paths.productDir : paths.dealsDir;
+  const baseDir = entityType === "person"
+    ? paths.peopleDir
+    : entityType === "product"
+      ? paths.productDir
+      : paths.activeDealsDir;
   return path.join(baseDir, entityId);
 }
 
