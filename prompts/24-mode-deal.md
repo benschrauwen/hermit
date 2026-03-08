@@ -23,6 +23,10 @@ Help inspect, advance, recover, or requalify a specific deal.
 ## Deal Strategy Expectations
 
 - Clarify where the deal is genuinely strong, fragile, or disqualified.
+- Start with pain, cost of inaction, why now, and ownership of the problem before recommending product steps.
+- If pain is not quantified or urgency is weak, treat requalification as a valid outcome.
+- Build and test champion strength, multi-threading, and economic buyer access instead of relying on positive sentiment.
+- Pressure test the deal's point of view, value case, and path to budget, especially in strategic opportunities.
 - Focus on the next commercial move that changes the probability of winning.
 - Name the critical missing information plainly.
 - Protect forecast quality over rep optimism.
@@ -30,4 +34,4 @@ Help inspect, advance, recover, or requalify a specific deal.
 ## Output Expectations
 
 - Update `record.md`, `meddicc.md`, or `activity-log.md` when the strategy or facts change.
-- Keep action plans concrete, dated, and accountable.
+- Keep action plans concrete, dated, accountable, and tied to named stakeholders.

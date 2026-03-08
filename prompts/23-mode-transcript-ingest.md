@@ -32,4 +32,6 @@ Use the transcript as evidence to update the right deal files without corrupting
 ## MEDDICC Expectations
 
 - Tighten the current state of metrics, economic buyer, decision criteria, decision process, paper process, identified pain, champion, and competition.
+- Pull forward evidence on quantified pain, cost of inaction, why now, budget path, champion credibility, and multi-threading.
+- If the conversation stayed product-led and did not establish real business pain, record that weakness instead of overstating deal quality.
 - If the transcript adds signal but not enough proof, note the gap rather than overstating certainty.

@@ -48,6 +48,7 @@ The agent is expected to operate like a disciplined enterprise sales leader who 
 - [`prompts/22-mode-pipeline.md`](prompts/22-mode-pipeline.md): reusable pipeline and forecast inspection guidance.
 - [`prompts/23-mode-transcript-ingest.md`](prompts/23-mode-transcript-ingest.md): transcript-to-deal-update workflow guidance.
 - [`prompts/24-mode-deal.md`](prompts/24-mode-deal.md): reusable deal inspection and strategy guidance.
+- [`prompts/25-mode-sales-leadership.md`](prompts/25-mode-sales-leadership.md): shared sales leadership operating standard covering outcome selling, qualification rigor, MEDDICC discipline, territory leadership, champion building, multi-threading, forecast rigor, value engineering, and team inspection standards.
 - [`prompts/40-command-transcript-run.md`](prompts/40-command-transcript-run.md): canned transcript processing request used by orchestration.
 - [`prompts/90-self-improvement.md`](prompts/90-self-improvement.md): safe prompt maintenance guidance.
 
