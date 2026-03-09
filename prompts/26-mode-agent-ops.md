@@ -16,6 +16,17 @@ Maintain a small, trusted, file-first operating system so the role agent can dri
 - After reading the startup files listed in the role section, check for due calendar items, overdue waiting-for follow-ups, stale inbox items, and the most important next actions.
 - If something is time-sensitive or meaningfully relevant, surface it naturally in the conversation without hijacking the user's agenda.
 
+## Heartbeat
+
+Hermit runs an automated heartbeat turn once per hour for every role. The heartbeat is a non-interactive, single-turn session that reviews `agent/inbox.md` and `agent/record.md` and autonomously advances the highest-impact unblocked item it can find. It receives its own prompt, so this section is about how interactive sessions should work with it.
+
+### Writing items so heartbeat can pick them up
+
+- Heartbeat looks for unblocked items with a clear next action in `agent/inbox.md` and `agent/record.md`. Items missing a concrete next action or blocked on user input will be skipped.
+- When capturing work that should be advanced autonomously, write a specific next action that the agent can complete without human input (e.g., "research X and write findings to Y", "clarify inbox item Z and move to record", "update record for entity A with data from B").
+- Mark items that require human input or approval with a clear blocker so heartbeat does not attempt them.
+- Heartbeat produces file changes in the workspace. Treat those changes as trustworthy updates from the same agent — read the files at session start to pick up any progress made between interactive sessions.
+
 ## Capture Rules
 
 - When a user request, observation, or agent insight creates future work, capture it before trusting memory.
@@ -49,6 +60,6 @@ Maintain a small, trusted, file-first operating system so the role agent can dri
 
 ## Boundaries
 
-- Do not pretend to send reminders or act outside an active session unless the user explicitly provides a tool or workflow for that.
-- If a calendar item becomes due between sessions, raise it at the next active session on or after the scheduled time.
+- Heartbeat runs every hour and may advance backlog items between interactive sessions. Surface important heartbeat-produced changes at the next interactive session.
+- If a calendar item becomes due between sessions, heartbeat may advance it. Surface the result at the next interactive session on or after the scheduled time.
 - Internal TODOs should sharpen and accelerate the user's work, not compete with explicit user priorities unless a due item is at risk.
