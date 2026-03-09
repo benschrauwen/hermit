@@ -17,7 +17,6 @@ import {
 } from "./session.js";
 import { generateTelemetryReport, renderTelemetryReportSummary, writeTelemetryReport } from "./telemetry.js";
 import type { RoleDefinition } from "./types.js";
-import { findEntityById } from "./workspace.js";
 
 async function resolveRoleContext(explicitRoleId?: string): Promise<{ root: string; roleId: string }> {
   const inferred = inferRootAndRoleFromCwd(process.cwd());
@@ -36,34 +35,11 @@ function resolveWorkspaceRoot(): string {
   return inferRootAndRoleFromCwd(process.cwd()).root;
 }
 
-async function resolvePromptContext(
-  root: string,
-  role: RoleDefinition,
-  entityId: string | undefined,
-): Promise<{ entityId?: string; entityPath?: string }> {
-  if (!entityId) {
-    return {};
-  }
-
-  const entity = await findEntityById(root, role, entityId);
-  if (!entity) {
-    throw new Error(`Unknown entity ID: ${entityId}`);
-  }
-
-  return {
-    entityId: entity.id,
-    entityPath: entity.path,
-  };
-}
-
 function collectImagePaths(values: string[] | undefined): string[] {
   return (values ?? []).map((value) => path.resolve(value));
 }
 
-async function resolveSessionContext(options: {
-  role?: string;
-  entity?: string;
-}): Promise<{
+async function resolveSessionContext(options: { role?: string }): Promise<{
   root: string;
   roleId: string;
   role: RoleDefinition;
@@ -77,7 +53,6 @@ async function resolveSessionContext(options: {
 }> {
   const { root, roleId } = await resolveRoleContext(options.role);
   const role = await loadRole(root, roleId);
-  const entityPromptContext = await resolvePromptContext(root, role, options.entity);
 
   return {
     root,
@@ -87,7 +62,6 @@ async function resolveSessionContext(options: {
       workspaceRoot: root,
       roleId,
       roleRoot: path.relative(root, role.roleDir) || ".",
-      ...entityPromptContext,
     },
   };
 }
@@ -100,14 +74,12 @@ program
   .command("chat")
   .description("Open an interactive leadership chat session.")
   .option("--role <id>", "Role ID to run, for example sales or engineering.")
-  .option("--entity <id>", "Entity ID to anchor the session.")
   .option("--continue", "Continue the most recent persisted session for this workspace.")
   .option("--image <path>", "Attach image(s) to the initial prompt.", (value, previous: string[] = []) => [...previous, value], [])
   .option("--prompt <text>", "Optional initial prompt before the interactive loop starts.")
   .action(
     async (options: {
       role?: string;
-      entity?: string;
       continue?: boolean;
       image?: string[];
       prompt?: string;
@@ -140,7 +112,6 @@ program
   .command("ask")
   .description("Run a one-shot prompt in the selected role session.")
   .option("--role <id>", "Role ID to run, for example sales or engineering.")
-  .option("--entity <id>", "Entity ID to anchor the prompt.")
   .option("--image <path>", "Attach image(s) to the prompt.", (value, previous: string[] = []) => [...previous, value], [])
   .argument("<prompt...>", "Prompt text to send to the agent.")
   .action(
@@ -148,7 +119,6 @@ program
       promptParts: string[],
       options: {
         role?: string;
-        entity?: string;
         image?: string[];
       },
     ) => {

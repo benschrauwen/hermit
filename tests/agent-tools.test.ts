@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { createCustomTools, createEntityLookupTool } from "../src/agent-tools.js";
+import { createCustomTools, createEntityLookupTool, createWebSearchTool } from "../src/agent-tools.js";
 import { loadRole } from "../src/roles.js";
 import { ensureWorkspaceScaffold } from "../src/workspace.js";
 import { seedRoleWorkspace } from "./test-helpers.js";
@@ -68,11 +68,58 @@ describe("createCustomTools", () => {
     const tools = createCustomTools("/root", role);
     const names = tools.map((t) => t.name);
     expect(names).toContain("entity_lookup");
+    expect(names).toContain("web_search");
     expect(names).toContain("create_company_record");
     expect(names).toContain("create_person_record");
     expect(names).toContain("create_product_record");
     expect(names).toContain("create_deal_record");
     rmSync(root, { recursive: true, force: true });
+  });
+});
+
+describe("createWebSearchTool", () => {
+  it("formats answer text and citations from the executor", async () => {
+    const executor = vi.fn().mockResolvedValue({
+      answer: "OpenAI supports web search through the Responses API.",
+      citations: [
+        {
+          title: "Web search | OpenAI API",
+          url: "https://developers.openai.com/api/docs/guides/tools-web-search/",
+        },
+      ],
+    });
+
+    const tool = createWebSearchTool(executor);
+    const result = await (tool.execute as (id: unknown, params: unknown) => Promise<unknown>)("call-1", {
+      query: "How does OpenAI web search work?",
+      allowedDomains: ["developers.openai.com"],
+      externalWebAccess: false,
+    });
+
+    expect(executor).toHaveBeenCalledWith({
+      query: "How does OpenAI web search work?",
+      allowedDomains: ["developers.openai.com"],
+      externalWebAccess: false,
+    });
+
+    const typed = result as {
+      content: Array<{ type: string; text: string }>;
+      details: {
+        answer: string;
+        citations: Array<{ title?: string; url: string }>;
+      };
+    };
+    expect(typed.content).toHaveLength(1);
+    expect(typed.content[0].type).toBe("text");
+    expect(typed.content[0].text).toContain("OpenAI supports web search");
+    expect(typed.content[0].text).toContain("Sources:");
+    expect(typed.content[0].text).toContain("Web search | OpenAI API");
+    expect(typed.details.citations).toEqual([
+      {
+        title: "Web search | OpenAI API",
+        url: "https://developers.openai.com/api/docs/guides/tools-web-search/",
+      },
+    ]);
   });
 });
 
