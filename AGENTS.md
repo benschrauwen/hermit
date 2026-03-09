@@ -82,3 +82,10 @@ Use the selected role's prompt directory as canonical for role work.
 - Prompt files may be improved over time, but changes should preserve the file-first operating model.
 - Keep role manifests explicit. Do not replace them with recursive prompt or template discovery.
 - When a role contract changes, update that role's `AGENTS.md`, `role.md`, prompts, templates, tests, and docs together.
+
+## Self-Improvement Loop
+
+- When improving Hermit itself, first classify the smallest correct change surface: shared prompt, role prompt, runtime code, `entity-defs/`, explorer renderer, validation, doc, or test.
+- Use repeated friction, explicit corrections, telemetry reports, `doctor` findings, and failing tests as evidence when available.
+- Prefer durable fixes that encode the lesson into prompts, templates, validation, or tests instead of leaving it as chat-only guidance.
+- If a contract changes, update the adjacent docs, templates, manifests, and regression coverage in the same pass.

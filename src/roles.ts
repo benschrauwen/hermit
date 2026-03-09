@@ -367,21 +367,43 @@ export function inferRootAndRoleFromCwd(cwd: string): { root: string; roleId?: s
 }
 
 export async function ensureRoleTemplatesExist(role: RoleDefinition): Promise<void> {
-  const files = [
-    ...role.entities.flatMap((entity) => entity.files.map((file) => path.join(role.entityDefsDir, file.template))),
+  const requiredFiles: Array<{ filePath: string; errorMessage: string }> = [
+    {
+      filePath: path.join(role.entityDefsDir, "agent/record.md"),
+      errorMessage: `Role ${role.id} is missing shared agent template: agent/record.md`,
+    },
+    {
+      filePath: path.join(role.entityDefsDir, "agent/inbox.md"),
+      errorMessage: `Role ${role.id} is missing shared agent template: agent/inbox.md`,
+    },
+    ...role.entities.flatMap((entity) =>
+      entity.files.map((file) => ({
+        filePath: path.join(role.entityDefsDir, file.template),
+        errorMessage: `Role ${role.id} is missing entity template: ${file.template}`,
+      })),
+    ),
   ];
+
   if (role.transcriptIngest) {
-    files.push(path.join(role.rolePromptsDir, role.transcriptIngest.commandPrompt));
+    requiredFiles.push({
+      filePath: path.join(role.rolePromptsDir, role.transcriptIngest.commandPrompt),
+      errorMessage: `Role ${role.id} is missing transcript command prompt: ${role.transcriptIngest.commandPrompt}`,
+    });
     for (const systemPrompt of role.transcriptIngest.systemPrompts) {
-      files.push(path.join(role.rolePromptsDir, systemPrompt));
+      requiredFiles.push({
+        filePath: path.join(role.rolePromptsDir, systemPrompt),
+        errorMessage: `Role ${role.id} is missing transcript system prompt: ${systemPrompt}`,
+      });
     }
   }
 
-  await Promise.all(
-    files.map(async (filePath) => {
+  for (const { filePath, errorMessage } of requiredFiles) {
+    try {
       await fs.access(filePath);
-    }),
-  );
+    } catch {
+      throw new Error(errorMessage);
+    }
+  }
 }
 
 export async function validateRoleManifest(root: string, roleId: string): Promise<void> {
@@ -390,21 +412,9 @@ export async function validateRoleManifest(root: string, roleId: string): Promis
 
   await fs.access(role.agentsFile);
   await fs.access(role.sharedPromptsDir);
+  await ensureRoleTemplatesExist(role);
 
   if (role.transcriptIngest) {
-    const commandPath = path.join(role.rolePromptsDir, role.transcriptIngest.commandPrompt);
-    try {
-      await fs.access(commandPath);
-    } catch {
-      throw new Error(`Role ${roleId} is missing transcript command prompt: ${role.transcriptIngest.commandPrompt}`);
-    }
-    for (const systemPrompt of role.transcriptIngest.systemPrompts) {
-      try {
-        await fs.access(path.join(role.rolePromptsDir, systemPrompt));
-      } catch {
-        throw new Error(`Role ${roleId} is missing transcript system prompt: ${systemPrompt}`);
-      }
-    }
     if (!entityTypes.has(role.transcriptIngest.entityType)) {
       throw new Error(
         `Role ${roleId} transcript_ingest references unknown entity type ${role.transcriptIngest.entityType}.`,

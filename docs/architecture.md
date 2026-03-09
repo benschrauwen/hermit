@@ -251,6 +251,24 @@ On-demand role prompts live in `agents/<role-id>/prompts/` and are read by the a
 
 For transcript ingest sessions, `transcript_ingest.system_prompts` in `role.md` lists additional role prompt files to append to the system prompt alongside the shared prompts and `AGENTS.md`.
 
+## Self-Improvement Loop
+
+Hermit's self-improvement model is workspace-wide rather than prompt-only.
+
+Improvement work should usually follow this path:
+
+1. Observe a reusable gap from explicit user feedback, repeated manual fixes, `doctor` findings, failing tests, or telemetry patterns.
+2. Choose the smallest correct change surface:
+   - `prompts/` or role prompts for reusable operating guidance
+   - `src/` for deterministic runtime behavior
+   - `entity-defs/` for scaffold and canonical file defaults
+   - `entity-defs/renderers/` plus role manifests for explorer rendering
+   - docs and tests for explicit contract hardening
+3. Make the smallest cohesive change that fixes the root cause.
+4. Validate the change with the nearest checks available, such as tests, `doctor`, renderer loading, or telemetry review.
+
+This loop is intentionally local, explicit, and reviewable. Telemetry and validation inform changes, but Hermit does not silently auto-apply repo mutations from runtime observations alone.
+
 ## Why The Template Mechanism Is Generic
 
 Templates are defined generically rather than hardcoded in TypeScript for each business object. Instead:

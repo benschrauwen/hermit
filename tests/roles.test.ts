@@ -46,4 +46,16 @@ describe("roles explorer renderers", () => {
       "Role sales is missing explorer detail renderer: renderers/missing-detail.mjs",
     );
   });
+
+  it("fails validation when a shared agent scaffold template is missing", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "roles-agent-template-missing-"));
+    roots.push(root);
+    seedRoleWorkspace(root, ["sales"]);
+
+    rmSync(path.join(root, "entity-defs", "agent", "record.md"));
+
+    await expect(validateRoleManifest(root, "sales")).rejects.toThrow(
+      "Role sales is missing shared agent template: agent/record.md",
+    );
+  });
 });

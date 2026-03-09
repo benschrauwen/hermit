@@ -1,32 +1,34 @@
 ---
 id: {{roleId}}-agent
 type: agent
-name: "{{roleName}} Agent Record"
+name: {{roleName}} Agent
+status: active
+owner: {{roleName}}
 updated_at: {{updatedAt}}
 source_refs:
 {{sourceRefsYaml}}
 ---
 
-# {{roleName}} Agent Record
+## Summary
 
-Role: {{roleDescription}}
+{{roleDescription}}
 
 ## Active Projects
 
-- Add active projects.
+- None yet.
 
 ## Next Actions
 
-- Add next actions.
+- None yet.
 
 ## Waiting For
 
-- Add waiting-for items.
+- None yet.
 
-## Calendar / Time-Bound
+## Calendar
 
-- Add calendar items.
+- None scheduled.
 
-## Someday / Maybe
+## Someday Or Maybe
 
-- Add someday items.
+- None yet.

@@ -1,16 +1,18 @@
 ---
-id: {{roleId}}-inbox
+id: {{roleId}}-agent-inbox
 type: agent-inbox
-name: "{{roleName}} Inbox"
+name: {{roleName}} Agent Inbox
+status: active
+owner: {{roleName}}
 updated_at: {{updatedAt}}
 source_refs:
 {{sourceRefsYaml}}
 ---
 
-# {{roleName}} Inbox
+## Purpose
 
-Unclarified commitments and captured items. Clarify each item into the agent record or discard.
+Raw internal commitments, reminders, and follow-up ideas that still need clarification into `{{roleRoot}}/agent/record.md`.
 
-## Inbox Items
+## Open Inbox Items
 
-- No pending items.
+- None.

@@ -170,13 +170,15 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
   }
 
   for (const agentFile of role.agentFiles) {
+    const agentFilePath = path.join(role.roleDir, agentFile);
     try {
-      await fs.access(path.join(role.roleDir, agentFile));
+      await fs.access(agentFilePath);
+      await validateMarkdownRecord(findings, agentFilePath);
     } catch {
       addGeneralFinding(
         findings,
         "error",
-        `Missing required agent file: ${path.relative(root, path.join(role.roleDir, agentFile))}`,
+        `Missing required agent file: ${path.relative(root, agentFilePath)}`,
       );
     }
   }

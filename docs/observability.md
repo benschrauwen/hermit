@@ -100,6 +100,14 @@ The report currently summarizes:
 - slowest turns
 - per-tool breakdown
 
+## How To Use It
+
+Telemetry is one input to Hermit's self-improvement loop.
+
+- Use reports to spot repeated failure modes, retries, slow turns, or fragile tools before changing prompts or runtime behavior.
+- Treat telemetry as supporting evidence, then confirm the right fix in prompts, code, templates, renderers, docs, or tests.
+- Do not treat a single anomalous session as enough evidence for a broad workflow rewrite.
+
 ## Documentation References
 
 Telemetry is also referenced from:

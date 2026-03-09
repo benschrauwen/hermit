@@ -57,6 +57,7 @@ describe("workspace", () => {
     await ensureWorkspaceScaffold(tmpRoot, role);
     expect(readdirSync(tmpRoot)).toEqual(expect.arrayContaining(["entities", "agents"]));
     expect(readFileSync(path.join(tmpRoot, "agents", "sales", "agent", "record.md"), "utf8")).toContain("Sales Leader");
+    expect(readFileSync(path.join(tmpRoot, "agents", "sales", "agent", "inbox.md"), "utf8")).toContain("Open Inbox Items");
     expect(readdirSync(path.join(tmpRoot, "entities", "deals"))).toEqual(
       expect.arrayContaining(["active", "closed-won", "closed-lost"]),
     );
