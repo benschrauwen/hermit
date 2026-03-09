@@ -227,6 +227,7 @@ export async function ensureWorkspaceScaffold(root: string, role?: RoleDefinitio
     "agent",
     "prompts",
     ".role-agent/sessions",
+    ".role-agent/heartbeat-sessions",
     ...role.roleDirectories,
   ]);
 

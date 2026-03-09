@@ -28,11 +28,14 @@ When running from inside `agents/<role-id>/`, the role is inferred automatically
 bun cli chat --role sales              # interactive session
 bun cli chat --role engineering        # switch roles
 bun cli ask --role sales "Review the top open deals"
+bun cli heartbeat --role sales         # one autonomous GTD upkeep turn
 bun cli ingest transcript ./notes/acme-call.md --role sales --entity d-2026-0001-acme-expansion
 bun cli doctor --role sales            # validate workspace integrity
 bun cli telemetry report --window 7d   # aggregate local runtime telemetry
 bun run explorer                       # launch the workspace UI
 ```
+
+`heartbeat` runs a single background turn for a role, intended for cron-style upkeep. It uses a separate persisted session history under that role so automated runs stay distinct from normal interactive chat history.
 
 ## Features
 

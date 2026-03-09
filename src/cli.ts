@@ -8,7 +8,13 @@ import process from "node:process";
 import { runDoctor } from "./doctor.js";
 import { runTranscriptIngest } from "./ingest.js";
 import { inferRootAndRoleFromCwd, loadRole, resolveRole } from "./roles.js";
-import { createRoleSession, resolveInitialChatPrompt, runChatLoop, runOneShotPrompt } from "./session.js";
+import {
+  createRoleSession,
+  DEFAULT_HEARTBEAT_PROMPT,
+  resolveInitialChatPrompt,
+  runChatLoop,
+  runOneShotPrompt,
+} from "./session.js";
 import { generateTelemetryReport, renderTelemetryReportSummary, writeTelemetryReport } from "./telemetry.js";
 import { findEntityById } from "./workspace.js";
 
@@ -141,6 +147,38 @@ program
       });
 
       await runOneShotPrompt(session, promptParts.join(" "), collectImagePaths(options.image), telemetry);
+    },
+  );
+
+program
+  .command("heartbeat")
+  .description("Run one autonomous background upkeep turn for the selected role.")
+  .option("--role <id>", "Role ID to run, for example sales or engineering.")
+  .option("--continue", "Continue the most recent persisted heartbeat session for this role.")
+  .option("--prompt <text>", "Optional heartbeat prompt override.")
+  .action(
+    async (options: {
+      role?: string;
+      continue?: boolean;
+      prompt?: string;
+    }) => {
+      const { root, roleId } = await resolveRoleContext(options.role);
+      const role = await loadRole(root, roleId);
+      const { session, telemetry } = await createRoleSession({
+        root,
+        role,
+        persist: true,
+        continueRecent: Boolean(options.continue),
+        sessionHistoryType: "heartbeat",
+        telemetryCommandName: "heartbeat",
+        promptContext: {
+          workspaceRoot: root,
+          roleId,
+          roleRoot: path.relative(root, role.roleDir) || ".",
+        },
+      });
+
+      await runOneShotPrompt(session, options.prompt ?? DEFAULT_HEARTBEAT_PROMPT, [], telemetry);
     },
   );
 

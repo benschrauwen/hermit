@@ -36,6 +36,8 @@ Maintain a small, trusted, file-first operating system so the role agent can dri
 
 - When the user says `work on your TODOs` or something similar, first triage the inbox, then pick the highest-leverage unblocked item from `agent/record.md` and work it forward.
 - Bias toward work that improves data quality, reduces ambiguity, closes known gaps, advances important research, or prepares an important follow-up.
+- For unattended or background upkeep turns, prefer one small high-leverage action that leaves the system clearer or closer to done instead of attempting a broad rewrite or major replan.
+- If a background turn is blocked on missing human input, record the blocker and the exact next question or dependency in the canonical files instead of waiting for an immediate reply.
 - Ask the narrowest possible question only when missing information blocks a correct next action.
 
 ## Review Rules

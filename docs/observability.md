@@ -6,7 +6,7 @@ This is the canonical observability document for the runtime telemetry approach.
 
 ## Scope
 
-Telemetry is currently captured automatically for `chat`, `ask`, and transcript-ingest sessions.
+Telemetry is currently captured automatically for `chat`, `ask`, `heartbeat`, and transcript-ingest sessions.
 
 Current telemetry covers:
 

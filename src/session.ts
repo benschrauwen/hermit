@@ -19,7 +19,9 @@ import { DEFAULT_MODEL, DEFAULT_THINKING_LEVEL } from "./constants.js";
 import { PromptLibrary } from "./prompt-library.js";
 import { TelemetryRecorder } from "./telemetry.js";
 import type { PromptContext, RoleDefinition, WorkspaceInitializationState } from "./types.js";
-import { ensureWorkspaceScaffold, getWorkspaceInitializationState, getWorkspacePaths } from "./workspace.js";
+import { ensureWorkspaceScaffold, getWorkspaceInitializationState } from "./workspace.js";
+
+export type SessionHistoryType = "interactive" | "heartbeat";
 
 interface SessionOptions {
   root: string;
@@ -27,6 +29,7 @@ interface SessionOptions {
   promptContext: PromptContext;
   persist: boolean;
   continueRecent?: boolean;
+  sessionHistoryType?: SessionHistoryType;
   additionalRolePrompts?: string[];
   telemetryCommandName?: string;
 }
@@ -36,6 +39,9 @@ export const ONBOARDING_CHAT_OPENING_PROMPT =
 
 export const DEFAULT_CHAT_OPENING_PROMPT =
   "Start the conversation by speaking first. Give a brief, direct opening grounded in the workspace context when helpful, then ask the single most useful question or suggest the most useful next area to inspect. Keep it concise.";
+
+export const DEFAULT_HEARTBEAT_PROMPT =
+  "Run one autonomous heartbeat turn focused on the role's GTD backlog. Review `agent/inbox.md` and `agent/record.md`, then choose the highest-impact unblocked item you can advance without waiting on a user reply. Make one small, concrete step, not a big jump or broad reorganization. Prefer clarifying backlog, tightening next actions, moving a waiting-for item forward, updating canonical records, or doing targeted research that you can write back into the workspace. If blocked, record the blocker and the next required input in the appropriate file instead of asking the user. Write the resulting updates back to the canonical files before you finish. When finished with the task, give a brief summary of what you did as output for future reference. It is totally fine to do nothing if there is nothing to do, just return with an empty output.";
 
 const STATUS_SPINNER_FRAMES = ["|", "/", "-", "\\"] as const;
 const STATUS_SPINNER_INTERVAL_MS = 80;
@@ -402,8 +408,25 @@ export function formatActivityStatus(toolName: string | undefined, args?: unknow
   }
 }
 
-function getSessionManager(root: string, role: RoleDefinition, persist: boolean, continueRecent = false): SessionManager {
-  const { sessionsDir } = getWorkspacePaths(root, role);
+export function resolvePersistedSessionDirectory(
+  role: RoleDefinition,
+  historyType: SessionHistoryType = "interactive",
+): string {
+  if (historyType === "heartbeat") {
+    return path.join(role.roleDir, ".role-agent", "heartbeat-sessions");
+  }
+
+  return role.sessionsDir;
+}
+
+function getSessionManager(
+  root: string,
+  role: RoleDefinition,
+  persist: boolean,
+  continueRecent = false,
+  historyType: SessionHistoryType = "interactive",
+): SessionManager {
+  const sessionsDir = resolvePersistedSessionDirectory(role, historyType);
   if (!persist) {
     return SessionManager.inMemory(root);
   }
@@ -464,7 +487,13 @@ export async function createRoleSession(options: SessionOptions): Promise<{
     tools: createCodingTools(options.root),
     customTools: createCustomTools(options.root, options.role),
     resourceLoader: loader,
-    sessionManager: getSessionManager(options.root, options.role, options.persist, options.continueRecent),
+    sessionManager: getSessionManager(
+      options.root,
+      options.role,
+      options.persist,
+      options.continueRecent,
+      options.sessionHistoryType,
+    ),
   });
 
   const telemetry = await TelemetryRecorder.create({

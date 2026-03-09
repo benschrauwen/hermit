@@ -5,13 +5,16 @@ import { tmpdir } from "node:os";
 
 import {
   DEFAULT_CHAT_OPENING_PROMPT,
+  DEFAULT_HEARTBEAT_PROMPT,
   formatActivityStatus,
   formatUserPromptEcho,
   loadImageAttachments,
   ONBOARDING_CHAT_OPENING_PROMPT,
   renderTerminalMarkdown,
+  resolvePersistedSessionDirectory,
   resolveInitialChatPrompt,
 } from "../src/session.js";
+import type { RoleDefinition } from "../src/types.js";
 
 describe("loadImageAttachments", () => {
   let tmpDir: string;
@@ -117,6 +120,40 @@ describe("resolveInitialChatPrompt", () => {
         },
       }),
     ).toBe(DEFAULT_CHAT_OPENING_PROMPT);
+  });
+});
+
+describe("heartbeat session helpers", () => {
+  const role: RoleDefinition = {
+    id: "sales",
+    name: "Sales Leader",
+    description: "Sales role",
+    roleDir: "/tmp/workspace/agents/sales",
+    root: "/tmp/workspace",
+    entitiesDir: "/tmp/workspace/entities",
+    agentsFile: "/tmp/workspace/agents/sales/AGENTS.md",
+    manifestFile: "/tmp/workspace/agents/sales/role.md",
+    sharedPromptsDir: "/tmp/workspace/prompts",
+    rolePromptsDir: "/tmp/workspace/agents/sales/prompts",
+    entityDefsDir: "/tmp/workspace/entity-defs",
+    agentDir: "/tmp/workspace/agents/sales/agent",
+    sessionsDir: "/tmp/workspace/agents/sales/.role-agent/sessions",
+    roleDirectories: [],
+    agentFiles: ["agent/record.md", "agent/inbox.md"],
+    entities: [],
+  };
+
+  it("keeps heartbeat history separate from interactive session history", () => {
+    expect(resolvePersistedSessionDirectory(role)).toBe("/tmp/workspace/agents/sales/.role-agent/sessions");
+    expect(resolvePersistedSessionDirectory(role, "heartbeat")).toBe(
+      "/tmp/workspace/agents/sales/.role-agent/heartbeat-sessions",
+    );
+  });
+
+  it("uses a backlog-focused default prompt for heartbeat turns", () => {
+    expect(DEFAULT_HEARTBEAT_PROMPT).toContain("GTD backlog");
+    expect(DEFAULT_HEARTBEAT_PROMPT).toContain("one small, concrete step");
+    expect(DEFAULT_HEARTBEAT_PROMPT).toContain("instead of asking the user");
   });
 });
 
