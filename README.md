@@ -10,7 +10,7 @@
 
 **Hermit** is a runtime that turns a local workspace into the system of record for autonomous agents. Business state lives in markdown files — inspectable, portable, versionable. The runtime loads role contracts, wires agent sessions, and keeps behavior deterministic while the operating context stays editable. No database, no opaque store. Files are the product.
 
-[Architecture](docs/architecture.md) · [License](LICENSE)
+[Architecture](docs/architecture.md) · [Observability](docs/observability.md) · [License](LICENSE)
 
 ## Quick Start
 
@@ -30,6 +30,7 @@ bun cli chat --role engineering        # switch roles
 bun cli ask --role sales "Review the top open deals"
 bun cli ingest transcript ./notes/acme-call.md --role sales --entity d-2026-0001-acme-expansion
 bun cli doctor --role sales            # validate workspace integrity
+bun cli telemetry report --window 7d   # aggregate local runtime telemetry
 bun run explorer                       # launch the workspace UI
 ```
 
@@ -40,6 +41,7 @@ bun run explorer                       # launch the workspace UI
 - **Evidence ingestion** — transcripts and supporting material update canonical records without replacing them.
 - **Workspace explorer** — a local read-only Astro UI for browsing the system of record, driven by the same runtime the CLI uses.
 - **Doctor** — validates workspace integrity: prompt links, required files, duplicate IDs, placeholder drift.
+- **Local observability** — append-only local telemetry for sessions, turns, tool calls, retries, and report generation for recent runtime performance.
 
 ## Workspace Structure
 
@@ -109,7 +111,7 @@ Hermit separates **deterministic orchestration** (TypeScript) from **operating c
 
 The explorer reuses the same role and entity model as the CLI — no separate domain layer, no data duplication.
 
-For the full design document, see [`docs/architecture.md`](docs/architecture.md).
+For the full design document, see [`docs/architecture.md`](docs/architecture.md). For runtime telemetry, reporting, and storage conventions, see [`docs/observability.md`](docs/observability.md).
 
 ## License
 

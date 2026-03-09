@@ -102,13 +102,14 @@ export async function runTranscriptIngest(options: {
   };
   const commandPrompt = await promptLibrary.renderRolePrompt(role.transcriptIngest.commandPrompt, promptContext);
 
-  const { session } = await createRoleSession({
+  const { session, telemetry } = await createRoleSession({
     root: options.root,
     role,
     persist: true,
+    telemetryCommandName: "ingest:transcript",
     promptContext,
     additionalRolePrompts: role.transcriptIngest.systemPrompts,
   });
 
-  await runOneShotPrompt(session, commandPrompt, options.imagePaths);
+  await runOneShotPrompt(session, commandPrompt, options.imagePaths, telemetry);
 }

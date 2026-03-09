@@ -125,3 +125,69 @@ export interface WorkspaceInitializationState {
   roleEntityCount: number;
   roleEntityCounts: Record<string, number>;
 }
+
+export interface TelemetrySessionContext {
+  workspaceRoot: string;
+  roleId?: string | undefined;
+  commandName: string;
+  persist: boolean;
+  continueRecent?: boolean | undefined;
+  modelProvider: string;
+  modelId: string;
+}
+
+export interface TelemetryToolReport {
+  toolName: string;
+  callCount: number;
+  errorCount: number;
+  errorRate?: number | undefined;
+  durationP50Ms?: number | undefined;
+  durationP95Ms?: number | undefined;
+}
+
+export interface TelemetryTurnReport {
+  sessionId: string;
+  turnId: string;
+  roleId?: string | undefined;
+  commandName: string;
+  durationMs: number;
+  timeToFirstTokenMs?: number | undefined;
+  toolCallCount: number;
+  toolErrorCount: number;
+}
+
+export interface TelemetryReport {
+  generatedAt: string;
+  roleId?: string | undefined;
+  window: {
+    label: string;
+    start: string;
+    end: string;
+  };
+  summary: {
+    sessionCount: number;
+    turnCount: number;
+    toolCallCount: number;
+    toolErrorCount: number;
+    toolErrorRate?: number | undefined;
+    assistantErrorTurnCount: number;
+    assistantErrorRate?: number | undefined;
+    silentTurnCount: number;
+    silentTurnRate?: number | undefined;
+    retryCount: number;
+    compactionCount: number;
+    turnDurationP50Ms?: number | undefined;
+    turnDurationP95Ms?: number | undefined;
+    timeToFirstTokenP50Ms?: number | undefined;
+    timeToFirstTokenP95Ms?: number | undefined;
+    toolDurationP50Ms?: number | undefined;
+    toolDurationP95Ms?: number | undefined;
+  };
+  failingTools: TelemetryToolReport[];
+  slowestTurns: TelemetryTurnReport[];
+  toolBreakdown: TelemetryToolReport[];
+  source: {
+    eventCount: number;
+    sessionFileCount: number;
+  };
+}

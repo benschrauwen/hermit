@@ -17,6 +17,7 @@ import {
 import { createCustomTools } from "./agent-tools.js";
 import { DEFAULT_MODEL, DEFAULT_THINKING_LEVEL } from "./constants.js";
 import { PromptLibrary } from "./prompt-library.js";
+import { TelemetryRecorder } from "./telemetry.js";
 import type { PromptContext, RoleDefinition, WorkspaceInitializationState } from "./types.js";
 import { ensureWorkspaceScaffold, getWorkspaceInitializationState, getWorkspacePaths } from "./workspace.js";
 
@@ -27,6 +28,7 @@ interface SessionOptions {
   persist: boolean;
   continueRecent?: boolean;
   additionalRolePrompts?: string[];
+  telemetryCommandName?: string;
 }
 
 export const ONBOARDING_CHAT_OPENING_PROMPT =
@@ -430,6 +432,7 @@ export async function createRoleSession(options: SessionOptions): Promise<{
   session: AgentSession;
   promptLibrary: PromptLibrary;
   workspaceState: WorkspaceInitializationState;
+  telemetry: TelemetryRecorder;
 }> {
   await ensureWorkspaceScaffold(options.root, options.role);
 
@@ -450,12 +453,13 @@ export async function createRoleSession(options: SessionOptions): Promise<{
 
   const authStorage = AuthStorage.create();
   const modelRegistry = new ModelRegistry(authStorage);
+  const model = resolvePreferredModel(modelRegistry);
 
   const { session } = await createAgentSession({
     cwd: options.root,
     authStorage,
     modelRegistry,
-    model: resolvePreferredModel(modelRegistry),
+    model,
     thinkingLevel: DEFAULT_THINKING_LEVEL as "minimal" | "low" | "medium" | "high" | "xhigh",
     tools: createCodingTools(options.root),
     customTools: createCustomTools(options.root, options.role),
@@ -463,10 +467,20 @@ export async function createRoleSession(options: SessionOptions): Promise<{
     sessionManager: getSessionManager(options.root, options.role, options.persist, options.continueRecent),
   });
 
-  return { session, promptLibrary, workspaceState };
+  const telemetry = await TelemetryRecorder.create({
+    workspaceRoot: options.root,
+    roleId: options.role.id,
+    commandName: options.telemetryCommandName ?? "chat",
+    persist: options.persist,
+    continueRecent: options.continueRecent,
+    modelProvider: model.provider,
+    modelId: model.id,
+  });
+
+  return { session, promptLibrary, workspaceState, telemetry };
 }
 
-function attachConsoleStreaming(session: AgentSession): () => void {
+function attachConsoleStreaming(session: AgentSession, telemetry?: TelemetryRecorder): () => void {
   let lastToolName: string | undefined;
   let assistantPrintedText = false;
   let assistantTextBuffer = "";
@@ -592,6 +606,8 @@ function attachConsoleStreaming(session: AgentSession): () => void {
   }
 
   return session.subscribe((event) => {
+    telemetry?.handleEvent(event);
+
     if (event.type === "message_start" && event.message.role === "assistant") {
       resetAssistantFormattingState();
       showStatus("Thinking");
@@ -691,8 +707,13 @@ export async function loadImageAttachments(imagePaths: string[]): Promise<ImageC
   );
 }
 
-export async function runOneShotPrompt(session: AgentSession, prompt: string, imagePaths: string[] = []): Promise<void> {
-  const stopStreaming = attachConsoleStreaming(session);
+export async function runOneShotPrompt(
+  session: AgentSession,
+  prompt: string,
+  imagePaths: string[] = [],
+  telemetry?: TelemetryRecorder,
+): Promise<void> {
+  const stopStreaming = attachConsoleStreaming(session, telemetry);
 
   try {
     process.stdout.write(formatUserPromptEcho(prompt));
@@ -701,6 +722,7 @@ export async function runOneShotPrompt(session: AgentSession, prompt: string, im
     });
   } finally {
     stopStreaming();
+    await telemetry?.close();
   }
 }
 
@@ -709,9 +731,10 @@ export async function runChatLoop(
   options: {
     initialPrompt?: string;
     initialImages?: string[];
+    telemetry?: TelemetryRecorder;
   } = {},
 ): Promise<void> {
-  const stopStreaming = attachConsoleStreaming(session);
+  const stopStreaming = attachConsoleStreaming(session, options.telemetry);
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -740,5 +763,6 @@ export async function runChatLoop(
   } finally {
     stopStreaming();
     rl.close();
+    await options.telemetry?.close();
   }
 }

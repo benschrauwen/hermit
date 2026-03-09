@@ -37,6 +37,8 @@ coverage/
 # Cursor / plan artifacts (optional; remove if you want to track plans)
 .cursor/plans/
 
+.hermit/
+
 # Agent runtime data
 agents/*/.role-agent/
 agents/*/agent/

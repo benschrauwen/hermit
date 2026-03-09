@@ -17,3 +17,6 @@ Apply these instructions when the task is to improve the prompt library or works
 - Add missing operating guidance discovered from real usage.
 - Remove duplicated or contradictory guidance.
 - Keep the reusable operating instructions clear so shared and role-local responsibilities stay distinct.
+- When available, review relevant telemetry reports before proposing prompt or workflow changes.
+- Prefer measured evidence such as tool error patterns, retries, slow turns, and repeated failure modes over isolated impressions.
+- Treat telemetry as supporting evidence for improvement ideas, then validate prompt changes with tests or evals before accepting them.

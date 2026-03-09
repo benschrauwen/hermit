@@ -9,6 +9,7 @@ import { runDoctor } from "./doctor.js";
 import { runTranscriptIngest } from "./ingest.js";
 import { inferRootAndRoleFromCwd, loadRole, resolveRole } from "./roles.js";
 import { createRoleSession, resolveInitialChatPrompt, runChatLoop, runOneShotPrompt } from "./session.js";
+import { generateTelemetryReport, renderTelemetryReportSummary, writeTelemetryReport } from "./telemetry.js";
 import { findEntityById } from "./workspace.js";
 
 async function resolveRoleContext(explicitRoleId?: string): Promise<{ root: string; roleId: string }> {
@@ -22,6 +23,10 @@ async function resolveRoleContext(explicitRoleId?: string): Promise<{ root: stri
 
   const resolved = await resolveRole(root, undefined);
   return { root, roleId: resolved.role.id };
+}
+
+function resolveWorkspaceRoot(): string {
+  return inferRootAndRoleFromCwd(process.cwd()).root;
 }
 
 async function resolvePromptContext(
@@ -72,11 +77,12 @@ program
       const { root, roleId } = await resolveRoleContext(options.role);
       const role = await loadRole(root, roleId);
       const promptContext = await resolvePromptContext(root, roleId, options.entity);
-      const { session, workspaceState } = await createRoleSession({
+      const { session, workspaceState, telemetry } = await createRoleSession({
         root,
         role,
         persist: true,
         continueRecent: Boolean(options.continue),
+        telemetryCommandName: "chat",
         promptContext: {
           workspaceRoot: root,
           roleId,
@@ -85,8 +91,9 @@ program
         },
       });
 
-      const chatLoopOptions: { initialPrompt?: string; initialImages?: string[] } = {
+      const chatLoopOptions: { initialPrompt?: string; initialImages?: string[]; telemetry?: typeof telemetry } = {
         initialImages: collectImagePaths(options.image),
+        telemetry,
       };
       const initialPrompt = resolveInitialChatPrompt({
         workspaceState,
@@ -120,10 +127,11 @@ program
       const { root, roleId } = await resolveRoleContext(options.role);
       const role = await loadRole(root, roleId);
       const promptContext = await resolvePromptContext(root, roleId, options.entity);
-      const { session } = await createRoleSession({
+      const { session, telemetry } = await createRoleSession({
         root,
         role,
         persist: false,
+        telemetryCommandName: "ask",
         promptContext: {
           workspaceRoot: root,
           roleId,
@@ -132,7 +140,7 @@ program
         },
       });
 
-      await runOneShotPrompt(session, promptParts.join(" "), collectImagePaths(options.image));
+      await runOneShotPrompt(session, promptParts.join(" "), collectImagePaths(options.image), telemetry);
     },
   );
 
@@ -173,6 +181,25 @@ ingestCommand
       await runTranscriptIngest(ingestOptions);
     },
   );
+
+const telemetryCommand = program.command("telemetry").description("Inspect local Hermit telemetry.");
+
+telemetryCommand
+  .command("report")
+  .description("Aggregate local telemetry into a report for a recent time window.")
+  .option("--window <duration>", "Time window such as 24h, 7d, or 2w.", "7d")
+  .option("--role <id>", "Optional role ID filter.")
+  .action(async (options: { window: string; role?: string }) => {
+    const root = resolveWorkspaceRoot();
+    const report = await generateTelemetryReport(root, {
+      window: options.window,
+      roleId: options.role,
+    });
+    const paths = await writeTelemetryReport(root, report);
+    console.log(renderTelemetryReportSummary(report));
+    console.log(`- Markdown report: ${path.relative(root, paths.markdownPath)}`);
+    console.log(`- JSON report: ${path.relative(root, paths.jsonPath)}`);
+  });
 
 program
   .command("doctor")

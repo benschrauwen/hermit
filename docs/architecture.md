@@ -62,6 +62,7 @@ TypeScript still owns:
 - validation
 - transcript evidence placement
 - tool wiring
+- local telemetry capture and report generation
 
 Markdown defines structure and starter content. Code defines behavior that must stay predictable.
 
@@ -187,6 +188,14 @@ Defines generic tools such as:
 ### `src/ingest.ts`
 
 Runs transcript ingest only for roles that declare a transcript-ingest capability in their manifest.
+
+### `src/telemetry.ts`
+
+Owns local-first runtime telemetry capture and aggregation.
+
+It records append-only structured events for session starts and ends, turn starts and ends, first-token latency, tool execution, assistant errors, retries, and compaction. It also generates rollup reports for recent windows such as `24h` or `7d`.
+
+Raw telemetry stays local under `.hermit/telemetry/events/`. Aggregated reports are written under `.hermit/telemetry/reports/`. Report aggregation only includes completed sessions so in-flight activity does not skew counts and rates.
 
 ### `src/doctor.ts`
 
