@@ -8,8 +8,6 @@ import {
   appendLine,
   copyTranscriptIntoRoleEntity,
   copyTranscriptToRoleInbox,
-  createCompanyRecords,
-  createPersonRecord,
   createRoleEntityRecord,
   ensureWorkspaceScaffold,
   findCreatableRoleEntities,
@@ -17,20 +15,19 @@ import {
   findTranscriptEntityCandidates,
   getWorkspaceInitializationState,
   getWorkspacePaths,
-  makePersonId,
   makeSlug,
   resolveTranscriptEntity,
   scanEntities,
   writeFileSafely,
 } from "../src/workspace.js";
-import { seedRoleWorkspace, writeCompanyRecord } from "./test-helpers.js";
+import { seedRoleWorkspace, writeSharedEntityRecord } from "./test-helpers.js";
 
 describe("workspace", () => {
   let tmpRoot: string;
 
   beforeEach(() => {
     tmpRoot = mkdtempSync(path.join(tmpdir(), "multi-role-workspace-"));
-    seedRoleWorkspace(tmpRoot, ["sales", "engineering"]);
+    seedRoleWorkspace(tmpRoot, ["role-a", "role-b"]);
   });
 
   afterEach(() => {
@@ -38,62 +35,61 @@ describe("workspace", () => {
   });
 
   it("returns shared and role-aware workspace paths", async () => {
-    const role = await loadRole(tmpRoot, "sales");
+    const role = await loadRole(tmpRoot, "role-a");
     const sharedPaths = getWorkspacePaths(tmpRoot);
     const rolePaths = getWorkspacePaths(tmpRoot, role);
-    expect(sharedPaths.companyDir).toBe(path.join(tmpRoot, "entities", "company"));
-    expect(sharedPaths.peopleDir).toBe(path.join(tmpRoot, "entities", "people"));
+    expect(sharedPaths.entitiesDir).toBe(path.join(tmpRoot, "entities"));
     expect(sharedPaths.skillsDir).toBe(path.join(tmpRoot, "skills"));
-    expect(rolePaths.roleDir).toBe(path.join(tmpRoot, "agents", "sales"));
+    expect(rolePaths.roleDir).toBe(path.join(tmpRoot, "agents", "role-a"));
     expect(rolePaths.sharedSkillsDir).toBe(path.join(tmpRoot, "skills"));
-    expect(rolePaths.roleSkillsDir).toBe(path.join(tmpRoot, "agents", "sales", "skills"));
-    expect(rolePaths.sessionsDir).toBe(path.join(tmpRoot, "agents", "sales", ".role-agent", "sessions"));
+    expect(rolePaths.roleSkillsDir).toBe(path.join(tmpRoot, "agents", "role-a", "skills"));
+    expect(rolePaths.sessionsDir).toBe(path.join(tmpRoot, "agents", "role-a", ".role-agent", "sessions"));
   });
 
-  it("slugifies and generates shared person IDs", () => {
+  it("slugifies strings safely", () => {
     expect(makeSlug("Café Team")).toBe("cafe-team");
-    expect(makePersonId("Jane Doe")).toBe("p-jane-doe");
   });
 
   it("creates shared and role scaffolds", async () => {
-    const role = await loadRole(tmpRoot, "sales");
+    const role = await loadRole(tmpRoot, "role-a");
     await ensureWorkspaceScaffold(tmpRoot, role);
     expect(readdirSync(tmpRoot)).toEqual(expect.arrayContaining(["entities", "agents", "skills"]));
-    expect(readFileSync(path.join(tmpRoot, "agents", "sales", "agent", "record.md"), "utf8")).toContain("Sales Leader");
-    expect(readFileSync(path.join(tmpRoot, "agents", "sales", "agent", "inbox.md"), "utf8")).toContain("Open Inbox Items");
-    expect(readdirSync(path.join(tmpRoot, "agents", "sales"))).toContain("skills");
-    expect(readdirSync(path.join(tmpRoot, "agents", "sales", ".role-agent"))).toEqual(
+    expect(readFileSync(path.join(tmpRoot, "agents", "role-a", "agent", "record.md"), "utf8")).toContain("Role A");
+    expect(readFileSync(path.join(tmpRoot, "agents", "role-a", "agent", "inbox.md"), "utf8")).toContain("Open Inbox Items");
+    expect(readdirSync(path.join(tmpRoot, "agents", "role-a"))).toContain("skills");
+    expect(readdirSync(path.join(tmpRoot, "agents", "role-a", ".role-agent"))).toEqual(
       expect.arrayContaining(["sessions", "heartbeat-sessions"]),
     );
-    expect(readdirSync(path.join(tmpRoot, "entities", "deals"))).toEqual(
-      expect.arrayContaining(["active", "closed-won", "closed-lost"]),
+    expect(readdirSync(path.join(tmpRoot, "entities", "cases"))).toEqual(
+      expect.arrayContaining(["active", "archive"]),
     );
   });
 
-  it("reports initialization from shared company plus role entities", async () => {
-    const role = await loadRole(tmpRoot, "sales");
+  it("reports initialization from shared and role entities", async () => {
+    const role = await loadRole(tmpRoot, "role-a");
     await ensureWorkspaceScaffold(tmpRoot, role);
     let state = await getWorkspaceInitializationState(tmpRoot, role);
     expect(state.initialized).toBe(false);
 
-    writeCompanyRecord(tmpRoot);
+    writeSharedEntityRecord(tmpRoot);
     await createRoleEntityRecord(
       tmpRoot,
       role,
-      "product",
+      "item",
       {
-        name: "Widget",
+        title: "Widget",
         summary: "Summary",
-        valueHypothesis: "Value",
-        competitors: ["Rival"],
+        owner: "Taylor",
+        status: "active",
+        nextStep: "Review",
       },
       { sourceRefs: ["test"] },
     );
 
     state = await getWorkspaceInitializationState(tmpRoot, role);
     expect(state.initialized).toBe(true);
-    expect(state.hasCompanyRecord).toBe(true);
-    expect(state.roleEntityCounts.product).toBe(1);
+    expect(state.sharedEntityCount).toBe(1);
+    expect(state.roleEntityCounts.item).toBe(1);
   });
 
   it("supports safe writes and append operations", async () => {
@@ -104,145 +100,124 @@ describe("workspace", () => {
     expect(readFileSync(filePath, "utf8")).toBe("one" + "two\n");
   });
 
-  it("creates shared company and person records from shared templates", async () => {
-    await createCompanyRecords(
-      tmpRoot,
-      {
-        companyName: "Acme",
-        companySummary: "Summary",
-        businessModel: "Subscription",
-        operatingCadence: "Weekly reviews",
-        strategicPriorities: "Land and expand",
-        topCompetitors: ["Rival"],
-      },
-      { sourceRefs: ["agent onboarding"] },
-    );
-    const person = await createPersonRecord(
-      tmpRoot,
-      {
-        name: "Jane Doe",
-        role: "VP Sales",
-        manager: "CEO",
-        strengths: "Discovery",
-        coachingFocus: "Forecasting",
-      },
-      { sourceRefs: ["agent onboarding"] },
-    );
-    expect(person.id).toBe("p-jane-doe");
-    expect(readFileSync(path.join(tmpRoot, "entities", "company", "record.md"), "utf8")).toContain("Subscription");
-    expect(readFileSync(path.join(person.path, "development-plan.md"), "utf8")).toContain("Review Cadence");
+  it("detects generic shared entities during scans", async () => {
+    const role = await loadRole(tmpRoot, "role-a");
+    await ensureWorkspaceScaffold(tmpRoot, role);
+    writeSharedEntityRecord(tmpRoot, {
+      directoryName: "reference",
+      id: "reference",
+      type: "reference",
+      name: "Reference",
+    });
+
+    const entities = await scanEntities(tmpRoot, role);
+    expect(entities.map((entity) => entity.id)).toContain("reference");
   });
 
-  it("creates role-local sales entities with deterministic paths and templates", async () => {
-    const role = await loadRole(tmpRoot, "sales");
+  it("creates role-local entities with deterministic paths and templates", async () => {
+    const role = await loadRole(tmpRoot, "role-a");
     await ensureWorkspaceScaffold(tmpRoot, role);
-    const product = await createRoleEntityRecord(
+    const item = await createRoleEntityRecord(
       tmpRoot,
       role,
-      "product",
+      "item",
       {
-        name: "Widget",
+        title: "Widget",
         summary: "Summary",
-        valueHypothesis: "Value",
-        competitors: ["Rival"],
+        owner: "Taylor",
+        status: "active",
+        nextStep: "Review scope",
       },
       { sourceRefs: ["agent onboarding"] },
     );
-    const deal = await createRoleEntityRecord(
+    const caseEntity = await createRoleEntityRecord(
       tmpRoot,
       role,
-      "deal",
+      "case",
       {
-        accountName: "Acme",
-        opportunityName: "Expansion",
-        owner: "Jane Doe",
-        stage: "qualification",
-        amount: "50k",
-        closeDate: "2026-06-01",
-        nextStep: "Schedule demo",
+        account: "Acme",
+        title: "Expansion",
+        owner: "Taylor",
+        status: "active",
+        nextStep: "Schedule review",
       },
       { sourceRefs: ["agent onboarding"] },
     );
 
-    expect(product.id).toBe("prd-widget");
-    expect(deal.id).toMatch(/^d-\d{4}-\d{4}-acme-expansion$/);
-    expect(deal.path).toContain(path.join("entities", "deals", "active"));
-    expect(readFileSync(path.join(product.path, "playbook.md"), "utf8")).toContain("Ideal Buyers");
-    expect(readFileSync(path.join(deal.path, "meddicc.md"), "utf8")).toContain("Economic Buyer");
+    expect(item.id).toBe("itm-widget");
+    expect(caseEntity.id).toMatch(/^cs-\d{4}-\d{4}-acme-expansion$/);
+    expect(caseEntity.path).toContain(path.join("entities", "cases", "active"));
+    expect(readFileSync(path.join(item.path, "notes.md"), "utf8")).toContain("Add notes");
+    expect(readFileSync(path.join(caseEntity.path, "activity-log.md"), "utf8")).toContain("Add activity");
   });
 
   it("scans shared and role entities together", async () => {
-    const role = await loadRole(tmpRoot, "sales");
+    const role = await loadRole(tmpRoot, "role-a");
     await ensureWorkspaceScaffold(tmpRoot, role);
-    mkdirSync(path.join(tmpRoot, "entities", "people", "p-jane"), { recursive: true });
-    writeFileSync(
-      path.join(tmpRoot, "entities", "people", "p-jane", "record.md"),
-      "---\nid: p-jane\ntype: person\nname: Jane\n---\n",
-    );
+    writeSharedEntityRecord(tmpRoot, {
+      directoryName: "shared-note",
+      id: "shared-note",
+      type: "shared-note",
+      name: "Shared Note",
+    });
     await createRoleEntityRecord(
       tmpRoot,
       role,
-      "product",
-      { name: "Widget", summary: "Summary", valueHypothesis: "Value", competitors: [] },
+      "item",
+      { title: "Widget", summary: "Summary", owner: "Taylor", status: "active", nextStep: "Review" },
       { sourceRefs: ["test"] },
     );
     const entities = await scanEntities(tmpRoot, role);
-    expect(entities.map((entity) => entity.id)).toEqual(expect.arrayContaining(["p-jane", "prd-widget"]));
+    expect(entities.map((entity) => entity.id)).toEqual(expect.arrayContaining(["shared-note", "itm-widget"]));
   });
 
   it("finds entities by ID and filters creatable role entities", async () => {
-    const role = await loadRole(tmpRoot, "sales");
+    const role = await loadRole(tmpRoot, "role-a");
     await ensureWorkspaceScaffold(tmpRoot, role);
-    const deal = await createRoleEntityRecord(
+    const caseEntity = await createRoleEntityRecord(
       tmpRoot,
       role,
-      "deal",
+      "case",
       {
-        accountName: "Acme",
-        opportunityName: "Expansion",
-        owner: "Jane Doe",
-        stage: "qualification",
-        amount: "50k",
-        closeDate: "2026-06-01",
-        nextStep: "Schedule demo",
+        account: "Acme",
+        title: "Expansion",
+        owner: "Taylor",
+        status: "active",
+        nextStep: "Schedule review",
       },
       { sourceRefs: ["test"] },
     );
-    const found = await findEntityById(tmpRoot, role, deal.id);
-    const activeDeals = await findCreatableRoleEntities(tmpRoot, role, "deal");
-    expect(found?.id).toBe(deal.id);
-    expect(activeDeals.map((entity) => entity.id)).toContain(deal.id);
+    const found = await findEntityById(tmpRoot, role, caseEntity.id);
+    const activeCases = await findCreatableRoleEntities(tmpRoot, role, "case");
+    expect(found?.id).toBe(caseEntity.id);
+    expect(activeCases.map((entity) => entity.id)).toContain(caseEntity.id);
   });
 
-  it("matches transcript candidates against the sales transcript capability", async () => {
-    const role = await loadRole(tmpRoot, "sales");
+  it("matches transcript candidates against the configured transcript capability", async () => {
+    const role = await loadRole(tmpRoot, "role-a");
     await ensureWorkspaceScaffold(tmpRoot, role);
     await createRoleEntityRecord(
       tmpRoot,
       role,
-      "deal",
+      "case",
       {
-        accountName: "Acme",
-        opportunityName: "Platform",
-        owner: "Jane Doe",
-        stage: "qualification",
-        amount: "50k",
-        closeDate: "2026-06-01",
-        nextStep: "Demo",
+        account: "Acme",
+        title: "Platform",
+        owner: "Taylor",
+        status: "active",
+        nextStep: "Review",
       },
       { sourceRefs: ["test"] },
     );
     await createRoleEntityRecord(
       tmpRoot,
       role,
-      "deal",
+      "case",
       {
-        accountName: "Acme",
-        opportunityName: "Expansion",
-        owner: "Jane Doe",
-        stage: "qualification",
-        amount: "60k",
-        closeDate: "2026-06-15",
+        account: "Acme",
+        title: "Expansion",
+        owner: "Taylor",
+        status: "active",
         nextStep: "Review plan",
       },
       { sourceRefs: ["test"] },
@@ -257,27 +232,25 @@ describe("workspace", () => {
   });
 
   it("copies transcript evidence into a role entity and inbox", async () => {
-    const role = await loadRole(tmpRoot, "sales");
+    const role = await loadRole(tmpRoot, "role-a");
     await ensureWorkspaceScaffold(tmpRoot, role);
-    const deal = await createRoleEntityRecord(
+    const caseEntity = await createRoleEntityRecord(
       tmpRoot,
       role,
-      "deal",
+      "case",
       {
-        accountName: "Acme",
-        opportunityName: "Expansion",
-        owner: "Jane Doe",
-        stage: "qualification",
-        amount: "50k",
-        closeDate: "2026-06-01",
-        nextStep: "Demo",
+        account: "Acme",
+        title: "Expansion",
+        owner: "Taylor",
+        status: "active",
+        nextStep: "Review",
       },
       { sourceRefs: ["test"] },
     );
     const sourcePath = path.join(tmpRoot, "call.md");
     writeFileSync(sourcePath, "Transcript content");
     const capability = role.transcriptIngest!;
-    const entity = (await findEntityById(tmpRoot, role, deal.id))!;
+    const entity = (await findEntityById(tmpRoot, role, caseEntity.id))!;
     const copied = await copyTranscriptIntoRoleEntity(capability, entity, sourcePath);
     const inboxCopy = await copyTranscriptToRoleInbox(role, capability, sourcePath);
     expect(readFileSync(copied, "utf8")).toBe("Transcript content");
@@ -286,23 +259,22 @@ describe("workspace", () => {
     expect(inboxCopy).toContain("unmatched-transcripts");
   });
 
-  it("supports a second non-sales role without changing core code", async () => {
-    const role = await loadRole(tmpRoot, "engineering");
+  it("supports a second role without changing core code", async () => {
+    const role = await loadRole(tmpRoot, "role-b");
     await ensureWorkspaceScaffold(tmpRoot, role);
-    const ticket = await createRoleEntityRecord(
+    const issue = await createRoleEntityRecord(
       tmpRoot,
       role,
-      "ticket",
+      "issue",
       {
         title: "Stabilize deployment pipeline",
         owner: "Alex",
         status: "in-progress",
-        priority: "P1",
         nextStep: "Create rollback checklist",
       },
       { sourceRefs: ["test"] },
     );
-    expect(ticket.id).toBe("tkt-stabilize-deployment-pipeline");
-    expect(readFileSync(path.join(ticket.path, "record.md"), "utf8")).toContain("Create rollback checklist");
+    expect(issue.id).toBe("iss-stabilize-deployment-pipeline");
+    expect(readFileSync(path.join(issue.path, "record.md"), "utf8")).toContain("Create rollback checklist");
   });
 });

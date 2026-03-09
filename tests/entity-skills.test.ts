@@ -5,15 +5,15 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 import { loadRole } from "../src/roles.js";
-import { createCompanyRecords, createRoleEntityRecord, ensureWorkspaceScaffold } from "../src/workspace.js";
-import { repoRoot, seedRoleWorkspace } from "./test-helpers.js";
+import { createRoleEntityRecord, ensureWorkspaceScaffold } from "../src/workspace.js";
+import { repoRoot, seedRoleWorkspace, writeSharedEntityRecord } from "./test-helpers.js";
 
 describe("entity_query skill scripts", () => {
   let root: string;
 
   beforeEach(() => {
     root = mkdtempSync(path.join(tmpdir(), "entity-query-skill-"));
-    seedRoleWorkspace(root, ["sales"]);
+    seedRoleWorkspace(root, ["role-a"]);
   });
 
   afterEach(() => {
@@ -21,40 +21,30 @@ describe("entity_query skill scripts", () => {
   });
 
   it("queries, summarizes, and inventories entity directories", async () => {
-    const role = await loadRole(root, "sales");
+    const role = await loadRole(root, "role-a");
     await ensureWorkspaceScaffold(root, role);
-    await createCompanyRecords(
-      root,
-      {
-        companyName: "Acme",
-        companySummary: "Summary",
-        businessModel: "Subscription",
-        operatingCadence: "Weekly",
-        strategicPriorities: "Expansion",
-        topCompetitors: ["Rival"],
-      },
-      { sourceRefs: ["test"] },
-    );
+    writeSharedEntityRecord(root);
     await createRoleEntityRecord(
       root,
       role,
-      "product",
+      "item",
       {
-        name: "Aura",
-        summary: "AI workspace",
-        valueHypothesis: "Faster execution",
-        competitors: ["Rival"],
+        title: "Aura",
+        summary: "Workspace",
+        owner: "Taylor",
+        status: "active",
+        nextStep: "Review",
       },
       { sourceRefs: ["test"] },
     );
 
     const query = spawnSync(
       "bun",
-      [path.join(repoRoot, "skills", "entity_query", "entities", "scripts", "query-entities.ts"), "--root", root, "--type", "product", "--format", "paths"],
+      [path.join(repoRoot, "skills", "entity_query", "entities", "scripts", "query-entities.ts"), "--root", root, "--type", "item", "--format", "paths"],
       { encoding: "utf8" },
     );
     expect(query.status).toBe(0);
-    expect(query.stdout).toContain("product/prd-aura");
+    expect(query.stdout).toContain("items/itm-aura");
 
     const summary = spawnSync(
       "bun",
@@ -63,7 +53,7 @@ describe("entity_query skill scripts", () => {
     );
     expect(summary.status).toBe(0);
     expect(summary.stdout).toContain("By type");
-    expect(summary.stdout).toContain("product: 1");
+    expect(summary.stdout).toContain("item: 1");
 
     const inventory = spawnSync(
       "bun",
@@ -71,7 +61,7 @@ describe("entity_query skill scripts", () => {
       { encoding: "utf8" },
     );
     expect(inventory.status).toBe(0);
-    expect(inventory.stdout).toContain("product (1)");
+    expect(inventory.stdout).toContain("item (1)");
     expect(inventory.stdout).toContain("record.md: 1");
   });
 });

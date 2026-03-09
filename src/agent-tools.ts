@@ -172,7 +172,7 @@ export function createEntityLookupTool(root: string, role: RoleDefinition): Tool
   return {
     name: "entity_lookup",
     label: "Entity Lookup",
-    description: "Find shared people and role-specific entities by ID or name from the workspace.",
+    description: "Find shared and role-specific entities by ID or name from the workspace.",
     promptSnippet: "Use entity_lookup to resolve canonical IDs before editing files.",
     promptGuidelines: [
       "Use entity_lookup when an entity name or ID is ambiguous.",
@@ -216,7 +216,7 @@ export function createWebSearchTool(
     description: "Search the web for current external information using OpenAI web search.",
     promptSnippet: "Use web_search when the task needs current external information that is not in the workspace.",
     promptGuidelines: [
-      "Use web_search for recent facts, external product documentation, or up-to-date API behavior.",
+      "Use web_search for recent facts, external documentation, or up-to-date API behavior.",
       "Prefer workspace files for canonical local truth, and use allowedDomains when a trusted source is known.",
     ],
     parameters: webSearchParameters,

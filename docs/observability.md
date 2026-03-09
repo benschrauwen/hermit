@@ -77,7 +77,7 @@ hermit telemetry report --window 2w
 Filter by role:
 
 ```bash
-hermit telemetry report --role sales
+hermit telemetry report --role <role-id>
 ```
 
 ## Current Metrics

@@ -72,8 +72,8 @@ program.name("hermit").description("Local file-first runtime for autonomous appl
 
 program
   .command("chat")
-  .description("Open an interactive leadership chat session.")
-  .option("--role <id>", "Role ID to run, for example sales or engineering.")
+  .description("Open an interactive role chat session.")
+  .option("--role <id>", "Role ID to run.")
   .option("--continue", "Continue the most recent persisted session for this workspace.")
   .option("--image <path>", "Attach image(s) to the initial prompt.", (value, previous: string[] = []) => [...previous, value], [])
   .option("--prompt <text>", "Optional initial prompt before the interactive loop starts.")
@@ -111,7 +111,7 @@ program
 program
   .command("ask")
   .description("Run a one-shot prompt in the selected role session.")
-  .option("--role <id>", "Role ID to run, for example sales or engineering.")
+  .option("--role <id>", "Role ID to run.")
   .option("--image <path>", "Attach image(s) to the prompt.", (value, previous: string[] = []) => [...previous, value], [])
   .argument("<prompt...>", "Prompt text to send to the agent.")
   .action(
@@ -138,7 +138,7 @@ program
 program
   .command("heartbeat")
   .description("Run one autonomous background upkeep turn for the selected role.")
-  .option("--role <id>", "Role ID to run, for example sales or engineering.")
+  .option("--role <id>", "Role ID to run.")
   .option("--continue", "Continue the most recent persisted heartbeat session for this role.")
   .option("--prompt <text>", "Optional heartbeat prompt override.")
   .action(
@@ -167,7 +167,7 @@ const ingestCommand = program.command("ingest").description("Ingest evidence int
 ingestCommand
   .command("transcript <file>")
   .description("Store a transcript and update the selected role entity.")
-  .option("--role <id>", "Role ID to run, for example sales.")
+  .option("--role <id>", "Role ID to run.")
   .option("--entity <id>", "Entity ID to update.")
   .option("--image <path>", "Attach image(s) to the transcript run.", (value, previous: string[] = []) => [...previous, value], [])
   .action(

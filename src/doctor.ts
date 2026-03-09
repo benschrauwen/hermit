@@ -3,10 +3,10 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
-import { SHARED_COMPANY_FILES, SHARED_ROOT_DIRECTORIES } from "./constants.js";
+import { SHARED_ROOT_DIRECTORIES } from "./constants.js";
 import { PromptLibrary } from "./prompt-library.js";
 import { loadRole, validateRoleManifest } from "./roles.js";
-import { getWorkspacePaths, scanEntities } from "./workspace.js";
+import { scanEntities } from "./workspace.js";
 
 interface DoctorFinding {
   level: "error" | "warning" | "info";
@@ -126,8 +126,6 @@ function printFindings(root: string, findings: DoctorFinding[]): void {
 export async function runDoctor(root: string, roleId: string): Promise<boolean> {
   const findings: DoctorFinding[] = [];
   const role = await loadRole(root, roleId);
-  const paths = getWorkspacePaths(root, role);
-
   for (const relativePath of SHARED_ROOT_DIRECTORIES) {
     try {
       const stat = await fs.stat(path.join(root, relativePath));
@@ -180,25 +178,6 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
         "error",
         `Missing required agent file: ${path.relative(root, agentFilePath)}`,
       );
-    }
-  }
-
-  for (const companyFile of SHARED_COMPANY_FILES) {
-    const companyPath = path.join(paths.companyDir, companyFile);
-    try {
-      await fs.access(companyPath);
-      if (companyFile === "record.md") {
-        await validateMarkdownRecord(findings, companyPath);
-      } else {
-        const content = await fs.readFile(companyPath, "utf8");
-        addPlaceholderWarnings(findings, companyPath, content);
-      }
-    } catch {
-      if (companyFile === "record.md") {
-        // Partial workspaces are allowed during onboarding.
-      } else {
-        addGeneralFinding(findings, "warning", `${companyPath} is missing or unreadable.`);
-      }
     }
   }
 

@@ -1,1 +1,0 @@
-Transcript run. transcriptPath={{transcriptPath}}

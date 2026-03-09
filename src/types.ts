@@ -24,23 +24,6 @@ export interface EntityRecord {
   owner?: string;
 }
 
-export interface CompanyBootstrapInput {
-  companyName: string;
-  companySummary: string;
-  businessModel: string;
-  operatingCadence: string;
-  strategicPriorities: string;
-  topCompetitors: string[];
-}
-
-export interface PersonBootstrapInput {
-  name: string;
-  role: string;
-  manager: string;
-  strengths: string;
-  coachingFocus: string;
-}
-
 export interface RoleFieldDefinition {
   key: string;
   label: string;
@@ -122,8 +105,7 @@ export interface RoleResolution {
 
 export interface WorkspaceInitializationState {
   initialized: boolean;
-  hasCompanyRecord: boolean;
-  peopleCount: number;
+  sharedEntityCount: number;
   roleEntityCount: number;
   roleEntityCounts: Record<string, number>;
 }

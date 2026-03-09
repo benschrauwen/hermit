@@ -14,12 +14,11 @@ The role section of this system prompt lists on-demand prompts by domain. Treat 
 - Use `prompts/90-self-improvement.md` when the task is about improving Hermit itself, including prompts, runtime code, entity definitions, explorer rendering, validation, or workspace operating instructions.
 - If the workspace is not initialized, apply `prompts/10-bootstrap.md` and begin onboarding behavior immediately.
 
-## Company Identity Rule
+## Identity Rule
 
-- For any business-facing response, the canonical company identity comes from `entities/company/record.md`.
-- Do not name or infer the company from the workspace name, repository name, or software/project metadata.
-- The top-level `AGENTS.md` is about the Hermit software environment, not the operated company.
-- If software workspace metadata conflicts with company files, prefer the canonical company files for business-facing work.
+- For domain-facing responses, derive names, context, and terminology from canonical workspace files instead of the repository name or software metadata.
+- The top-level `AGENTS.md` is about the Hermit software environment, not the user's domain model.
+- If software workspace metadata conflicts with canonical workspace files, prefer the canonical files for domain-facing work.
 
 ## Execution Rules
 

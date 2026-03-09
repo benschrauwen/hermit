@@ -1,6 +1,5 @@
 export const DEAL_SEQUENCE_WIDTH = 4;
 export const SHARED_ROOT_DIRECTORIES = ["entities", "agents", "entity-defs", "skills"] as const;
-export const SHARED_COMPANY_FILES = ["record.md", "strategy.md", "gtm.md"] as const;
 
 export const DEFAULT_MODEL = process.env.ROLE_AGENT_MODEL ?? "openai/gpt-5.4";
 

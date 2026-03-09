@@ -23,39 +23,39 @@ describe("roles explorer renderers", () => {
   it("parses optional explorer renderer config from the role manifest", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "roles-explorer-"));
     roots.push(root);
-    seedRoleWorkspace(root, ["sales"]);
+    seedRoleWorkspace(root, ["role-a"]);
 
-    const role = await loadRole(root, "sales");
-    expect(role.explorer?.renderers?.detail?.deal).toBe("renderers/deal-detail.mjs");
-    await expect(validateRoleManifest(root, "sales")).resolves.toBeUndefined();
+    const role = await loadRole(root, "role-a");
+    expect(role.explorer?.renderers?.detail?.case).toBe("renderers/case-detail.mjs");
+    await expect(validateRoleManifest(root, "role-a")).resolves.toBeUndefined();
   });
 
   it("fails validation when an explorer renderer file is missing", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "roles-explorer-missing-"));
     roots.push(root);
-    seedRoleWorkspace(root, ["sales"]);
+    seedRoleWorkspace(root, ["role-a"]);
 
     const entityDefsPath = path.join(root, "entity-defs", "entities.md");
     replaceInFile(
       entityDefsPath,
-      "deal: renderers/deal-detail.mjs",
-      "deal: renderers/missing-detail.mjs",
+      "case: renderers/case-detail.mjs",
+      "case: renderers/missing-detail.mjs",
     );
 
-    await expect(validateRoleManifest(root, "sales")).rejects.toThrow(
-      "Role sales is missing explorer detail renderer: renderers/missing-detail.mjs",
+    await expect(validateRoleManifest(root, "role-a")).rejects.toThrow(
+      "Role role-a is missing explorer detail renderer: renderers/missing-detail.mjs",
     );
   });
 
   it("fails validation when a shared agent scaffold template is missing", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "roles-agent-template-missing-"));
     roots.push(root);
-    seedRoleWorkspace(root, ["sales"]);
+    seedRoleWorkspace(root, ["role-a"]);
 
     rmSync(path.join(root, "prompts", "templates", "agent", "record.md"));
 
-    await expect(validateRoleManifest(root, "sales")).rejects.toThrow(
-      "Role sales is missing shared agent template: prompts/templates/agent/record.md",
+    await expect(validateRoleManifest(root, "role-a")).rejects.toThrow(
+      "Role role-a is missing shared agent template: prompts/templates/agent/record.md",
     );
   });
 });

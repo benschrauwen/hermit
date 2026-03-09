@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { runDoctor } from "../src/doctor.js";
 import { loadRole } from "../src/roles.js";
 import { ensureWorkspaceScaffold } from "../src/workspace.js";
-import { seedRoleWorkspace, writeCompanyRecord } from "./test-helpers.js";
+import { seedRoleWorkspace, writeSharedEntityRecord } from "./test-helpers.js";
 
 describe("runDoctor", () => {
   let consoleSpy: { log: ReturnType<typeof vi.spyOn> };
@@ -22,7 +22,7 @@ describe("runDoctor", () => {
   it("reports errors and returns false when required dirs are missing", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "doctor-missing-"));
     try {
-      const result = await runDoctor(root, "sales").catch(() => false);
+      const result = await runDoctor(root, "role-a").catch(() => false);
       expect(result).toBe(false);
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -31,11 +31,11 @@ describe("runDoctor", () => {
 
   it("returns true when workspace is valid (may log healthy or warnings only)", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "doctor-valid-"));
-    seedRoleWorkspace(root, ["sales"]);
-    const role = await loadRole(root, "sales");
+    seedRoleWorkspace(root, ["role-a"]);
+    const role = await loadRole(root, "role-a");
     await ensureWorkspaceScaffold(root, role);
-    writeCompanyRecord(root);
-    const result = await runDoctor(root, "sales");
+    writeSharedEntityRecord(root);
+    const result = await runDoctor(root, "role-a");
     const logged = consoleSpy.log.mock.calls.map((c) => c[0] as string);
     const errors = logged.filter((m) => m.startsWith("error:"));
     expect(errors, `Expected no errors but got: ${errors.join("; ")}`).toHaveLength(0);
@@ -47,18 +47,18 @@ describe("runDoctor", () => {
     const root = mkdtempSync(path.join(tmpdir(), "doctor-quality-"));
 
     try {
-      seedRoleWorkspace(root, ["sales"]);
-      const role = await loadRole(root, "sales");
+      seedRoleWorkspace(root, ["role-a"]);
+      const role = await loadRole(root, "role-a");
       await ensureWorkspaceScaffold(root, role);
-      writeCompanyRecord(root);
+      writeSharedEntityRecord(root);
 
-      const dealDir = path.join(root, "entities", "deals", "active", "d-2026-0001-acme");
-      mkdirSync(dealDir, { recursive: true });
+      const caseDir = path.join(root, "entities", "cases", "active", "cs-2026-0001-acme-expansion");
+      mkdirSync(caseDir, { recursive: true });
       writeFileSync(
-        path.join(dealDir, "record.md"),
+        path.join(caseDir, "record.md"),
         `---
-id: d-2026-0001-acme
-type: deal
+id: cs-2026-0001-acme-expansion
+type: case
 name: Acme - Expansion
 updated_at: 2026-03-08T12:00:00.000Z
 ---
@@ -69,11 +69,10 @@ updated_at: 2026-03-08T12:00:00.000Z
 `,
       );
 
-      const result = await runDoctor(root, "sales");
+      const result = await runDoctor(root, "role-a");
       const logged = consoleSpy.log.mock.calls.map((c) => c[0] as string);
       expect(result).toBe(true);
       expect(logged.some((m) => m.includes("placeholder text"))).toBe(true);
-      expect(logged.some((m) => m.includes("meddicc.md is missing or unreadable"))).toBe(true);
       expect(logged.some((m) => m.includes("activity-log.md is missing or unreadable"))).toBe(true);
     } finally {
       rmSync(root, { recursive: true, force: true });

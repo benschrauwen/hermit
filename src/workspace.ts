@@ -7,9 +7,7 @@ import { DEAL_SEQUENCE_WIDTH, SHARED_ROOT_DIRECTORIES } from "./constants.js";
 import { getRootPaths, getRolePaths } from "./roles.js";
 import { renderBulletList, renderYamlList, TemplateLibrary } from "./template-library.js";
 import type {
-  CompanyBootstrapInput,
   EntityRecord,
-  PersonBootstrapInput,
   RoleDefinition,
   RoleEntityDefinition,
   TranscriptIngestCapability,
@@ -26,8 +24,6 @@ const templateLibrary = new TemplateLibrary();
 export interface WorkspacePaths {
   root: string;
   entitiesDir: string;
-  companyDir: string;
-  peopleDir: string;
   agentsDir: string;
   skillsDir: string;
   roleDir?: string;
@@ -86,14 +82,6 @@ export function makeSlug(value: string): string {
   });
 }
 
-export function makePersonId(name: string): string {
-  return `p-${makeSlug(name)}`;
-}
-
-function getSharedTemplatePath(root: string, relativePath: string): string {
-  return path.join(root, "entity-defs", relativePath);
-}
-
 function getSharedPromptTemplatePath(root: string, relativePath: string): string {
   return path.join(root, "prompts", relativePath);
 }
@@ -103,14 +91,6 @@ function joinFieldValues(input: Record<string, unknown>, fieldNames: string[]): 
     .map((fieldName) => String(input[fieldName] ?? ""))
     .join(" ")
     .trim();
-}
-
-async function renderSharedTemplate(
-  root: string,
-  relativeTemplatePath: string,
-  values: Record<string, string>,
-): Promise<string> {
-  return templateLibrary.render(getSharedTemplatePath(root, relativeTemplatePath), values);
 }
 
 async function renderSharedPromptTemplate(
@@ -281,12 +261,7 @@ export async function ensureWorkspaceScaffold(root: string, role?: RoleDefinitio
 }
 
 export async function getWorkspaceInitializationState(root: string, role: RoleDefinition): Promise<WorkspaceInitializationState> {
-  const paths = getWorkspacePaths(root, role);
-  const [people, roleEntities, hasCompanyRecord] = await Promise.all([
-    scanSharedEntityDirectory(paths.peopleDir),
-    scanRoleEntities(root, role),
-    fileExists(path.join(paths.companyDir, "record.md")),
-  ]);
+  const [sharedEntities, roleEntities] = await Promise.all([scanSharedEntities(root, role), scanRoleEntities(root, role)]);
   const roleEntityCounts = Object.fromEntries(
     role.entities.map((entity) => [entity.key, roleEntities.filter((record) => record.type === entity.type).length]),
   );
@@ -295,12 +270,49 @@ export async function getWorkspaceInitializationState(root: string, role: RoleDe
     .reduce((count, entity) => count + (roleEntityCounts[entity.key] ?? 0), 0);
 
   return {
-    initialized: hasCompanyRecord && (people.length > 0 || roleEntityCount > 0),
-    hasCompanyRecord,
-    peopleCount: people.length,
+    initialized: sharedEntities.length > 0 || roleEntityCount > 0,
+    sharedEntityCount: sharedEntities.length,
     roleEntityCount,
     roleEntityCounts,
   };
+}
+
+async function readEntityRecord(
+  recordPath: string,
+  scope: "shared" | "role",
+  roleId?: string,
+): Promise<EntityRecord[]> {
+  try {
+    const content = await fs.readFile(recordPath, "utf8");
+    const parsed = matter(content);
+    const data = parsed.data as Record<string, unknown>;
+    const entityPath = path.dirname(recordPath);
+
+    return [
+      {
+        id: String(data.id ?? path.basename(entityPath)),
+        type: String(data.type ?? "unknown"),
+        name: String(data.name ?? path.basename(entityPath)),
+        path: entityPath,
+        scope,
+        ...(roleId ? { roleId } : {}),
+        ...(data.status ? { status: String(data.status) } : {}),
+        ...(data.owner ? { owner: String(data.owner) } : {}),
+      } satisfies EntityRecord,
+    ];
+  } catch {
+    const entityPath = path.dirname(recordPath);
+    return [
+      {
+        id: path.basename(entityPath),
+        type: "unknown",
+        name: path.basename(entityPath),
+        path: entityPath,
+        scope,
+        ...(roleId ? { roleId } : {}),
+      } satisfies EntityRecord,
+    ];
+  }
 }
 
 async function scanDirectoryForEntities(
@@ -310,56 +322,59 @@ async function scanDirectoryForEntities(
   options: { excludeDirectoryNames?: readonly string[] } = {},
 ): Promise<EntityRecord[]> {
   try {
+    const recordPath = path.join(directory, "record.md");
+    if (await fileExists(recordPath)) {
+      return readEntityRecord(recordPath, scope, roleId);
+    }
+
     const entries = await fs.readdir(directory, { withFileTypes: true });
-    const entities = await Promise.all(
-      entries
-        .filter(
-          (entry) =>
-            entry.isDirectory() &&
-            !(options.excludeDirectoryNames ?? []).includes(entry.name),
-        )
-        .map(async (entry) => {
-          const recordPath = path.join(directory, entry.name, "record.md");
+    const entityGroups = await Promise.all(
+      entries.map(async (entry) => {
+        if (!entry.isDirectory() || (options.excludeDirectoryNames ?? []).includes(entry.name)) {
+          return [];
+        }
 
-          try {
-            const content = await fs.readFile(recordPath, "utf8");
-            const parsed = matter(content);
-            const data = parsed.data as Record<string, unknown>;
-
-            return {
-              id: String(data.id ?? entry.name),
-              type: String(data.type ?? "unknown"),
-              name: String(data.name ?? entry.name),
-              path: path.join(directory, entry.name),
-              scope,
-              ...(roleId ? { roleId } : {}),
-              ...(data.status ? { status: String(data.status) } : {}),
-              ...(data.owner ? { owner: String(data.owner) } : {}),
-            } satisfies EntityRecord;
-          } catch {
-            return {
-              id: entry.name,
-              type: "unknown",
-              name: entry.name,
-              path: path.join(directory, entry.name),
-              scope,
-              ...(roleId ? { roleId } : {}),
-            } satisfies EntityRecord;
-          }
-        }),
+        const childDirectory = path.join(directory, entry.name);
+        return scanDirectoryForEntities(childDirectory, scope, roleId, options);
+      }),
     );
 
-    return entities;
+    return entityGroups.flat();
   } catch {
     return [];
   }
 }
 
-async function scanSharedEntityDirectory(directory: string): Promise<EntityRecord[]> {
-  return scanDirectoryForEntities(directory, "shared");
+function getRoleEntityRootNames(role: RoleDefinition): Set<string> {
+  return new Set(
+    role.entities
+      .flatMap((entity) => [entity.createDirectory, ...(entity.scanDirectories ?? [])])
+      .map((directory) => directory.split(path.sep)[0])
+      .filter((directory): directory is string => Boolean(directory)),
+  );
 }
 
-async function scanRoleEntities(root: string, role: RoleDefinition): Promise<EntityRecord[]> {
+async function getSharedEntityDirectories(root: string, role: RoleDefinition): Promise<string[]> {
+  const entitiesDir = getWorkspacePaths(root).entitiesDir;
+  const excludedRootNames = getRoleEntityRootNames(role);
+
+  try {
+    const entries = await fs.readdir(entitiesDir, { withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isDirectory() && !excludedRootNames.has(entry.name))
+      .map((entry) => path.join(entitiesDir, entry.name));
+  } catch {
+    return [];
+  }
+}
+
+async function scanSharedEntities(root: string, role: RoleDefinition): Promise<EntityRecord[]> {
+  const directories = await getSharedEntityDirectories(root, role);
+  const entities = await Promise.all(directories.map((directory) => scanDirectoryForEntities(directory, "shared")));
+  return entities.flat();
+}
+
+async function scanRoleEntities(_root: string, role: RoleDefinition): Promise<EntityRecord[]> {
   const entities = await Promise.all(
     role.entities.flatMap((entity) =>
       (entity.scanDirectories ?? [entity.createDirectory]).map((directory) =>
@@ -394,7 +409,7 @@ function filterCreatableEntities(
 }
 
 export async function scanEntities(root: string, role: RoleDefinition): Promise<EntityRecord[]> {
-  const entities = [...(await scanSharedEntityDirectory(getWorkspacePaths(root).peopleDir)), ...(await scanRoleEntities(root, role))];
+  const entities = [...(await scanSharedEntities(root, role)), ...(await scanRoleEntities(root, role))];
   return entities.sort((left, right) => left.name.localeCompare(right.name));
 }
 
@@ -537,75 +552,6 @@ export async function resolveTranscriptEntity(
 
 function buildRoleEntityPath(role: RoleDefinition, entity: RoleEntityDefinition, entityId: string): string {
   return path.join(role.entitiesDir, entity.createDirectory, entityId);
-}
-
-export async function createCompanyRecords(
-  root: string,
-  input: CompanyBootstrapInput,
-  options: CreateEntityOptions = {},
-): Promise<{ path: string }> {
-  const paths = getWorkspacePaths(root);
-  const sourceRefs = options.sourceRefs ?? ["bootstrap questionnaire"];
-  const recordContent = await renderSharedTemplate(root, "company/record.md", {
-    companyName: input.companyName,
-    companySummary: input.companySummary,
-    businessModel: input.businessModel,
-    operatingCadence: input.operatingCadence,
-    strategicPriorities: input.strategicPriorities,
-    topCompetitorsBulletList: renderBulletList(input.topCompetitors, "- Add competitors."),
-    updatedAt: new Date().toISOString(),
-    sourceRefsYaml: renderYamlList(sourceRefs),
-  });
-
-  await writeFileSafely(path.join(paths.companyDir, "record.md"), recordContent, options.force);
-  await writeFileSafely(
-    path.join(paths.companyDir, "strategy.md"),
-    await renderSharedTemplate(root, "company/strategy.md", {}),
-    options.force,
-  );
-  await writeFileSafely(
-    path.join(paths.companyDir, "gtm.md"),
-    await renderSharedTemplate(root, "company/gtm.md", {}),
-    options.force,
-  );
-
-  return { path: path.join(paths.companyDir, "record.md") };
-}
-
-export async function createPersonRecord(
-  root: string,
-  input: PersonBootstrapInput,
-  options: CreateEntityOptions = {},
-): Promise<{ id: string; path: string }> {
-  const paths = getWorkspacePaths(root);
-  const entityId = makePersonId(input.name);
-  const entityPath = path.join(paths.peopleDir, entityId);
-  const sourceRefs = options.sourceRefs ?? ["bootstrap questionnaire"];
-
-  await ensureDirectory(entityPath, ["notes", "artifacts"]);
-  await writeFileSafely(
-    path.join(entityPath, "record.md"),
-    await renderSharedTemplate(root, "person/record.md", {
-      id: entityId,
-      name: input.name,
-      role: input.role,
-      manager: input.manager || "Unknown",
-      strengths: input.strengths || "Add strengths.",
-      coachingFocus: input.coachingFocus || "Add coaching focus.",
-      updatedAt: new Date().toISOString(),
-      sourceRefsYaml: renderYamlList(sourceRefs),
-    }),
-    options.force,
-  );
-  await writeFileSafely(
-    path.join(entityPath, "development-plan.md"),
-    await renderSharedTemplate(root, "person/development-plan.md", {
-      name: input.name,
-    }),
-    options.force,
-  );
-
-  return { id: entityId, path: entityPath };
 }
 
 export async function createRoleEntityRecord(

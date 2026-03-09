@@ -248,8 +248,6 @@ function parseExplorerConfig(value: unknown): RoleExplorerConfig | undefined {
 export function getRootPaths(root: string): {
   root: string;
   entitiesDir: string;
-  companyDir: string;
-  peopleDir: string;
   agentsDir: string;
   skillsDir: string;
 } {
@@ -257,8 +255,6 @@ export function getRootPaths(root: string): {
   return {
     root,
     entitiesDir,
-    companyDir: path.join(entitiesDir, "company"),
-    peopleDir: path.join(entitiesDir, "people"),
     agentsDir: path.join(root, "agents"),
     skillsDir: path.join(root, "skills"),
   };

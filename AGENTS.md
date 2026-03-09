@@ -13,15 +13,14 @@ Use this file when the task involves changing or inspecting Hermit itself, inclu
 - explorer, TUI, SDK, extensions, themes, or provider integrations
 - tests, examples, docs, or architecture
 
-Do **not** use this file as the source of truth for the operated business or company under management.
+Do **not** use this file as the source of truth for the user's configured domain or operating context.
 
 ## Business Context Boundary
 
-- The top-level workspace/project name `Hermit` refers to the software environment, not the company being operated on.
-- The canonical company identity and business context come from `entities/company/record.md` and related files under `entities/company/`.
-- Shared people context comes from `entities/people/`.
+- The top-level workspace/project name `Hermit` refers to the software environment, not the user's configured domain model.
+- Canonical domain context comes from the workspace files the user and setup skills create under `entities/`, `entity-defs/`, and `agents/`.
 - Role operating context comes from `agents/<role-id>/AGENTS.md`, `agents/<role-id>/role.md`, and that role's canonical files.
-- If workspace/software metadata conflicts with company files, prefer the canonical company and role files for business-facing work.
+- If workspace/software metadata conflicts with canonical workspace files, prefer the canonical workspace files and role files for domain-facing work.
 
 ## Operating Model For Software Work
 
@@ -35,9 +34,8 @@ Do **not** use this file as the source of truth for the operated business or com
 ## Canonical Directories
 
 - `entities/`: entity instance data only.
-  - `entities/company/`: shared company-level context for the operated business.
-  - `entities/people/`: shared people records with `record.md`, `development-plan.md`, `notes/`, and `artifacts/`.
-  - Entity data directories such as `entities/deals/`, `entities/product/`, `entities/tickets/`, etc.
+ - Shared and role-managed entity directories live here.
+ - Exact structure is defined by `entity-defs/entities.md` and the setup skills, not by the runtime.
 - `entity-defs/`: shared entity definitions and custom explorer renderers.
 - `prompts/templates/`: shared non-entity scaffolds such as core agent operating templates.
 - `skills/`: shared pi skills that can be loaded on demand across roles.
@@ -56,7 +54,6 @@ Each agent directory contains its own:
 ## Naming Rules
 
 - Use stable IDs at the directory level.
-- Shared people use `p-<slug>`.
 - Entity IDs and structure come from `entity-defs/entities.md`.
 - Keep one canonical `record.md` per mutable entity directory.
 - Use dated markdown files in `notes/` when a time-bound note should be preserved.
@@ -66,9 +63,8 @@ Each agent directory contains its own:
 
 - `agents/<role-id>/agent/record.md` stores the current clarified operating system for that role.
 - `agents/<role-id>/agent/inbox.md` stores that role's raw captured commitments until clarified.
-- Shared `record.md` files under `entities/company/` and `entities/people/` store the best current shared state.
-- Entity `record.md` files store the best current state for each entity instance.
-- Entity-defined supporting files such as qualification sheets, activity logs, or ticket notes live beside the canonical record when `entity-defs/entities.md` requires them.
+- Shared and role-managed entity `record.md` files under `entities/` store the best current state for each entity instance.
+- Entity-defined supporting files live beside the canonical record when `entity-defs/entities.md` requires them.
 - Prompt files are editable operating instructions, but they are not business facts.
 - Skill files are editable operating instructions and helper workflows, but they are not business facts.
 

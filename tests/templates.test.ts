@@ -6,9 +6,9 @@ describe("TemplateLibrary", () => {
   it("renders placeholders from simple context values", () => {
     const out = TemplateLibrary.renderString("Hello {{name}} from {{role}}.", {
       name: "Jane",
-      role: "sales",
+      role: "primary",
     });
-    expect(out).toBe("Hello Jane from sales.");
+    expect(out).toBe("Hello Jane from primary.");
   });
 
   it("replaces missing placeholders with empty strings", () => {

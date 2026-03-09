@@ -39,7 +39,7 @@ describe("telemetry", () => {
   it("records append-only telemetry events for a session", async () => {
     const recorder = await TelemetryRecorder.create({
       workspaceRoot: tmpRoot,
-      roleId: "sales",
+      roleId: "role-a",
       commandName: "ask",
       persist: false,
       modelProvider: "openai",
@@ -91,13 +91,13 @@ describe("telemetry", () => {
       "session_end",
     ]);
     expect(lines.every((line) => line.commandName === "ask")).toBe(true);
-    expect(lines.every((line) => line.roleId === "sales")).toBe(true);
+    expect(lines.every((line) => line.roleId === "role-a")).toBe(true);
   });
 
   it("aggregates telemetry into a report and writes markdown and json outputs", async () => {
     const recorder = await TelemetryRecorder.create({
       workspaceRoot: tmpRoot,
-      roleId: "sales",
+      roleId: "role-a",
       commandName: "chat",
       persist: true,
       modelProvider: "openai",
@@ -132,7 +132,7 @@ describe("telemetry", () => {
 
     const inFlightRecorder = await TelemetryRecorder.create({
       workspaceRoot: tmpRoot,
-      roleId: "sales",
+      roleId: "role-a",
       commandName: "chat",
       persist: true,
       modelProvider: "openai",

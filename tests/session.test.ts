@@ -69,10 +69,9 @@ describe("resolveInitialChatPrompt", () => {
         continueRecent: false,
         workspaceState: {
           initialized: true,
-          hasCompanyRecord: true,
-          peopleCount: 1,
+          sharedEntityCount: 1,
           roleEntityCount: 1,
-          roleEntityCounts: { deal: 1 },
+          roleEntityCounts: { item: 1 },
         },
       }),
     ).toBe("Open with pipeline review.");
@@ -84,8 +83,7 @@ describe("resolveInitialChatPrompt", () => {
         continueRecent: false,
         workspaceState: {
           initialized: false,
-          hasCompanyRecord: false,
-          peopleCount: 0,
+          sharedEntityCount: 0,
           roleEntityCount: 0,
           roleEntityCounts: {},
         },
@@ -99,10 +97,9 @@ describe("resolveInitialChatPrompt", () => {
         continueRecent: true,
         workspaceState: {
           initialized: true,
-          hasCompanyRecord: true,
-          peopleCount: 1,
+          sharedEntityCount: 1,
           roleEntityCount: 1,
-          roleEntityCounts: { deal: 1 },
+          roleEntityCounts: { item: 1 },
         },
       }),
     ).toBeUndefined();
@@ -114,10 +111,9 @@ describe("resolveInitialChatPrompt", () => {
         continueRecent: false,
         workspaceState: {
           initialized: true,
-          hasCompanyRecord: true,
-          peopleCount: 1,
+          sharedEntityCount: 1,
           roleEntityCount: 1,
-          roleEntityCounts: { deal: 1 },
+          roleEntityCounts: { item: 1 },
         },
       }),
     ).toBe(DEFAULT_CHAT_OPENING_PROMPT);
@@ -126,37 +122,37 @@ describe("resolveInitialChatPrompt", () => {
 
 describe("heartbeat session helpers", () => {
   const role: RoleDefinition = {
-    id: "sales",
-    name: "Sales Leader",
-    description: "Sales role",
-    roleDir: "/tmp/workspace/agents/sales",
+    id: "role-a",
+    name: "Role A",
+    description: "Primary role",
+    roleDir: "/tmp/workspace/agents/role-a",
     root: "/tmp/workspace",
     entitiesDir: "/tmp/workspace/entities",
-    agentsFile: "/tmp/workspace/agents/sales/AGENTS.md",
-    manifestFile: "/tmp/workspace/agents/sales/role.md",
+    agentsFile: "/tmp/workspace/agents/role-a/AGENTS.md",
+    manifestFile: "/tmp/workspace/agents/role-a/role.md",
     sharedPromptsDir: "/tmp/workspace/prompts",
-    rolePromptsDir: "/tmp/workspace/agents/sales/prompts",
+    rolePromptsDir: "/tmp/workspace/agents/role-a/prompts",
     sharedSkillsDir: "/tmp/workspace/skills",
-    roleSkillsDir: "/tmp/workspace/agents/sales/skills",
+    roleSkillsDir: "/tmp/workspace/agents/role-a/skills",
     entityDefsDir: "/tmp/workspace/entity-defs",
-    agentDir: "/tmp/workspace/agents/sales/agent",
-    sessionsDir: "/tmp/workspace/agents/sales/.role-agent/sessions",
+    agentDir: "/tmp/workspace/agents/role-a/agent",
+    sessionsDir: "/tmp/workspace/agents/role-a/.role-agent/sessions",
     roleDirectories: [],
     agentFiles: ["agent/record.md", "agent/inbox.md"],
     entities: [],
   };
 
   it("keeps heartbeat history separate from interactive session history", () => {
-    expect(resolvePersistedSessionDirectory(role)).toBe("/tmp/workspace/agents/sales/.role-agent/sessions");
+    expect(resolvePersistedSessionDirectory(role)).toBe("/tmp/workspace/agents/role-a/.role-agent/sessions");
     expect(resolvePersistedSessionDirectory(role, "heartbeat")).toBe(
-      "/tmp/workspace/agents/sales/.role-agent/heartbeat-sessions",
+      "/tmp/workspace/agents/role-a/.role-agent/heartbeat-sessions",
     );
   });
 
   it("adds shared and role-local skill directories to the session loader", () => {
     expect(resolveRoleSkillPaths(role)).toEqual([
       "/tmp/workspace/skills",
-      "/tmp/workspace/agents/sales/skills",
+      "/tmp/workspace/agents/role-a/skills",
     ]);
   });
 
@@ -197,8 +193,8 @@ describe("formatActivityStatus", () => {
   });
 
   it("renders custom tools from meaningful input fields", () => {
-    expect(formatActivityStatus("web_search", { query: "sales leader forecast hygiene" })).toBe(
-      "web_search sales leader forecast hygiene",
+    expect(formatActivityStatus("web_search", { query: "role-a backlog hygiene" })).toBe(
+      "web_search role-a backlog hygiene",
     );
   });
 });
