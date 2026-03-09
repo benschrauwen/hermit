@@ -1,6 +1,9 @@
 ---
+import path from "node:path";
 import BaseLayout from "../../../layouts/BaseLayout.astro";
-import { getWorkspaceRoot, loadRole, scanEntities } from "../../../lib/workspace.js";
+import { readMarkdownFiles } from "../../../lib/entity-content.js";
+import { getWorkspaceRoot, loadRole } from "../../../lib/workspace.js";
+import { marked } from "marked";
 
 const { roleId } = Astro.params;
 if (!roleId) return Astro.redirect("/");
@@ -13,35 +16,38 @@ try {
   return Astro.redirect("/");
 }
 
-const entities = await scanEntities(root, role);
-const byType = new Map<string, { label: string; count: number }>();
-for (const entity of role.entities) {
-  const count = entities.filter((e) => e.type === entity.type).length;
-  byType.set(entity.type, { label: entity.label, count });
-}
+const agentDir = path.join(role.roleDir, "agent");
+marked.setOptions({ gfm: true });
+const files = await Promise.all(
+  (await readMarkdownFiles(agentDir, ["record.md", "inbox.md"])).map(async (file) => ({
+    ...file,
+    html: file.content ? await marked.parse(file.content) : "",
+  })),
+);
 ---
 <BaseLayout title={role.name} roleId={roleId} roleName={role.name}>
+  <div class="breadcrumb">
+    <a href="/">Explorer</a> →
+    <a href="/agents">Agents</a> →
+    {role.name}
+  </div>
   <div class="page-intro">
     <h1>{role.name}</h1>
     <p class="meta">{role.description}</p>
   </div>
-  <div class="entity-type-list mb-8">
-    <a href={`/agents/${roleId}/agent`}>
-      <strong>Agent Workspace</strong>
-      <span class="meta"> — browse `agent/record.md` and `agent/inbox.md`</span>
-    </a>
-  </div>
-  <h2 class="section-title">Entities</h2>
-  <div class="entity-type-list">
-    {role.entities.map((entity) => {
-      const info = byType.get(entity.type);
-      const count = info?.count ?? 0;
-      return (
-        <a href={`/agents/${roleId}/${entity.type}`}>
-          <strong>{entity.label}</strong>
-          <span class="meta"> — {count} record{count !== 1 ? "s" : ""}</span>
-        </a>
-      );
-    })}
-  </div>
+
+  {files.map((file) => (
+    <section class="file-section card">
+      <h3>{file.relativePath}</h3>
+      {Object.keys(file.frontmatter).length > 0 && (
+        <dl class="meta-list">
+          {Object.entries(file.frontmatter).map(([k, v]) => [
+            <dt>{k}</dt>,
+            <dd>{Array.isArray(v) ? v.join(", ") : String(v)}</dd>,
+          ])}
+        </dl>
+      )}
+      <div class="markdown-body" set:html={file.html} />
+    </section>
+  ))}
 </BaseLayout>

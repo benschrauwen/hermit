@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import matter from "gray-matter";
-import type { RoleDefinition } from "./workspace.js";
+import type { RoleEntityDefinition } from "./workspace.js";
 
 export interface EntityFileContent {
   relativePath: string;
@@ -65,11 +65,9 @@ export async function readMarkdownFiles(directoryPath: string, relativePaths?: s
 
 export async function readEntityRecordContent(
   entityPath: string,
-  role: RoleDefinition,
-  entityType: string
+  entityDef: RoleEntityDefinition,
 ): Promise<EntityFileContent[]> {
-  const entityDef = role.entities.find((e) => e.type === entityType);
-  const files = entityDef?.files ?? [{ path: "record.md", template: "" }];
+  const files = entityDef.files ?? [{ path: "record.md", template: "" }];
   return readMarkdownFiles(
     entityPath,
     files.map((file) => file.path),

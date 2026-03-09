@@ -1,0 +1,35 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { getWorkspaceRoot, listRoleIds, loadRole } from "../../lib/workspace.js";
+
+const root = getWorkspaceRoot();
+const roleIds = await listRoleIds(root);
+const roles = await Promise.all(
+  roleIds.map(async (roleId) => {
+    const role = await loadRole(root, roleId);
+    return {
+      id: role.id,
+      name: role.name,
+      description: role.description,
+    };
+  }),
+);
+---
+<BaseLayout title="Agents">
+  <div class="breadcrumb">
+    <a href="/">Explorer</a> → Agents
+  </div>
+  <div class="page-intro">
+    <h1>Agents</h1>
+    <p class="meta">{roles.length} role{roles.length !== 1 ? "s" : ""}</p>
+  </div>
+
+  <div class="entity-type-list">
+    {roles.map((role) => (
+      <a href={`/agents/${role.id}`}>
+        <strong>{role.name}</strong>
+        <span class="meta"> — {role.description}</span>
+      </a>
+    ))}
+  </div>
+</BaseLayout>

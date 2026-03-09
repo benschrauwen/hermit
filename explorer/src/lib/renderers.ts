@@ -3,7 +3,7 @@ import { pathToFileURL } from "node:url";
 import { marked } from "marked";
 
 import type { EntityFileContent } from "./entity-content.js";
-import type { EntityRecord, RoleDefinition, RoleEntityDefinition } from "./workspace.js";
+import type { EntityRecord, RoleEntityDefinition, RoleExplorerConfig } from "./workspace.js";
 
 marked.setOptions({ gfm: true });
 
@@ -32,7 +32,6 @@ export type RenderedEntityDetail =
 
 interface BaseEntityRendererContext {
   root: string;
-  role: RoleDefinition;
   entityType: string;
   entityDef: RoleEntityDefinition;
   entity: EntityRecord;
@@ -159,14 +158,14 @@ function getBaseContext(args: {
 
 export async function renderRoleEntityDetail(args: {
   root: string;
-  role: RoleDefinition;
+  explorer?: RoleExplorerConfig;
   entityType: string;
   entityDef: RoleEntityDefinition;
   entity: EntityRecord;
   files: EntityFileContent[];
 }): Promise<RenderedEntityDetail> {
   const context = getBaseContext(args);
-  const detailRendererPath = args.role.explorer?.renderers?.detail?.[args.entityType];
+  const detailRendererPath = args.explorer?.renderers?.detail?.[args.entityType];
 
   if (detailRendererPath) {
     const module = await loadPluginModule<DetailRendererModule>(resolveRendererPath(args.root, detailRendererPath));
@@ -188,7 +187,7 @@ export async function renderRoleEntityDetail(args: {
 
   const sections = await Promise.all(
     args.files.map(async (file): Promise<RenderedEntitySection> => {
-      const fileRendererPath = args.role.explorer?.renderers?.files?.[args.entityType]?.[file.relativePath];
+      const fileRendererPath = args.explorer?.renderers?.files?.[args.entityType]?.[file.relativePath];
       if (!fileRendererPath) {
         return {
           kind: "default",

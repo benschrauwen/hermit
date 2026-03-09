@@ -36,8 +36,16 @@ export interface RoleEntityDefinition {
   label: string;
   type: string;
   createDirectory: string;
+  scanDirectories?: string[];
+  excludeDirectoryNames?: string[];
+  idStrategy: "prefixed-slug" | "year-sequence-slug" | "singleton";
+  idPrefix?: string;
+  idSourceFields: string[];
+  nameTemplate: string;
   statusField?: string;
   ownerField?: string;
+  includeInInitialization?: boolean;
+  extraDirectories?: string[];
   fields: Array<{ key: string; label: string; type: string }>;
   files: Array<{ path: string; template: string }>;
 }
@@ -63,6 +71,10 @@ export interface RoleDefinition {
 type RolesModule = {
   listRoleIds: (root: string) => Promise<string[]>;
   loadRole: (root: string, roleId: string) => Promise<RoleDefinition>;
+  loadEntityDefs: (root: string) => Promise<{
+    entities: RoleEntityDefinition[];
+    explorer?: RoleExplorerConfig;
+  }>;
 };
 type WorkspaceModule = {
   scanEntities: (root: string, role: RoleDefinition) => Promise<EntityRecord[]>;
@@ -111,6 +123,14 @@ export async function listRoleIds(root: string): Promise<string[]> {
 export async function loadRole(root: string, roleId: string): Promise<RoleDefinition> {
   const mod = await loadRolesModule(root);
   return mod.loadRole(root, roleId);
+}
+
+export async function loadEntityDefs(root: string): Promise<{
+  entities: RoleEntityDefinition[];
+  explorer?: RoleExplorerConfig;
+}> {
+  const mod = await loadRolesModule(root);
+  return mod.loadEntityDefs(root);
 }
 
 export async function scanEntities(root: string, role: RoleDefinition): Promise<EntityRecord[]> {

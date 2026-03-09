@@ -2,11 +2,10 @@
 import path from "node:path";
 import { promises as fs } from "node:fs";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import { getWorkspaceRoot, listRoleIds } from "../lib/workspace.js";
+import { getWorkspaceRoot } from "../lib/workspace.js";
 import { marked } from "marked";
 
 const root = getWorkspaceRoot();
-const roleIds = await listRoleIds(root);
 
 marked.setOptions({ gfm: true });
 const readmePath = path.join(root, "README.md");
@@ -21,25 +20,23 @@ const readmeHtml = readmeRaw
 <BaseLayout title="Explorer">
   <div class="page-intro">
     <h1>Explorer</h1>
-    <p class="meta">Browse shared company context, people records, and role-specific workspaces.</p>
+    <p class="meta">Browse global entities, role workspaces, and shared Hermit docs.</p>
   </div>
 
+  <h2 class="section-title">Entities</h2>
   <div class="entity-type-list mb-8">
-    <a href="/company">
-      <strong>Company</strong>
-      <span class="meta"> — shared company records and strategy notes</span>
-    </a>
-    <a href="/people">
-      <strong>People</strong>
-      <span class="meta"> — shared people records and development plans</span>
+    <a href="/entities">
+      <strong>All Entities</strong>
+      <span class="meta"> — browse the global entity catalog by type</span>
     </a>
   </div>
 
   <h2 class="section-title">Agents</h2>
   <div class="entity-type-list mb-8">
-    {roleIds.map((id) => (
-      <a href={`/agents/${id}`}>{id}</a>
-    ))}
+    <a href="/agents">
+      <strong>All Agents</strong>
+      <span class="meta"> — browse role workspaces and operating contexts</span>
+    </a>
   </div>
 
   <h2 class="section-title">Docs</h2>
