@@ -36,27 +36,3 @@ coverage/
 
 # Cursor / plan artifacts (optional; remove if you want to track plans)
 .cursor/plans/
-
-.hermit/
-
-# Agent runtime data
-agents/*/.role-agent/
-agents/*/agent/
-agents/*/supporting-files/
-
-# Entity instance data (templates and .gitkeep files are tracked)
-entities/company/
-entities/people/
-entities/deals/active/*/
-entities/deals/closed-won/*/
-entities/deals/closed-lost/*/
-entities/product/*/
-entities/tickets/*/
-entities/initiatives/*/
-!entities/initiatives/.gitkeep
-entities/systems/*/
-!entities/systems/.gitkeep
-entities/incidents/open/*/
-!entities/incidents/open/.gitkeep
-entities/incidents/resolved/*/
-!entities/incidents/resolved/.gitkeep

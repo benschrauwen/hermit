@@ -52,10 +52,10 @@ describe("roles explorer renderers", () => {
     roots.push(root);
     seedRoleWorkspace(root, ["sales"]);
 
-    rmSync(path.join(root, "entity-defs", "agent", "record.md"));
+    rmSync(path.join(root, "prompts", "templates", "agent", "record.md"));
 
     await expect(validateRoleManifest(root, "sales")).rejects.toThrow(
-      "Role sales is missing shared agent template: agent/record.md",
+      "Role sales is missing shared agent template: prompts/templates/agent/record.md",
     );
   });
 });

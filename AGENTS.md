@@ -38,7 +38,8 @@ Do **not** use this file as the source of truth for the operated business or com
   - `entities/company/`: shared company-level context for the operated business.
   - `entities/people/`: shared people records with `record.md`, `development-plan.md`, `notes/`, and `artifacts/`.
   - Entity data directories such as `entities/deals/`, `entities/product/`, `entities/tickets/`, etc.
-- `entity-defs/`: shared entity definitions, scaffold templates, and custom explorer renderers.
+- `entity-defs/`: shared entity definitions and custom explorer renderers.
+- `prompts/templates/`: shared non-entity scaffolds such as core agent operating templates.
 - `skills/`: shared pi skills that can be loaded on demand across roles.
 - `agents/`: one subdirectory per operating role (agent).
 - `docs/`: Hermit implementation and architecture documentation.

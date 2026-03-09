@@ -14,6 +14,7 @@ import type {
 const ROLE_MANIFEST_FILE = "role.md";
 const ROLE_AGENTS_FILE = "AGENTS.md";
 const ROLE_AGENT_FILES = ["agent/record.md", "agent/inbox.md"] as const;
+const SHARED_AGENT_TEMPLATE_DIR = path.join("templates", "agent");
 
 interface RoleManifestData {
   id?: unknown;
@@ -395,12 +396,12 @@ export function inferRootAndRoleFromCwd(cwd: string): { root: string; roleId?: s
 export async function ensureRoleTemplatesExist(role: RoleDefinition): Promise<void> {
   const requiredFiles: Array<{ filePath: string; errorMessage: string }> = [
     {
-      filePath: path.join(role.entityDefsDir, "agent/record.md"),
-      errorMessage: `Role ${role.id} is missing shared agent template: agent/record.md`,
+      filePath: path.join(role.sharedPromptsDir, SHARED_AGENT_TEMPLATE_DIR, "record.md"),
+      errorMessage: `Role ${role.id} is missing shared agent template: prompts/templates/agent/record.md`,
     },
     {
-      filePath: path.join(role.entityDefsDir, "agent/inbox.md"),
-      errorMessage: `Role ${role.id} is missing shared agent template: agent/inbox.md`,
+      filePath: path.join(role.sharedPromptsDir, SHARED_AGENT_TEMPLATE_DIR, "inbox.md"),
+      errorMessage: `Role ${role.id} is missing shared agent template: prompts/templates/agent/inbox.md`,
     },
     ...role.entities.flatMap((entity) =>
       entity.files.map((file) => ({

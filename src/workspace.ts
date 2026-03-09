@@ -94,6 +94,10 @@ function getSharedTemplatePath(root: string, relativePath: string): string {
   return path.join(root, "entity-defs", relativePath);
 }
 
+function getSharedPromptTemplatePath(root: string, relativePath: string): string {
+  return path.join(root, "prompts", relativePath);
+}
+
 function joinFieldValues(input: Record<string, unknown>, fieldNames: string[]): string {
   return fieldNames
     .map((fieldName) => String(input[fieldName] ?? ""))
@@ -107,6 +111,14 @@ async function renderSharedTemplate(
   values: Record<string, string>,
 ): Promise<string> {
   return templateLibrary.render(getSharedTemplatePath(root, relativeTemplatePath), values);
+}
+
+async function renderSharedPromptTemplate(
+  root: string,
+  relativeTemplatePath: string,
+  values: Record<string, string>,
+): Promise<string> {
+  return templateLibrary.render(getSharedPromptTemplatePath(root, relativeTemplatePath), values);
 }
 
 function buildFieldContext(input: Record<string, unknown>): Record<string, string> {
@@ -182,7 +194,7 @@ async function makeRoleEntityId(role: RoleDefinition, entity: RoleEntityDefiniti
   return `${prefix}-${year}-${String(sequence).padStart(DEAL_SEQUENCE_WIDTH, "0")}-${slug}`;
 }
 
-async function renderRoleTemplate(
+async function renderEntityTemplate(
   role: RoleDefinition,
   relativeTemplatePath: string,
   values: Record<string, string>,
@@ -234,7 +246,7 @@ export async function ensureWorkspaceScaffold(root: string, role?: RoleDefinitio
   const agentFiles = [
     {
       relativePath: "agent/record.md",
-      template: "agent/record.md",
+      template: "templates/agent/record.md",
       values: {
         roleId: role.id,
         roleName: role.name,
@@ -246,7 +258,7 @@ export async function ensureWorkspaceScaffold(root: string, role?: RoleDefinitio
     },
     {
       relativePath: "agent/inbox.md",
-      template: "agent/inbox.md",
+      template: "templates/agent/inbox.md",
       values: {
         roleId: role.id,
         roleName: role.name,
@@ -262,7 +274,7 @@ export async function ensureWorkspaceScaffold(root: string, role?: RoleDefinitio
     agentFiles.map(async (file) => {
       const filePath = path.join(role.roleDir, file.relativePath);
       if (!(await fileExists(filePath))) {
-        await fs.writeFile(filePath, await renderRoleTemplate(role, file.template, file.values), "utf8");
+        await fs.writeFile(filePath, await renderSharedPromptTemplate(role.root, file.template, file.values), "utf8");
       }
     }),
   );
@@ -632,7 +644,7 @@ export async function createRoleEntityRecord(
     entity.files.map(async (file) => {
       await writeFileSafely(
         path.join(entityPath, file.path),
-        await renderRoleTemplate(role, file.template, values),
+        await renderEntityTemplate(role, file.template, values),
         options.force,
       );
     }),

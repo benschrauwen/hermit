@@ -162,7 +162,7 @@ Current route model:
 - `/entities/:entityType` renders a generic list view for that entity type using entity definition metadata
 - `/entities/:entityType/:entityId` renders the entity detail view from the markdown files declared in `entity-defs/entities.md`
 - `/agents/:roleId` shows an agent overview
-- `/agents/:roleId/agent` renders `agent/record.md` and `agent/inbox.md` for that agent
+- `/agents/:roleId/agent` renders `agent/record.md` and `agent/inbox.md` for that agent, scaffolded from `prompts/templates/agent/`
 - `/agents/:roleId/:entityType` renders a generic list view for that entity type using entity definition metadata
 - `/agents/:roleId/:entityType/:entityId` renders the entity detail view from the markdown files declared in `entity-defs/entities.md`
 

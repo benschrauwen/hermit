@@ -19,7 +19,7 @@ Do not use this skill when:
 - `agents/<role-id>/AGENTS.md` is the operating overlay and prompt index. This is where the role's real working style lives.
 - `agents/<role-id>/prompts/` holds on-demand subdomain prompts that should not always sit in the main system prompt.
 - `agents/<role-id>/skills/` is optional and only needed for reusable role-local workflows.
-- `entity-defs/agent/record.md` and `entity-defs/agent/inbox.md` are the shared templates for each role's GTD-style operating files. Do not fork those lightly.
+- `prompts/templates/agent/record.md` and `prompts/templates/agent/inbox.md` are the shared templates for each role's GTD-style operating files. Do not fork those lightly.
 
 ## What A Role Must Decide
 
@@ -41,7 +41,7 @@ If the workspace has no agents yet:
 
 - Create `agents/<role-id>/role.md`, `agents/<role-id>/AGENTS.md`, `agents/<role-id>/prompts/`, and `agents/<role-id>/skills/`.
 - Start with one sharp role before creating several overlapping roles. A single well-bounded operator beats three vague personas.
-- Make sure shared agent templates exist at `entity-defs/agent/record.md` and `entity-defs/agent/inbox.md`. Role validation depends on them.
+- Make sure shared agent templates exist at `prompts/templates/agent/record.md` and `prompts/templates/agent/inbox.md`. Role validation depends on them.
 - Pair the role with a real entity landscape. A role with no managed entities and no startup context becomes generic quickly.
 - It is allowed, and often necessary, to create the supporting entity types, templates, and starter records in the same workflow as the role.
 - If the workspace also has no entity definitions yet, use `entity_setup` in the same pass so the role can point at real shared and owned data.
@@ -103,7 +103,7 @@ Put each kind of information in the right file:
    - entity context
    - on-demand prompt index
 4. Add `agents/<role-id>/prompts/*.md` for recurring subdomains.
-5. Ensure `entity-defs/agent/record.md` and `entity-defs/agent/inbox.md` exist.
+5. Ensure `prompts/templates/agent/record.md` and `prompts/templates/agent/inbox.md` exist.
 6. If needed, declare `transcript_ingest` only after the target entity type, evidence path, and prompt files already exist.
 7. Validate with `bun cli doctor --role <role-id>`.
 
@@ -176,7 +176,7 @@ Keep the main `AGENTS.md` sharp. If the file starts reading like five manuals pa
 
 ## Minimal Shared Agent Templates
 
-If the framework has not created them yet, use starter templates like these under `entity-defs/agent/`.
+If the framework has not created them yet, use starter templates like these under `prompts/templates/agent/`.
 
 `record.md`
 
@@ -253,7 +253,7 @@ Raw internal commitments, reminders, and follow-up ideas that still need clarifi
 - Packing every domain detail into `role.md`.
 - Writing an `AGENTS.md` that is all tone and no inspectable operating standard.
 - Creating many prompt files before the core role behavior is clear.
-- Inventing special agent files per role instead of using the shared `entity-defs/agent/` templates.
+- Inventing special agent files per role instead of using the shared `prompts/templates/agent/` templates.
 - Giving the role broad authority without clarifying what evidence it needs.
 
 ## Validation
