@@ -194,7 +194,7 @@ describe("formatActivityStatus", () => {
 });
 
 describe("renderTerminalMarkdown", () => {
-  it("renders a limited markdown subset into ANSI-styled terminal output", () => {
+  it("renders a small markdown subset with terminal colors", () => {
     expect(
       renderTerminalMarkdown("# Heading\n- **Bold** and *italic* with `code`\n1. [Docs](https://example.com)\n"),
     ).toBe(
@@ -208,7 +208,7 @@ describe("renderTerminalMarkdown", () => {
     );
   });
 
-  it("strips model-supplied terminal control sequences before rendering", () => {
+  it("strips model-supplied terminal control sequences", () => {
     expect(renderTerminalMarkdown("Hello \x1b[31mred\x1b[0m **team**")).toBe("Hello red \x1b[1mteam\x1b[0m");
   });
 });

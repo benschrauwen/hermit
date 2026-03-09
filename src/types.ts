@@ -128,10 +128,10 @@ export interface WorkspaceInitializationState {
 
 export interface TelemetrySessionContext {
   workspaceRoot: string;
-  roleId?: string | undefined;
+  roleId?: string;
   commandName: string;
   persist: boolean;
-  continueRecent?: boolean | undefined;
+  continueRecent?: boolean;
   modelProvider: string;
   modelId: string;
 }
@@ -140,25 +140,25 @@ export interface TelemetryToolReport {
   toolName: string;
   callCount: number;
   errorCount: number;
-  errorRate?: number | undefined;
-  durationP50Ms?: number | undefined;
-  durationP95Ms?: number | undefined;
+  errorRate?: number;
+  durationP50Ms?: number;
+  durationP95Ms?: number;
 }
 
 export interface TelemetryTurnReport {
   sessionId: string;
   turnId: string;
-  roleId?: string | undefined;
+  roleId?: string;
   commandName: string;
   durationMs: number;
-  timeToFirstTokenMs?: number | undefined;
+  timeToFirstTokenMs?: number;
   toolCallCount: number;
   toolErrorCount: number;
 }
 
 export interface TelemetryReport {
   generatedAt: string;
-  roleId?: string | undefined;
+  roleId?: string;
   window: {
     label: string;
     start: string;
@@ -169,19 +169,19 @@ export interface TelemetryReport {
     turnCount: number;
     toolCallCount: number;
     toolErrorCount: number;
-    toolErrorRate?: number | undefined;
+    toolErrorRate?: number;
     assistantErrorTurnCount: number;
-    assistantErrorRate?: number | undefined;
+    assistantErrorRate?: number;
     silentTurnCount: number;
-    silentTurnRate?: number | undefined;
+    silentTurnRate?: number;
     retryCount: number;
     compactionCount: number;
-    turnDurationP50Ms?: number | undefined;
-    turnDurationP95Ms?: number | undefined;
-    timeToFirstTokenP50Ms?: number | undefined;
-    timeToFirstTokenP95Ms?: number | undefined;
-    toolDurationP50Ms?: number | undefined;
-    toolDurationP95Ms?: number | undefined;
+    turnDurationP50Ms?: number;
+    turnDurationP95Ms?: number;
+    timeToFirstTokenP50Ms?: number;
+    timeToFirstTokenP95Ms?: number;
+    toolDurationP50Ms?: number;
+    toolDurationP95Ms?: number;
   };
   failingTools: TelemetryToolReport[];
   slowestTurns: TelemetryTurnReport[];

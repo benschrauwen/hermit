@@ -16,14 +16,14 @@ import {
   resolveTranscriptEntity,
 } from "./workspace.js";
 
-async function chooseDeal(deals: EntityRecord[]): Promise<EntityRecord | undefined> {
-  if (deals.length === 0) {
+async function chooseEntity(entityType: string, entities: EntityRecord[]): Promise<EntityRecord | undefined> {
+  if (entities.length === 0) {
     return undefined;
   }
 
-  console.log("Multiple possible deals found. Choose one:");
-  deals.forEach((deal, index) => {
-    console.log(`${index + 1}. ${deal.id} - ${deal.name}`);
+  console.log(`Multiple possible ${entityType} records found. Choose one:`);
+  entities.forEach((entity, index) => {
+    console.log(`${index + 1}. ${entity.id} - ${entity.name}`);
   });
   console.log("0. Save transcript as unmatched");
 
@@ -35,11 +35,11 @@ async function chooseDeal(deals: EntityRecord[]): Promise<EntityRecord | undefin
   try {
     const raw = await rl.question("Selection: ");
     const index = Number(raw);
-    if (index <= 0 || index > deals.length || !Number.isInteger(index)) {
+    if (index <= 0 || index > entities.length || !Number.isInteger(index)) {
       return undefined;
     }
 
-    return deals[index - 1];
+    return entities[index - 1];
   } finally {
     rl.close();
   }
@@ -72,7 +72,8 @@ export async function runTranscriptIngest(options: {
       role.transcriptIngest,
       options.transcriptPath,
     );
-    entity = await chooseDeal(
+    entity = await chooseEntity(
+      role.transcriptIngest.entityType,
       candidateEntities.length > 0
         ? candidateEntities
         : await findCreatableRoleEntities(options.root, role, role.transcriptIngest.entityType),

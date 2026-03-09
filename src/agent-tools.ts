@@ -144,29 +144,6 @@ export function createWebSearchTool(): ToolDefinition<typeof webSearchParameters
   };
 }
 
-export function createComputerUseBoundaryTool(): ToolDefinition<typeof computerUseParameters> {
-  return {
-    name: "computer_use",
-    label: "Computer Use",
-    description: "Reserved integration boundary for future browser and computer automation.",
-    promptSnippet: "computer_use may exist as a boundary, but do not depend on it unless it is explicitly enabled.",
-    parameters: computerUseParameters,
-    async execute() {
-      return {
-        content: [
-          {
-            type: "text",
-            text: "Computer use is not enabled in v1. Use file tools, image input, or web_search instead.",
-          },
-        ],
-        details: {
-          available: false,
-        },
-      };
-    },
-  };
-}
-
 export function createCompanyRecordTool(root: string): ToolDefinition<typeof createCompanyRecordParameters> {
   return {
     name: "create_company_record",
@@ -252,18 +229,14 @@ export function createRoleEntityRecordTool(root: string, role: RoleDefinition, e
   };
 }
 
-export function createCustomTools(root: string, role: RoleDefinition): Array<ToolDefinition<TSchema>> {
-  const tools: Array<ToolDefinition<TSchema>> = [
-    createEntityLookupTool(root, role) as unknown as ToolDefinition<TSchema>,
-    createWebSearchTool() as unknown as ToolDefinition<TSchema>,
-    createCompanyRecordTool(root) as unknown as ToolDefinition<TSchema>,
-    createPersonRecordTool(root) as unknown as ToolDefinition<TSchema>,
-    ...role.entities.map((entity) => createRoleEntityRecordTool(root, role, entity) as unknown as ToolDefinition<TSchema>),
+export function createCustomTools(root: string, role: RoleDefinition): Array<ToolDefinition<any>> {
+  const tools: Array<ToolDefinition<any>> = [
+    createEntityLookupTool(root, role),
+    createWebSearchTool(),
+    createCompanyRecordTool(root),
+    createPersonRecordTool(root),
+    ...role.entities.map((entity) => createRoleEntityRecordTool(root, role, entity)),
   ];
-
-  if (process.env.ROLE_AGENT_ENABLE_COMPUTER_USE === "true") {
-    tools.push(createComputerUseBoundaryTool() as unknown as ToolDefinition<TSchema>);
-  }
 
   return tools;
 }

@@ -16,6 +16,7 @@ import {
   runOneShotPrompt,
 } from "./session.js";
 import { generateTelemetryReport, renderTelemetryReportSummary, writeTelemetryReport } from "./telemetry.js";
+import type { RoleDefinition } from "./types.js";
 import { findEntityById } from "./workspace.js";
 
 async function resolveRoleContext(explicitRoleId?: string): Promise<{ root: string; roleId: string }> {
@@ -37,14 +38,13 @@ function resolveWorkspaceRoot(): string {
 
 async function resolvePromptContext(
   root: string,
-  roleId: string,
+  role: RoleDefinition,
   entityId: string | undefined,
 ): Promise<{ entityId?: string; entityPath?: string }> {
   if (!entityId) {
     return {};
   }
 
-  const role = await loadRole(root, roleId);
   const entity = await findEntityById(root, role, entityId);
   if (!entity) {
     throw new Error(`Unknown entity ID: ${entityId}`);
@@ -58,6 +58,38 @@ async function resolvePromptContext(
 
 function collectImagePaths(values: string[] | undefined): string[] {
   return (values ?? []).map((value) => path.resolve(value));
+}
+
+async function resolveSessionContext(options: {
+  role?: string;
+  entity?: string;
+}): Promise<{
+  root: string;
+  roleId: string;
+  role: RoleDefinition;
+  promptContext: {
+    workspaceRoot: string;
+    roleId: string;
+    roleRoot: string;
+    entityId?: string;
+    entityPath?: string;
+  };
+}> {
+  const { root, roleId } = await resolveRoleContext(options.role);
+  const role = await loadRole(root, roleId);
+  const entityPromptContext = await resolvePromptContext(root, role, options.entity);
+
+  return {
+    root,
+    roleId,
+    role,
+    promptContext: {
+      workspaceRoot: root,
+      roleId,
+      roleRoot: path.relative(root, role.roleDir) || ".",
+      ...entityPromptContext,
+    },
+  };
 }
 
 const program = new Command();
@@ -80,37 +112,27 @@ program
       image?: string[];
       prompt?: string;
     }) => {
-      const { root, roleId } = await resolveRoleContext(options.role);
-      const role = await loadRole(root, roleId);
-      const promptContext = await resolvePromptContext(root, roleId, options.entity);
+      const { root, role, promptContext } = await resolveSessionContext(options);
       const { session, workspaceState, telemetry } = await createRoleSession({
         root,
         role,
         persist: true,
         continueRecent: Boolean(options.continue),
         telemetryCommandName: "chat",
-        promptContext: {
-          workspaceRoot: root,
-          roleId,
-          roleRoot: path.relative(root, role.roleDir) || ".",
-          ...promptContext,
-        },
+        promptContext,
       });
 
-      const chatLoopOptions: { initialPrompt?: string; initialImages?: string[]; telemetry?: typeof telemetry } = {
-        initialImages: collectImagePaths(options.image),
-        telemetry,
-      };
       const initialPrompt = resolveInitialChatPrompt({
         workspaceState,
         ...(options.prompt !== undefined ? { initialPrompt: options.prompt } : {}),
         ...(options.continue !== undefined ? { continueRecent: options.continue } : {}),
       });
-      if (initialPrompt !== undefined) {
-        chatLoopOptions.initialPrompt = initialPrompt;
-      }
 
-      await runChatLoop(session, chatLoopOptions);
+      await runChatLoop(session, {
+        ...(initialPrompt !== undefined ? { initialPrompt } : {}),
+        initialImages: collectImagePaths(options.image),
+        telemetry,
+      });
     },
   );
 
@@ -130,20 +152,13 @@ program
         image?: string[];
       },
     ) => {
-      const { root, roleId } = await resolveRoleContext(options.role);
-      const role = await loadRole(root, roleId);
-      const promptContext = await resolvePromptContext(root, roleId, options.entity);
+      const { root, role, promptContext } = await resolveSessionContext(options);
       const { session, telemetry } = await createRoleSession({
         root,
         role,
         persist: false,
         telemetryCommandName: "ask",
-        promptContext: {
-          workspaceRoot: root,
-          roleId,
-          roleRoot: path.relative(root, role.roleDir) || ".",
-          ...promptContext,
-        },
+        promptContext,
       });
 
       await runOneShotPrompt(session, promptParts.join(" "), collectImagePaths(options.image), telemetry);
@@ -162,8 +177,7 @@ program
       continue?: boolean;
       prompt?: string;
     }) => {
-      const { root, roleId } = await resolveRoleContext(options.role);
-      const role = await loadRole(root, roleId);
+      const { root, promptContext, role } = await resolveSessionContext(options);
       const { session, telemetry } = await createRoleSession({
         root,
         role,
@@ -171,11 +185,7 @@ program
         continueRecent: Boolean(options.continue),
         sessionHistoryType: "heartbeat",
         telemetryCommandName: "heartbeat",
-        promptContext: {
-          workspaceRoot: root,
-          roleId,
-          roleRoot: path.relative(root, role.roleDir) || ".",
-        },
+        promptContext,
       });
 
       await runOneShotPrompt(session, options.prompt ?? DEFAULT_HEARTBEAT_PROMPT, [], telemetry);
@@ -200,23 +210,14 @@ ingestCommand
       },
     ) => {
       const { root, roleId } = await resolveRoleContext(options.role);
-      const ingestOptions: {
-        root: string;
-        roleId: string;
-        transcriptPath: string;
-        imagePaths: string[];
-        entityId?: string;
-      } = {
+
+      await runTranscriptIngest({
         root,
         roleId,
         transcriptPath: path.resolve(file),
         imagePaths: collectImagePaths(options.image),
-      };
-      if (options.entity !== undefined) {
-        ingestOptions.entityId = options.entity;
-      }
-
-      await runTranscriptIngest(ingestOptions);
+        ...(options.entity !== undefined ? { entityId: options.entity } : {}),
+      });
     },
   );
 
@@ -231,7 +232,7 @@ telemetryCommand
     const root = resolveWorkspaceRoot();
     const report = await generateTelemetryReport(root, {
       window: options.window,
-      roleId: options.role,
+      ...(options.role !== undefined ? { roleId: options.role } : {}),
     });
     const paths = await writeTelemetryReport(root, report);
     console.log(renderTelemetryReportSummary(report));

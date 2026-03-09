@@ -54,8 +54,9 @@ const ANSI_UNDERLINE = "\x1b[4m";
 const ANSI_CYAN = "\x1b[36m";
 const ANSI_BRIGHT_MAGENTA = "\x1b[95m";
 
-interface TerminalMarkdownState {
+interface TerminalRenderState {
   inCodeBlock: boolean;
+  pendingLine: string;
 }
 
 export function formatUserPromptEcho(prompt: string): string {
@@ -135,17 +136,11 @@ function stripTerminalControlSequences(value: string): string {
     .replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "");
 }
 
-function normalizeAssistantTextDelta(value: string): string {
+function normalizeAssistantText(value: string): string {
   return stripTerminalControlSequences(value).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 }
 
-function renderInlineTerminalText(
-  value: string,
-  options: { complete: boolean },
-): {
-  rendered: string;
-  rawLength: number;
-} {
+function renderInlineTerminalText(value: string): string {
   let rendered = "";
   let index = 0;
 
@@ -154,16 +149,12 @@ function renderInlineTerminalText(
       const delimiter = value.slice(index, index + 2);
       const closeIndex = value.indexOf(delimiter, index + 2);
       if (closeIndex === -1) {
-        if (!options.complete) {
-          break;
-        }
         rendered += delimiter;
         index += 2;
         continue;
       }
 
-      const content = renderInlineTerminalText(value.slice(index + 2, closeIndex), { complete: true }).rendered;
-      rendered += `${ANSI_BOLD}${content}${ANSI_RESET}`;
+      rendered += `${ANSI_BOLD}${renderInlineTerminalText(value.slice(index + 2, closeIndex))}${ANSI_RESET}`;
       index = closeIndex + 2;
       continue;
     }
@@ -172,9 +163,6 @@ function renderInlineTerminalText(
     if (currentChar === "`") {
       const closeIndex = value.indexOf("`", index + 1);
       if (closeIndex === -1) {
-        if (!options.complete) {
-          break;
-        }
         rendered += currentChar;
         index += 1;
         continue;
@@ -188,16 +176,12 @@ function renderInlineTerminalText(
     if (currentChar === "*" || currentChar === "_") {
       const closeIndex = value.indexOf(currentChar, index + 1);
       if (closeIndex === -1) {
-        if (!options.complete) {
-          break;
-        }
         rendered += currentChar;
         index += 1;
         continue;
       }
 
-      const content = renderInlineTerminalText(value.slice(index + 1, closeIndex), { complete: true }).rendered;
-      rendered += `${ANSI_ITALIC}${content}${ANSI_RESET}`;
+      rendered += `${ANSI_ITALIC}${renderInlineTerminalText(value.slice(index + 1, closeIndex))}${ANSI_RESET}`;
       index = closeIndex + 1;
       continue;
     }
@@ -206,22 +190,14 @@ function renderInlineTerminalText(
       const closeBracket = value.indexOf("]", index + 1);
       const hasLinkDestination = closeBracket !== -1 && value[closeBracket + 1] === "(";
       const closeParen = hasLinkDestination ? value.indexOf(")", closeBracket + 2) : -1;
-
       if (closeBracket === -1 || !hasLinkDestination || closeParen === -1) {
-        if (!options.complete) {
-          break;
-        }
         rendered += currentChar;
         index += 1;
         continue;
       }
 
-      const label = renderInlineTerminalText(value.slice(index + 1, closeBracket), { complete: true }).rendered;
-      const url = value.slice(closeBracket + 2, closeParen);
-      rendered += `${ANSI_UNDERLINE}${label}${ANSI_RESET}`;
-      if (url) {
-        rendered += ` (${url})`;
-      }
+      rendered += `${ANSI_UNDERLINE}${renderInlineTerminalText(value.slice(index + 1, closeBracket))}${ANSI_RESET}`;
+      rendered += ` (${value.slice(closeBracket + 2, closeParen)})`;
       index = closeParen + 1;
       continue;
     }
@@ -230,27 +206,10 @@ function renderInlineTerminalText(
     index += 1;
   }
 
-  return {
-    rendered,
-    rawLength: index,
-  };
+  return rendered;
 }
 
-function shouldDelayPartialLineRendering(line: string, state: TerminalMarkdownState): boolean {
-  if (state.inCodeBlock) {
-    return true;
-  }
-
-  return (
-    /^\s*```/.test(line) ||
-    /^#{1,6}\s+/.test(line) ||
-    /^\s*(?:[-*+]|\d+\.)\s+/.test(line) ||
-    /^\s*>\s?/.test(line) ||
-    /^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line)
-  );
-}
-
-function renderTerminalMarkdownLine(line: string, state: TerminalMarkdownState): string {
+function renderTerminalMarkdownLine(line: string, state: TerminalRenderState): string {
   if (/^\s*```/.test(line)) {
     const info = line.trim().slice(3).trim();
     if (state.inCodeBlock) {
@@ -259,9 +218,7 @@ function renderTerminalMarkdownLine(line: string, state: TerminalMarkdownState):
     }
 
     state.inCodeBlock = true;
-    return info
-      ? `${ANSI_DIM}--- code: ${info} ---${ANSI_RESET}`
-      : `${ANSI_DIM}--- code ---${ANSI_RESET}`;
+    return info ? `${ANSI_DIM}--- code: ${info} ---${ANSI_RESET}` : `${ANSI_DIM}--- code ---${ANSI_RESET}`;
   }
 
   if (state.inCodeBlock) {
@@ -274,10 +231,8 @@ function renderTerminalMarkdownLine(line: string, state: TerminalMarkdownState):
 
   const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
   if (headingMatch) {
-    const headingMarkers = headingMatch[1] ?? "";
-    const headingContent = headingMatch[2] ?? "";
-    const level = headingMarkers.length;
-    const content = renderInlineTerminalText(headingContent, { complete: true }).rendered;
+    const level = (headingMatch[1] ?? "").length;
+    const content = renderInlineTerminalText(headingMatch[2] ?? "");
     const style = level === 1 ? `${ANSI_BOLD}${ANSI_UNDERLINE}` : ANSI_BOLD;
     return `${style}${content}${ANSI_RESET}`;
   }
@@ -285,28 +240,24 @@ function renderTerminalMarkdownLine(line: string, state: TerminalMarkdownState):
   const listMatch = line.match(/^(\s*)([-*+]|\d+\.)\s+(.*)$/);
   if (listMatch) {
     const indent = listMatch[1] ?? "";
-    const rawMarker = listMatch[2] ?? "-";
-    const listContent = listMatch[3] ?? "";
-    const marker = /\d+\./.test(rawMarker) ? rawMarker : "•";
-    const content = renderInlineTerminalText(listContent, { complete: true }).rendered;
+    const marker = /\d+\./.test(listMatch[2] ?? "") ? (listMatch[2] ?? "-") : "•";
+    const content = renderInlineTerminalText(listMatch[3] ?? "");
     return `${indent}${ANSI_CYAN}${marker}${ANSI_RESET} ${content}`;
   }
 
   const quoteMatch = line.match(/^(\s*)>\s?(.*)$/);
   if (quoteMatch) {
     const indent = quoteMatch[1] ?? "";
-    const quoteContent = quoteMatch[2] ?? "";
-    const content = renderInlineTerminalText(quoteContent, { complete: true }).rendered;
+    const content = renderInlineTerminalText(quoteMatch[2] ?? "");
     return `${indent}${ANSI_DIM}│${ANSI_RESET} ${content}`;
   }
 
-  return renderInlineTerminalText(line, { complete: true }).rendered;
+  return renderInlineTerminalText(line);
 }
 
 export function renderTerminalMarkdown(value: string): string {
-  const normalized = normalizeAssistantTextDelta(value);
-  const state: TerminalMarkdownState = { inCodeBlock: false };
-  return normalized
+  const state: TerminalRenderState = { inCodeBlock: false, pendingLine: "" };
+  return normalizeAssistantText(value)
     .split("\n")
     .map((line) => renderTerminalMarkdownLine(line, state))
     .join("\n");
@@ -483,7 +434,7 @@ export async function createRoleSession(options: SessionOptions): Promise<{
     authStorage,
     modelRegistry,
     model,
-    thinkingLevel: DEFAULT_THINKING_LEVEL as "minimal" | "low" | "medium" | "high" | "xhigh",
+    thinkingLevel: DEFAULT_THINKING_LEVEL,
     tools: createCodingTools(options.root),
     customTools: createCustomTools(options.root, options.role),
     resourceLoader: loader,
@@ -501,7 +452,7 @@ export async function createRoleSession(options: SessionOptions): Promise<{
     roleId: options.role.id,
     commandName: options.telemetryCommandName ?? "chat",
     persist: options.persist,
-    continueRecent: options.continueRecent,
+    ...(options.continueRecent !== undefined ? { continueRecent: options.continueRecent } : {}),
     modelProvider: model.provider,
     modelId: model.id,
   });
@@ -512,13 +463,12 @@ export async function createRoleSession(options: SessionOptions): Promise<{
 function attachConsoleStreaming(session: AgentSession, telemetry?: TelemetryRecorder): () => void {
   let lastToolName: string | undefined;
   let assistantPrintedText = false;
-  let assistantTextBuffer = "";
   let cursorAtLineStart = true;
-  let markdownState: TerminalMarkdownState = { inCodeBlock: false };
   let statusVisible = false;
   let statusText = "Thinking";
   let spinnerTimer: NodeJS.Timeout | undefined;
   let spinnerFrame = 0;
+  const renderState: TerminalRenderState = { inCodeBlock: false, pendingLine: "" };
 
   function writeToConsole(text: string): void {
     if (!text) {
@@ -587,58 +537,43 @@ function attachConsoleStreaming(session: AgentSession, telemetry?: TelemetryReco
     writeToConsole(`${ANSI_DIM}${text}${ANSI_RESET}\n`);
   }
 
-  function resetAssistantFormattingState(): void {
-    assistantTextBuffer = "";
-    markdownState = { inCodeBlock: false };
+  function resetAssistantRenderState(): void {
+    renderState.inCodeBlock = false;
+    renderState.pendingLine = "";
   }
 
-  function flushCompletedAssistantLines(): void {
+  function flushAssistantLines(force = false): void {
     while (true) {
-      const newlineIndex = assistantTextBuffer.indexOf("\n");
+      const newlineIndex = renderState.pendingLine.indexOf("\n");
       if (newlineIndex === -1) {
-        return;
+        break;
       }
 
-      const line = assistantTextBuffer.slice(0, newlineIndex);
-      assistantTextBuffer = assistantTextBuffer.slice(newlineIndex + 1);
-      writeToConsole(`${renderTerminalMarkdownLine(line, markdownState)}\n`);
-    }
-  }
-
-  function flushAssistantInlinePreview(): void {
-    if (!assistantTextBuffer || shouldDelayPartialLineRendering(assistantTextBuffer, markdownState)) {
-      return;
+      const line = renderState.pendingLine.slice(0, newlineIndex);
+      renderState.pendingLine = renderState.pendingLine.slice(newlineIndex + 1);
+      writeToConsole(`${renderTerminalMarkdownLine(line, renderState)}\n`);
     }
 
-    const rendered = renderInlineTerminalText(assistantTextBuffer, { complete: false });
-    if (rendered.rawLength === 0) {
-      return;
+    if (force && renderState.pendingLine) {
+      writeToConsole(`${renderTerminalMarkdownLine(renderState.pendingLine, renderState)}\n`);
+      renderState.pendingLine = "";
     }
-
-    assistantTextBuffer = assistantTextBuffer.slice(rendered.rawLength);
-    writeToConsole(rendered.rendered);
   }
 
   function writeAssistantDelta(text: string): void {
-    assistantTextBuffer += normalizeAssistantTextDelta(text);
-    flushCompletedAssistantLines();
-    flushAssistantInlinePreview();
+    renderState.pendingLine += normalizeAssistantText(text);
+    flushAssistantLines();
   }
 
-  function flushAssistantBuffer(force = false): void {
-    flushCompletedAssistantLines();
-
-    if (force && assistantTextBuffer) {
-      writeToConsole(renderTerminalMarkdownLine(assistantTextBuffer, markdownState) + "\n");
-      assistantTextBuffer = "";
-    }
+  function finishAssistantOutput(): void {
+    flushAssistantLines(true);
   }
 
   return session.subscribe((event) => {
     telemetry?.handleEvent(event);
 
     if (event.type === "message_start" && event.message.role === "assistant") {
-      resetAssistantFormattingState();
+      resetAssistantRenderState();
       showStatus("Thinking");
       return;
     }
@@ -663,7 +598,7 @@ function attachConsoleStreaming(session: AgentSession, telemetry?: TelemetryReco
     }
 
     if (event.type === "tool_execution_start") {
-      flushAssistantBuffer(true);
+      flushAssistantLines(true);
       lastToolName = event.toolName;
       const toolStatus = formatActivityStatus(event.toolName, event.args);
       printToolTombstone(toolStatus);
@@ -678,7 +613,6 @@ function attachConsoleStreaming(session: AgentSession, telemetry?: TelemetryReco
     }
 
     if (event.type === "message_end" && event.message.role === "assistant") {
-      flushAssistantBuffer(true);
       const errorMessage =
         "errorMessage" in event.message && typeof event.message.errorMessage === "string"
           ? event.message.errorMessage
@@ -689,18 +623,21 @@ function attachConsoleStreaming(session: AgentSession, telemetry?: TelemetryReco
         writeToConsole(`Assistant error: ${errorMessage}\n`);
       } else {
         clearStatus(assistantPrintedText || statusVisible);
+        if (assistantPrintedText) {
+          finishAssistantOutput();
+        }
       }
 
       assistantPrintedText = false;
       lastToolName = undefined;
-      resetAssistantFormattingState();
+      resetAssistantRenderState();
       return;
     }
 
     if (event.type === "message_end" && event.message.role === "user") {
       assistantPrintedText = false;
       lastToolName = undefined;
-      resetAssistantFormattingState();
+      resetAssistantRenderState();
       return;
     }
   });

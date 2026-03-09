@@ -85,10 +85,6 @@ export function makePersonId(name: string): string {
   return `p-${makeSlug(name)}`;
 }
 
-function applyTemplateValues(template: string, values: Record<string, string>): string {
-  return template.replaceAll(/\{\{(\w+)\}\}/g, (_match, key: string) => values[key] ?? "");
-}
-
 function getSharedTemplatePath(root: string, relativePath: string): string {
   return path.join(root, "entity-defs", relativePath);
 }
@@ -130,7 +126,7 @@ async function ensureDirectory(relativeTo: string, relativePaths: string[]): Pro
 }
 
 function renderNameTemplate(entity: RoleEntityDefinition, input: Record<string, unknown>): string {
-  return applyTemplateValues(
+  return TemplateLibrary.renderString(
     entity.nameTemplate,
     Object.fromEntries(Object.entries(input).map(([key, value]) => [key, String(value ?? "")])),
   );
@@ -145,7 +141,7 @@ async function listDirectoryNames(directory: string): Promise<string[]> {
   }
 }
 
-async function getNextSequencedEntityNumber(root: string, role: RoleDefinition, entity: RoleEntityDefinition): Promise<number> {
+async function getNextSequencedEntityNumber(role: RoleDefinition, entity: RoleEntityDefinition): Promise<number> {
   const year = new Date().getFullYear();
   const scanDirectories = entity.scanDirectories ?? [entity.createDirectory];
   const names = (await Promise.all(scanDirectories.map((directory) => listDirectoryNames(path.join(role.entitiesDir, directory))))).flat();
@@ -163,7 +159,7 @@ async function getNextSequencedEntityNumber(root: string, role: RoleDefinition, 
   return (values.length > 0 ? Math.max(...values) : 0) + 1;
 }
 
-async function makeRoleEntityId(root: string, role: RoleDefinition, entity: RoleEntityDefinition, input: Record<string, unknown>): Promise<string> {
+async function makeRoleEntityId(role: RoleDefinition, entity: RoleEntityDefinition, input: Record<string, unknown>): Promise<string> {
   const sourceValue = joinFieldValues(input, entity.idSourceFields);
   const slug = makeSlug(sourceValue);
   const prefix = entity.idPrefix ?? entity.key;
@@ -173,7 +169,7 @@ async function makeRoleEntityId(root: string, role: RoleDefinition, entity: Role
   }
 
   const year = new Date().getFullYear();
-  const sequence = await getNextSequencedEntityNumber(root, role, entity);
+  const sequence = await getNextSequencedEntityNumber(role, entity);
   return `${prefix}-${year}-${String(sequence).padStart(DEAL_SEQUENCE_WIDTH, "0")}-${slug}`;
 }
 
@@ -188,15 +184,8 @@ async function renderRoleTemplate(
 export async function writeFileSafely(filePath: string, content: string, force = false): Promise<void> {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
 
-  if (!force) {
-    try {
-      await fs.access(filePath);
-      throw new Error(`Refusing to overwrite existing file: ${filePath}`);
-    } catch (error) {
-      if (error instanceof Error && error.message.startsWith("Refusing")) {
-        throw error;
-      }
-    }
+  if (!force && await fileExists(filePath)) {
+    throw new Error(`Refusing to overwrite existing file: ${filePath}`);
   }
 
   await fs.writeFile(filePath, content, "utf8");
@@ -365,6 +354,23 @@ async function scanRoleEntities(root: string, role: RoleDefinition): Promise<Ent
   return [...new Map(entities.flat().map((entity) => [entity.path, entity])).values()];
 }
 
+function filterEntitiesByType(entities: EntityRecord[], entityType: string): EntityRecord[] {
+  return entities.filter((entity) => entity.type === entityType);
+}
+
+function filterCreatableEntities(
+  role: RoleDefinition,
+  definition: RoleEntityDefinition,
+  entities: EntityRecord[],
+): EntityRecord[] {
+  const createDirectoryPath = path.join(role.entitiesDir, definition.createDirectory);
+  const createDirectoryParent = path.dirname(createDirectoryPath);
+  return entities.filter((entity) => {
+    const parentDirectory = path.dirname(entity.path);
+    return parentDirectory === createDirectoryPath || parentDirectory === createDirectoryParent;
+  });
+}
+
 export async function scanEntities(root: string, role: RoleDefinition): Promise<EntityRecord[]> {
   const entities = [...(await scanSharedEntityDirectory(getWorkspacePaths(root).peopleDir)), ...(await scanRoleEntities(root, role))];
   return entities.sort((left, right) => left.name.localeCompare(right.name));
@@ -376,8 +382,7 @@ export async function findEntityById(root: string, role: RoleDefinition, entityI
 }
 
 export async function findEntitiesByType(root: string, role: RoleDefinition, entityType: string): Promise<EntityRecord[]> {
-  const entities = await scanEntities(root, role);
-  return entities.filter((entity) => entity.type === entityType);
+  return filterEntitiesByType(await scanEntities(root, role), entityType);
 }
 
 export async function findCreatableRoleEntities(root: string, role: RoleDefinition, entityType: string): Promise<EntityRecord[]> {
@@ -386,13 +391,7 @@ export async function findCreatableRoleEntities(root: string, role: RoleDefiniti
     return [];
   }
 
-  const all = await findEntitiesByType(root, role, entityType);
-  const createDirectoryPath = path.join(role.entitiesDir, definition.createDirectory);
-  const createDirectoryParent = path.dirname(createDirectoryPath);
-  return all.filter((entity) => {
-    const parentDirectory = path.dirname(entity.path);
-    return parentDirectory === createDirectoryPath || parentDirectory === createDirectoryParent;
-  });
+  return filterCreatableEntities(role, definition, filterEntitiesByType(await scanEntities(root, role), entityType));
 }
 
 export async function copyTranscriptIntoRoleEntity(
@@ -466,7 +465,10 @@ async function getTranscriptEntityMatches(
   transcriptPath: string,
 ): Promise<Array<{ entity: EntityRecord; score: number }>> {
   const transcriptSlug = makeSlug(path.basename(transcriptPath, path.extname(transcriptPath)));
-  const activeMatches = (await findCreatableRoleEntities(root, role, capability.entityType))
+  const allEntities = filterEntitiesByType(await scanEntities(root, role), capability.entityType);
+  const definition = role.entities.find((entity) => entity.type === capability.entityType);
+  const preferredEntities = definition ? filterCreatableEntities(role, definition, allEntities) : allEntities;
+  const activeMatches = preferredEntities
     .map((entity) => ({ entity, score: scoreTranscriptEntityMatch(entity, transcriptSlug) }))
     .filter((candidate) => candidate.score > 0)
     .sort((left, right) => right.score - left.score || left.entity.name.localeCompare(right.entity.name));
@@ -475,7 +477,7 @@ async function getTranscriptEntityMatches(
     return activeMatches;
   }
 
-  return (await findEntitiesByType(root, role, capability.entityType))
+  return allEntities
     .map((entity) => ({ entity, score: scoreTranscriptEntityMatch(entity, transcriptSlug) }))
     .filter((candidate) => candidate.score > 0)
     .sort((left, right) => right.score - left.score || left.entity.name.localeCompare(right.entity.name));
@@ -596,7 +598,7 @@ export async function createRoleEntityRecord(
     throw new Error(`Unknown role entity key: ${entityKey}`);
   }
 
-  const entityId = await makeRoleEntityId(root, role, entity, input);
+  const entityId = await makeRoleEntityId(role, entity, input);
   const entityPath = buildRoleEntityPath(role, entity, entityId);
   const sourceRefs = options.sourceRefs ?? ["bootstrap questionnaire"];
   const entityName = renderNameTemplate(entity, input);

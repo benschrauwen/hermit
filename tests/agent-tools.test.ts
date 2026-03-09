@@ -1,18 +1,29 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { createCompanyRecordTool, createComputerUseBoundaryTool, createCustomTools, createEntityLookupTool } from "../src/agent-tools.js";
+import { createCompanyRecordTool, createCustomTools, createEntityLookupTool } from "../src/agent-tools.js";
 import { loadRole } from "../src/roles.js";
 import { ensureWorkspaceScaffold, writeFileSafely } from "../src/workspace.js";
 import { seedRoleWorkspace } from "./test-helpers.js";
+
+const originalComputerUseEnv = process.env.ROLE_AGENT_ENABLE_COMPUTER_USE;
+
+afterEach(() => {
+  if (originalComputerUseEnv === undefined) {
+    delete process.env.ROLE_AGENT_ENABLE_COMPUTER_USE;
+    return;
+  }
+
+  process.env.ROLE_AGENT_ENABLE_COMPUTER_USE = originalComputerUseEnv;
+});
 
 describe("createEntityLookupTool", () => {
   let root: string;
 
   beforeEach(() => {
-    vi.unstubAllEnvs();
+    delete process.env.ROLE_AGENT_ENABLE_COMPUTER_USE;
     root = mkdtempSync(path.join(tmpdir(), "agent-tools-lookup-"));
     seedRoleWorkspace(root, ["sales"]);
   });
@@ -49,19 +60,6 @@ describe("createEntityLookupTool", () => {
   });
 });
 
-describe("createComputerUseBoundaryTool", () => {
-  it("returns tool that reports not enabled", async () => {
-    const tool = createComputerUseBoundaryTool();
-    expect(tool.name).toBe("computer_use");
-    const result = await (tool.execute as (id: unknown, params: unknown) => Promise<unknown>)("id", {
-      objective: "open browser",
-    });
-    const r = result as { content: Array<{ text: string }>; details: { available: boolean } };
-    expect(r.content[0].text).toContain("not enabled");
-    expect(r.details.available).toBe(false);
-  });
-});
-
 describe("createCustomTools", () => {
   it("returns the core lookup, web, shared creation, and role entity tools", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "agent-tools-custom-"));
@@ -81,7 +79,7 @@ describe("createCustomTools", () => {
   it("includes computer_use when ROLE_AGENT_ENABLE_COMPUTER_USE is true", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "agent-tools-computer-"));
     seedRoleWorkspace(root, ["sales"]);
-    vi.stubEnv("ROLE_AGENT_ENABLE_COMPUTER_USE", "true");
+    process.env.ROLE_AGENT_ENABLE_COMPUTER_USE = "true";
     const role = await loadRole(root, "sales");
     const tools = createCustomTools("/root", role);
     const names = tools.map((t) => t.name);

@@ -1,8 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import type { RoleDefinition } from "./types.js";
-import type { PromptContext } from "./types.js";
+import type { PromptContext, RoleDefinition } from "./types.js";
 
 export class PromptLibrary {
   private constructor(

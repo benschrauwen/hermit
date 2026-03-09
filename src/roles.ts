@@ -49,17 +49,21 @@ function asOptionalStringArray(value: unknown, fieldName: string): string[] | un
   return asStringArray(value, fieldName);
 }
 
+function asObject(value: unknown, errorMessage: string): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(errorMessage);
+  }
+
+  return value as Record<string, unknown>;
+}
+
 function parseFieldDefinitions(value: unknown): RoleFieldDefinition[] {
   if (!Array.isArray(value)) {
     throw new Error("Invalid role manifest field: entities[].fields");
   }
 
   return value.map((entry, index) => {
-    if (typeof entry !== "object" || entry === null) {
-      throw new Error(`Invalid role field definition at index ${index}`);
-    }
-
-    const record = entry as Record<string, unknown>;
+    const record = asObject(entry, `Invalid role field definition at index ${index}`);
     const type = asString(record.type, `entities[].fields[${index}].type`);
     if (type !== "string" && type !== "string-array") {
       throw new Error(`Unsupported role field type: ${type}`);
@@ -89,11 +93,7 @@ function parseFileDefinitions(value: unknown): Array<{ path: string; template: s
   }
 
   return value.map((entry, index) => {
-    if (typeof entry !== "object" || entry === null) {
-      throw new Error(`Invalid role file definition at index ${index}`);
-    }
-
-    const record = entry as Record<string, unknown>;
+    const record = asObject(entry, `Invalid role file definition at index ${index}`);
     return {
       path: asString(record.path, `entities[].files[${index}].path`),
       template: asString(record.template, `entities[].files[${index}].template`),
@@ -107,11 +107,7 @@ function parseEntityDefinitions(value: unknown): RoleEntityDefinition[] {
   }
 
   return value.map((entry, index) => {
-    if (typeof entry !== "object" || entry === null) {
-      throw new Error(`Invalid role entity definition at index ${index}`);
-    }
-
-    const record = entry as Record<string, unknown>;
+    const record = asObject(entry, `Invalid role entity definition at index ${index}`);
     const idStrategy = asString(record.id_strategy, `entities[${index}].id_strategy`);
     if (idStrategy !== "prefixed-slug" && idStrategy !== "year-sequence-slug") {
       throw new Error(`Unsupported role entity ID strategy: ${idStrategy}`);
@@ -162,11 +158,8 @@ function parseTranscriptIngestCapability(value: unknown): TranscriptIngestCapabi
   if (value === undefined) {
     return undefined;
   }
-  if (typeof value !== "object" || value === null) {
-    throw new Error("Invalid role manifest field: transcript_ingest");
-  }
 
-  const record = value as Record<string, unknown>;
+  const record = asObject(value, "Invalid role manifest field: transcript_ingest");
   return {
     entityType: asString(record.entity_type, "transcript_ingest.entity_type"),
     commandPrompt: asString(record.command_prompt, "transcript_ingest.command_prompt"),
@@ -178,22 +171,20 @@ function parseTranscriptIngestCapability(value: unknown): TranscriptIngestCapabi
 }
 
 function parseStringMap(value: unknown, fieldName: string): Record<string, string> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error(`Invalid role manifest field: ${fieldName}`);
-  }
-
   return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>).map(([key, entry]) => [key, asString(entry, `${fieldName}.${key}`)]),
+    Object.entries(asObject(value, `Invalid role manifest field: ${fieldName}`)).map(([key, entry]) => [
+      key,
+      asString(entry, `${fieldName}.${key}`),
+    ]),
   );
 }
 
 function parseNestedStringMap(value: unknown, fieldName: string): Record<string, Record<string, string>> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error(`Invalid role manifest field: ${fieldName}`);
-  }
-
   return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>).map(([key, entry]) => [key, parseStringMap(entry, `${fieldName}.${key}`)]),
+    Object.entries(asObject(value, `Invalid role manifest field: ${fieldName}`)).map(([key, entry]) => [
+      key,
+      parseStringMap(entry, `${fieldName}.${key}`),
+    ]),
   );
 }
 
@@ -201,20 +192,14 @@ function parseExplorerConfig(value: unknown): RoleExplorerConfig | undefined {
   if (value === undefined) {
     return undefined;
   }
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error("Invalid role manifest field: explorer");
-  }
 
-  const record = value as Record<string, unknown>;
+  const record = asObject(value, "Invalid role manifest field: explorer");
   const renderers = record.renderers;
   if (renderers === undefined) {
     return {};
   }
-  if (typeof renderers !== "object" || renderers === null || Array.isArray(renderers)) {
-    throw new Error("Invalid role manifest field: explorer.renderers");
-  }
 
-  const rendererRecord = renderers as Record<string, unknown>;
+  const rendererRecord = asObject(renderers, "Invalid role manifest field: explorer.renderers");
   const parsedRenderers: NonNullable<RoleExplorerConfig["renderers"]> = {};
 
   if (rendererRecord.detail !== undefined) {
@@ -280,14 +265,15 @@ export function resolveEntityDefsLocalPath(role: RoleDefinition, relativePath: s
 }
 
 export async function listRoleIds(root: string): Promise<string[]> {
+  const agentsDir = getRootPaths(root).agentsDir;
   try {
-    const entries = await fs.readdir(getRootPaths(root).agentsDir, { withFileTypes: true });
+    const entries = await fs.readdir(agentsDir, { withFileTypes: true });
     const roleIds = await Promise.all(
       entries
         .filter((entry) => entry.isDirectory())
         .map(async (entry) => {
           try {
-            await fs.access(path.join(getRootPaths(root).agentsDir, entry.name, ROLE_MANIFEST_FILE));
+            await fs.access(path.join(agentsDir, entry.name, ROLE_MANIFEST_FILE));
             return entry.name;
           } catch {
             return undefined;
