@@ -28,13 +28,51 @@ Design around this rule:
 - Templates should be generic and reusable
 - Records should hold durable truth, not temporary scratch notes
 
+## `entity-defs/entities.md` Format
+
+`entity-defs/entities.md` must be a markdown file with YAML frontmatter.
+
+- Put the entity schema under a top-level `entities:` key.
+- Put optional explorer configuration under a top-level `explorer:` key.
+- Do not write a bare YAML list in the file body. The runtime reads frontmatter, not raw body YAML.
+
+Use this exact wrapper shape:
+
+```markdown
+---
+entities:
+  - key: work-item
+    label: Work Item
+    type: work-item
+    create_directory: work-items
+    id_strategy: prefixed-slug
+    id_prefix: wi
+    id_source_fields:
+      - name
+    name_template: "{{name}}"
+    fields:
+      - key: name
+        label: Name
+        type: string
+        description: Clear human-readable name.
+        required: true
+    files:
+      - path: record.md
+        template: work-item/record.md
+explorer:
+  renderers:
+    detail:
+      work-item: renderers/work-item-detail.mjs
+---
+```
+
 ## What An Entity Definition Must Decide
 
 Each entity type needs explicit answers for:
 
 - What the entity is called: `key`, `label`, `type`
 - Where instances are created: `create_directory`
-- How IDs are generated: `id_strategy`, `id_prefix`, `id_source_fields`
+- How IDs are generated: `id_strategy`, and for non-singleton entities, `id_prefix` and `id_source_fields`
 - How the entity is displayed: `name_template`
 - Which field represents status, if any: `status_field`
 - Which field represents ownership, if any: `owner_field`
@@ -64,6 +102,7 @@ If the workspace is empty:
 - Do not create many entity types up front. Start from the first real workflow.
 - Choose at least one entity type with `include_in_initialization: true` if the runtime or onboarding flow expects bootstrap data.
 - Coordinate with `role_setup` so the first role points at real entities instead of empty directories.
+- During first-role bootstrap, role-scoped `create_<entity>_record` tools may not exist yet because they are derived from the role and entity schema. In that phase, create `entity-defs/entities.md`, the templates, and the starter files directly with normal file writes, then switch to the deterministic create tools once the role loads successfully.
 
 ## Interview Checklist
 
@@ -118,17 +157,21 @@ Most good Hermit entities fall into one of these buckets:
 
 Use `singleton` when there should only ever be one record of that type.
 
+- `id_source_fields` may be omitted for `singleton` entities.
+
 Use `prefixed-slug` when:
 
 - The entity has a stable human-readable name
 - You want deterministic IDs
 - A renamed record does not need a brand new identity
+- `id_source_fields` is required
 
 Use `year-sequence-slug` when:
 
 - The entity is high-volume
 - Human names collide often
 - Chronology matters
+- `id_source_fields` is required
 
 ## Build Order
 
@@ -143,48 +186,51 @@ Use `year-sequence-slug` when:
 Use this as a starting point and trim anything you do not need:
 
 ```yaml
-- key: work-item
-  label: Work Item
-  type: work-item
-  create_directory: work-items
-  scan_directories:
-    - work-items
-  id_strategy: prefixed-slug
-  id_prefix: wi
-  id_source_fields:
-    - name
-  name_template: "{{name}}"
-  status_field: status
-  owner_field: owner
-  include_in_initialization: true
-  extra_directories:
-    - notes
-    - artifacts
-  fields:
-    - key: name
-      label: Name
-      type: string
-      description: Clear human-readable name.
-      required: true
-    - key: owner
-      label: Owner
-      type: string
-      description: Directly accountable owner.
-      required: true
-    - key: status
-      label: Status
-      type: string
-      description: Current state.
-      required: true
-    - key: summary
-      label: Summary
-      type: string
-      description: Short description of what this entity represents.
-  files:
-    - path: record.md
-      template: work-item/record.md
-    - path: notes.md
-      template: work-item/notes.md
+---
+entities:
+  - key: work-item
+    label: Work Item
+    type: work-item
+    create_directory: work-items
+    scan_directories:
+      - work-items
+    id_strategy: prefixed-slug
+    id_prefix: wi
+    id_source_fields:
+      - name
+    name_template: "{{name}}"
+    status_field: status
+    owner_field: owner
+    include_in_initialization: true
+    extra_directories:
+      - notes
+      - artifacts
+    fields:
+      - key: name
+        label: Name
+        type: string
+        description: Clear human-readable name.
+        required: true
+      - key: owner
+        label: Owner
+        type: string
+        description: Directly accountable owner.
+        required: true
+      - key: status
+        label: Status
+        type: string
+        description: Current state.
+        required: true
+      - key: summary
+        label: Summary
+        type: string
+        description: Short description of what this entity represents.
+    files:
+      - path: record.md
+        template: work-item/record.md
+      - path: notes.md
+        template: work-item/notes.md
+---
 ```
 
 ## Minimal Record Template

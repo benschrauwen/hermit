@@ -24,6 +24,26 @@ interface PlaceholderSummary {
 
 const REQUIRED_RECORD_FIELDS = ["id", "type", "name", "updated_at"] as const;
 const MAX_PLACEHOLDER_EXAMPLES = 3;
+const UNRESOLVED_TEMPLATE_PATTERN = /\{\{[^}]+\}\}/;
+const GENERIC_PLACEHOLDER_LINE_PATTERNS = [/^(?:-\s*)?Add next step\.?$/i, /^(?:-\s*)?Add notes\.?$/i, /^(?:-\s*)?Add activity\.?$/i];
+const ENTITY_DEFS_FRONTMATTER_EXAMPLE = `---
+entities:
+  - key: company
+    label: Company
+    type: company
+    create_directory: companies
+    id_strategy: singleton
+    name_template: "{{name}}"
+    fields:
+      - key: name
+        label: Name
+        type: string
+        description: Official company name.
+        required: true
+    files:
+      - path: record.md
+        template: company/record.md
+---`;
 
 function addMissingFrontmatterWarnings(findings: DoctorFinding[], recordPath: string, data: Record<string, unknown>): void {
   for (const field of REQUIRED_RECORD_FIELDS) {
@@ -33,12 +53,64 @@ function addMissingFrontmatterWarnings(findings: DoctorFinding[], recordPath: st
   }
 }
 
-function extractPlaceholderLines(content: string): string[] {
-  return [...new Set(content.split(/\r?\n/).map((line) => line.trim()).filter((line) => /^(?:-\s*)?Add\b/.test(line)))];
+function extractTemplatePlaceholderCandidates(content: string): string[] {
+  return [
+    ...new Set(
+      content
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => /^(?:-\s*)?Add\b/.test(line)),
+    ),
+  ];
 }
 
-function addPlaceholderWarnings(findings: DoctorFinding[], filePath: string, content: string): void {
-  for (const line of extractPlaceholderLines(content).slice(0, 3)) {
+function extractPlaceholderLines(content: string, templatePlaceholderCandidates: readonly string[] = []): string[] {
+  const templateCandidateSet = new Set(templatePlaceholderCandidates);
+  return [
+    ...new Set(
+      content
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) =>
+          UNRESOLVED_TEMPLATE_PATTERN.test(line)
+          || templateCandidateSet.has(line)
+          || GENERIC_PLACEHOLDER_LINE_PATTERNS.some((pattern) => pattern.test(line))
+        ),
+    ),
+  ];
+}
+
+async function loadTemplatePlaceholderCandidates(
+  templatePath: string | undefined,
+  cache: Map<string, string[]>,
+): Promise<string[]> {
+  if (!templatePath) {
+    return [];
+  }
+
+  const cached = cache.get(templatePath);
+  if (cached) {
+    return cached;
+  }
+
+  try {
+    const templateContent = await fs.readFile(templatePath, "utf8");
+    const placeholderCandidates = extractTemplatePlaceholderCandidates(templateContent);
+    cache.set(templatePath, placeholderCandidates);
+    return placeholderCandidates;
+  } catch {
+    cache.set(templatePath, []);
+    return [];
+  }
+}
+
+function addPlaceholderWarnings(
+  findings: DoctorFinding[],
+  filePath: string,
+  content: string,
+  templatePlaceholderCandidates: readonly string[] = [],
+): void {
+  for (const line of extractPlaceholderLines(content, templatePlaceholderCandidates).slice(0, 3)) {
     findings.push({
       level: "warning",
       kind: "placeholder",
@@ -53,13 +125,42 @@ function addGeneralFinding(findings: DoctorFinding[], level: DoctorFinding["leve
   findings.push({ level, kind: "general", message });
 }
 
-async function validateMarkdownRecord(findings: DoctorFinding[], recordPath: string): Promise<void> {
+async function validateEntityDefsFile(findings: DoctorFinding[], root: string): Promise<void> {
+  const entityDefsPath = path.join(root, "entity-defs", "entities.md");
+
+  try {
+    const raw = await fs.readFile(entityDefsPath, "utf8");
+    const parsed = matter(raw);
+    const data = parsed.data as { entities?: unknown };
+    const hasBodyContent = parsed.content.trim().length > 0;
+    const entities = Array.isArray(data.entities) ? data.entities : undefined;
+
+    if (hasBodyContent && (!entities || entities.length === 0)) {
+      addGeneralFinding(
+        findings,
+        "error",
+        `entity-defs/entities.md must define an \`entities:\` list in YAML frontmatter. This usually means the file was written as a bare YAML list or markdown body instead of frontmatter. Expected shape:\n${ENTITY_DEFS_FRONTMATTER_EXAMPLE}`,
+      );
+    }
+  } catch (error) {
+    const code = error && typeof error === "object" && "code" in error ? (error as NodeJS.ErrnoException).code : undefined;
+    if (code !== "ENOENT") {
+      addGeneralFinding(findings, "warning", `${entityDefsPath} is missing or unreadable.`);
+    }
+  }
+}
+
+async function validateMarkdownRecord(
+  findings: DoctorFinding[],
+  recordPath: string,
+  templatePlaceholderCandidates: readonly string[] = [],
+): Promise<void> {
   try {
     const content = await fs.readFile(recordPath, "utf8");
     const parsed = matter(content);
     const data = parsed.data as Record<string, unknown>;
     addMissingFrontmatterWarnings(findings, recordPath, data);
-    addPlaceholderWarnings(findings, recordPath, content);
+    addPlaceholderWarnings(findings, recordPath, content, templatePlaceholderCandidates);
   } catch {
     addGeneralFinding(findings, "warning", `${recordPath} is missing or unreadable.`);
   }
@@ -125,7 +226,7 @@ function printFindings(root: string, findings: DoctorFinding[]): void {
 
 export async function runDoctor(root: string, roleId: string): Promise<boolean> {
   const findings: DoctorFinding[] = [];
-  const role = await loadRole(root, roleId);
+  const templatePlaceholderCache = new Map<string, string[]>();
   for (const relativePath of SHARED_ROOT_DIRECTORIES) {
     try {
       const stat = await fs.stat(path.join(root, relativePath));
@@ -136,6 +237,10 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
       addGeneralFinding(findings, "error", `Missing required directory: ${relativePath}`);
     }
   }
+
+  await validateEntityDefsFile(findings, root);
+
+  const role = await loadRole(root, roleId);
 
   try {
     await fs.access(role.agentsFile);
@@ -169,9 +274,11 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
 
   for (const agentFile of role.agentFiles) {
     const agentFilePath = path.join(role.roleDir, agentFile);
+    const templatePath = path.join(role.sharedPromptsDir, "templates", "agent", path.basename(agentFilePath));
+    const placeholderCandidates = await loadTemplatePlaceholderCandidates(templatePath, templatePlaceholderCache);
     try {
       await fs.access(agentFilePath);
-      await validateMarkdownRecord(findings, agentFilePath);
+      await validateMarkdownRecord(findings, agentFilePath, placeholderCandidates);
     } catch {
       addGeneralFinding(
         findings,
@@ -191,15 +298,24 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
     seenIds.add(entity.id);
 
     const recordPath = path.join(entity.path, "record.md");
-    await validateMarkdownRecord(findings, recordPath);
-
     const entityDefinition = role.entities.find((definition) => definition.type === entity.type);
+    const recordTemplatePath = entityDefinition?.files.find((file) => file.path === "record.md")?.template;
+    const recordPlaceholderCandidates = await loadTemplatePlaceholderCandidates(
+      recordTemplatePath ? path.join(role.entityDefsDir, recordTemplatePath) : undefined,
+      templatePlaceholderCache,
+    );
+    await validateMarkdownRecord(findings, recordPath, recordPlaceholderCandidates);
+
     if (entityDefinition) {
       for (const requiredFile of entityDefinition.files.filter((file) => file.path !== "record.md")) {
         const requiredPath = path.join(entity.path, requiredFile.path);
         try {
           const content = await fs.readFile(requiredPath, "utf8");
-          addPlaceholderWarnings(findings, requiredPath, content);
+          const placeholderCandidates = await loadTemplatePlaceholderCandidates(
+            path.join(role.entityDefsDir, requiredFile.template),
+            templatePlaceholderCache,
+          );
+          addPlaceholderWarnings(findings, requiredPath, content, placeholderCandidates);
         } catch {
           addGeneralFinding(findings, "warning", `${requiredPath} is missing or unreadable.`);
         }

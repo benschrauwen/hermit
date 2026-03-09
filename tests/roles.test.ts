@@ -3,13 +3,72 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { loadRole, validateRoleManifest } from "../src/roles.js";
+import { loadRole, resolveChatSession, validateRoleManifest } from "../src/roles.js";
 import { seedRoleWorkspace } from "./test-helpers.js";
 
 function replaceInFile(filePath: string, oldText: string, newText: string): void {
   const original = readFileSync(filePath, "utf8");
   writeFileSync(filePath, original.replace(oldText, newText));
 }
+
+describe("loadRole", () => {
+  const roots: string[] = [];
+
+  afterEach(() => {
+    for (const root of roots.splice(0)) {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("defaults missing role_directories to an empty list", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "roles-default-dirs-"));
+    roots.push(root);
+    seedRoleWorkspace(root, ["role-a"]);
+
+    replaceInFile(
+      path.join(root, "agents", "role-a", "role.md"),
+      "role_directories:\n  - notes\n",
+      "",
+    );
+
+    const role = await loadRole(root, "role-a");
+    expect(role.roleDirectories).toEqual([]);
+    await expect(validateRoleManifest(root, "role-a")).resolves.toBeUndefined();
+  });
+
+  it("allows singleton entities to omit id_source_fields", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "roles-singleton-no-id-source-"));
+    roots.push(root);
+    seedRoleWorkspace(root, ["role-a"]);
+
+    replaceInFile(
+      path.join(root, "entity-defs", "entities.md"),
+      "  - key: item\n    label: Item\n    type: item\n    create_directory: items\n    id_strategy: prefixed-slug\n    id_prefix: itm\n    id_source_fields:\n      - title\n    name_template: \"{{title}}\"\n",
+      "  - key: item\n    label: Item\n    type: item\n    create_directory: items\n    id_strategy: singleton\n    name_template: \"Item\"\n",
+    );
+
+    const role = await loadRole(root, "role-a");
+    expect(role.entities[0]?.idStrategy).toBe("singleton");
+    expect(role.entities[0]?.idSourceFields).toEqual([]);
+    await expect(validateRoleManifest(root, "role-a")).resolves.toBeUndefined();
+  });
+
+  it("requires id_source_fields for non-singleton entities", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "roles-non-singleton-id-source-"));
+    roots.push(root);
+    seedRoleWorkspace(root, ["role-a"]);
+
+    replaceInFile(
+      path.join(root, "entity-defs", "entities.md"),
+      "    id_source_fields:\n      - title\n",
+      "",
+    );
+
+    await expect(loadRole(root, "role-a")).rejects.toThrow(
+      "entities[0].id_source_fields is required when id_strategy is prefixed-slug or year-sequence-slug",
+    );
+  });
+});
 
 describe("roles explorer renderers", () => {
   const roots: string[] = [];
@@ -57,5 +116,47 @@ describe("roles explorer renderers", () => {
     await expect(validateRoleManifest(root, "role-a")).rejects.toThrow(
       "Role role-a is missing shared agent template: prompts/templates/agent/record.md",
     );
+  });
+});
+
+describe("resolveChatSession", () => {
+  const roots: string[] = [];
+
+  afterEach(() => {
+    for (const root of roots.splice(0)) {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("starts bootstrap chat when no roles exist", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "roles-chat-bootstrap-"));
+    roots.push(root);
+
+    const resolved = await resolveChatSession(root);
+    expect(resolved).toEqual({
+      kind: "bootstrap",
+      root,
+    });
+  });
+
+  it("requires an explicit role from the workspace root once roles exist", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "roles-chat-explicit-"));
+    roots.push(root);
+    seedRoleWorkspace(root, ["role-a"]);
+
+    await expect(resolveChatSession(root)).rejects.toThrow("A role is required for chat once roles exist (role-a).");
+  });
+
+  it("still accepts an inferred role from the current directory", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "roles-chat-inferred-"));
+    roots.push(root);
+    seedRoleWorkspace(root, ["role-a"]);
+
+    const resolved = await resolveChatSession(root, { inferredRoleId: "role-a" });
+    expect(resolved.kind).toBe("role");
+    if (resolved.kind !== "role") {
+      throw new Error("Expected a role-backed chat session.");
+    }
+    expect(resolved.role.id).toBe("role-a");
   });
 });

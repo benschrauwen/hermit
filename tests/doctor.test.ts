@@ -78,4 +78,82 @@ updated_at: 2026-03-08T12:00:00.000Z
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it("fails when entity-defs/entities.md has body content but no frontmatter entities list", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "doctor-entity-defs-shape-"));
+
+    try {
+      seedRoleWorkspace(root, ["role-a"]);
+      writeFileSync(
+        path.join(root, "entity-defs", "entities.md"),
+        `- key: company
+  label: Company
+  type: company
+  create_directory: companies
+`,
+      );
+
+      const result = await runDoctor(root, "role-a");
+      const logged = consoleSpy.log.mock.calls.map((c) => c[0] as string);
+      expect(result).toBe(false);
+      expect(logged.some((m) => m.includes("must define an `entities:` list in YAML frontmatter"))).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("does not treat specific agent action items as placeholder text", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "doctor-agent-actions-"));
+
+    try {
+      seedRoleWorkspace(root, ["role-a"]);
+      const role = await loadRole(root, "role-a");
+      await ensureWorkspaceScaffold(root, role);
+      writeSharedEntityRecord(root);
+
+      writeFileSync(
+        path.join(root, "agents", "role-a", "agent", "record.md"),
+        `---
+id: role-a-agent
+type: agent
+name: Role A Agent
+status: active
+owner: Role A
+updated_at: 2026-03-08T12:00:00.000Z
+---
+
+## Summary
+
+Owns real follow-through for the role.
+
+## Active Projects
+
+- Tighten pipeline inspection.
+
+## Next Actions
+
+- Add MEDDPICC review coverage for the two late-stage cases before Friday.
+
+## Waiting For
+
+- None yet.
+
+## Calendar
+
+- None scheduled.
+
+## Someday Or Maybe
+
+- Add a quarterly coaching retro once the team is stable.
+`,
+      );
+
+      const result = await runDoctor(root, "role-a");
+      const logged = consoleSpy.log.mock.calls.map((c) => c[0] as string);
+      expect(result).toBe(true);
+      expect(logged.some((m) => m.includes("placeholder text"))).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });

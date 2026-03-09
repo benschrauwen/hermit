@@ -14,12 +14,12 @@ import {
   type AgentSession,
 } from "@mariozechner/pi-coding-agent";
 
-import { createCustomTools } from "./agent-tools.js";
+import { createBootstrapTools, createCustomTools } from "./agent-tools.js";
 import { DEFAULT_MODEL, DEFAULT_THINKING_LEVEL } from "./constants.js";
 import { PromptLibrary } from "./prompt-library.js";
 import { TelemetryRecorder } from "./telemetry.js";
 import type { PromptContext, RoleDefinition, WorkspaceInitializationState } from "./types.js";
-import { ensureWorkspaceScaffold, getWorkspaceInitializationState } from "./workspace.js";
+import { ensureWorkspaceScaffold, getWorkspaceBootstrapInitializationState, getWorkspaceInitializationState } from "./workspace.js";
 
 export type SessionHistoryType = "interactive" | "heartbeat";
 
@@ -35,7 +35,7 @@ interface SessionOptions {
 }
 
 export const ONBOARDING_CHAT_OPENING_PROMPT =
-  "The workspace is not initialized yet. Start onboarding now. Ask the single highest-value question first and use the deterministic creation tools as information becomes clear.";
+  "The workspace is not initialized yet. Begin first-role bootstrap now. Follow the shared bootstrap guidance, keep the setup focused but complete, and ask the single highest-value question first.";
 
 export const DEFAULT_CHAT_OPENING_PROMPT =
   "Start the conversation by speaking first. Give a brief, direct opening grounded in the workspace context when helpful, then ask the single most useful question or suggest the most useful next area to inspect. Keep it concise.";
@@ -53,6 +53,9 @@ const ANSI_RESET = "\x1b[0m";
 const ANSI_UNDERLINE = "\x1b[4m";
 const ANSI_CYAN = "\x1b[36m";
 const ANSI_BRIGHT_MAGENTA = "\x1b[95m";
+const BOOTSTRAP_PROMPTS_DIRECTORY = "bootstrap";
+const WORKSPACE_BOOTSTRAP_SESSION_DIRECTORY = path.join(".hermit", "sessions", "bootstrap");
+const WORKSPACE_BOOTSTRAP_ROLE_ID = "workspace-bootstrap";
 
 interface TerminalRenderState {
   inCodeBlock: boolean;
@@ -370,6 +373,10 @@ export function resolvePersistedSessionDirectory(
   return role.sessionsDir;
 }
 
+export function resolveBootstrapSessionDirectory(root: string): string {
+  return path.join(root, WORKSPACE_BOOTSTRAP_SESSION_DIRECTORY);
+}
+
 function getSessionManager(
   root: string,
   role: RoleDefinition,
@@ -404,6 +411,10 @@ function enrichPromptContextWithCurrentTime(promptContext: PromptContext): Promp
 
 export function resolveRoleSkillPaths(role: RoleDefinition): string[] {
   return [role.sharedSkillsDir, role.roleSkillsDir];
+}
+
+export function resolveSharedSkillPaths(root: string): string[] {
+  return [path.join(root, "skills")];
 }
 
 export async function createRoleSession(options: SessionOptions): Promise<{
@@ -454,6 +465,75 @@ export async function createRoleSession(options: SessionOptions): Promise<{
   const telemetry = await TelemetryRecorder.create({
     workspaceRoot: options.root,
     roleId: options.role.id,
+    commandName: options.telemetryCommandName ?? "chat",
+    persist: options.persist,
+    ...(options.continueRecent !== undefined ? { continueRecent: options.continueRecent } : {}),
+    modelProvider: model.provider,
+    modelId: model.id,
+  });
+
+  return { session, promptLibrary, workspaceState, telemetry };
+}
+
+export async function createBootstrapSession(options: {
+  root: string;
+  promptContext: PromptContext;
+  persist: boolean;
+  continueRecent?: boolean;
+  telemetryCommandName?: string;
+}): Promise<{
+  session: AgentSession;
+  promptLibrary: PromptLibrary;
+  workspaceState: WorkspaceInitializationState;
+  telemetry: TelemetryRecorder;
+}> {
+  await ensureWorkspaceScaffold(options.root);
+
+  const workspaceState = await getWorkspaceBootstrapInitializationState(options.root);
+  const promptLibrary = await PromptLibrary.loadForWorkspace(options.root);
+  const promptContext = enrichPromptContextWithCurrentTime({
+    roleId: WORKSPACE_BOOTSTRAP_ROLE_ID,
+    roleRoot: ".",
+    ...options.promptContext,
+  });
+  const baseSystemPrompt = await promptLibrary.renderSystemPrompt(promptContext);
+  const bootstrapOverlay = await promptLibrary.renderSharedPromptDirectory(BOOTSTRAP_PROMPTS_DIRECTORY, promptContext);
+  const systemPrompt = [baseSystemPrompt, bootstrapOverlay].filter(Boolean).join("\n\n");
+
+  const loader = new DefaultResourceLoader({
+    cwd: options.root,
+    noExtensions: true,
+    additionalSkillPaths: resolveSharedSkillPaths(options.root),
+    noPromptTemplates: true,
+    noThemes: true,
+    appendSystemPromptOverride: (base) => [...base, systemPrompt],
+  });
+  await loader.reload();
+
+  const authStorage = AuthStorage.create();
+  const modelRegistry = new ModelRegistry(authStorage);
+  const model = resolvePreferredModel(modelRegistry);
+
+  const sessionManager = !options.persist
+    ? SessionManager.inMemory(options.root)
+    : options.continueRecent
+      ? SessionManager.continueRecent(options.root, resolveBootstrapSessionDirectory(options.root))
+      : SessionManager.create(options.root, resolveBootstrapSessionDirectory(options.root));
+
+  const { session } = await createAgentSession({
+    cwd: options.root,
+    authStorage,
+    modelRegistry,
+    model,
+    thinkingLevel: DEFAULT_THINKING_LEVEL,
+    tools: createCodingTools(options.root),
+    customTools: createBootstrapTools(),
+    resourceLoader: loader,
+    sessionManager,
+  });
+
+  const telemetry = await TelemetryRecorder.create({
+    workspaceRoot: options.root,
     commandName: options.telemetryCommandName ?? "chat",
     persist: options.persist,
     ...(options.continueRecent !== undefined ? { continueRecent: options.continueRecent } : {}),

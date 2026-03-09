@@ -273,3 +273,7 @@ export function createCustomTools(root: string, role: RoleDefinition): Array<Too
 
   return tools;
 }
+
+export function createBootstrapTools(): Array<ToolDefinition<any>> {
+  return [createWebSearchTool()];
+}

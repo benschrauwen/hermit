@@ -111,7 +111,7 @@ flowchart TD
 
 Parses commands, resolves the workspace root, resolves or infers `--role`, and starts the right flow. The published CLI name is `hermit`.
 
-Normal `chat` and `ask` sessions take the role and the user prompt. The user points the agent at the right entity inside the conversation, and the agent resolves that target from the workspace files or `entity_lookup` when needed. `heartbeat` runs a single unattended upkeep turn for a selected role, intended for cron-style GTD maintenance. `ingest transcript` accepts `--entity` because evidence placement benefits from an explicit deterministic target.
+`chat` has one bootstrap exception: when no roles exist yet and no role can be inferred from the current directory, it starts a workspace-level bootstrap session so the first role can be created. Once roles exist, root-level `chat` requires `--role <id>`; running from inside `agents/<role-id>/` still infers that role from the current directory. `ask` sessions take the role and the user prompt. The user points the agent at the right entity inside the conversation, and the agent resolves that target from the workspace files or `entity_lookup` when needed. `heartbeat` runs a single unattended upkeep turn for a selected role, intended for cron-style GTD maintenance. `ingest transcript` accepts `--entity` because evidence placement benefits from an explicit deterministic target.
 
 ### `src/roles.ts`
 
@@ -119,11 +119,11 @@ Loads and validates `agents/<role-id>/role.md`, loads `entity-defs/entities.md`,
 
 ### `src/prompt-library.ts`
 
-Auto-discovers all shared prompts from `prompts/`, loads the role's `AGENTS.md`, and renders them into a single system prompt with lightweight placeholders such as `{{workspaceRoot}}`, `{{roleRoot}}`, `{{entityId}}`, and `{{transcriptPath}}`.
+Auto-discovers all shared prompts from `prompts/`, loads the role's `AGENTS.md` when a role-backed session exists, and renders them into a single system prompt with lightweight placeholders such as `{{workspaceRoot}}`, `{{roleRoot}}`, `{{entityId}}`, and `{{transcriptPath}}`.
 
 Those entity placeholders are optional context, not a requirement for normal chat. Most interactive sessions start unanchored, with `entityId` and `entityPath` left as `not-selected` until the agent resolves the target from the request and the files.
 
-The system prompt is always: all shared prompts (sorted by filename) + role `AGENTS.md`. Role-specific on-demand prompts are read by the agent during the session when the task requires them. For transcript ingest sessions, additional role prompts listed in `transcript_ingest.system_prompts` are appended to the system prompt.
+The system prompt is always all shared prompts (sorted by filename), plus role `AGENTS.md` for role-backed sessions. Role-specific on-demand prompts are read by the agent during the session when the task requires them. For transcript ingest sessions, additional role prompts listed in `transcript_ingest.system_prompts` are appended to the system prompt.
 
 ### `src/template-library.ts`
 
@@ -172,11 +172,12 @@ Builds configured agent sessions for the selected role, chooses the base prompt 
 Session prompt assembly works like this:
 
 1. Resolve the role and load its manifest.
-2. Auto-discover and load all shared prompts from `prompts/`.
+2. Auto-discover and load the always-on shared prompts from the top level of `prompts/`.
 3. Load the role's `AGENTS.md`.
 4. If the session specifies additional role prompts (e.g., transcript ingest system prompts), load those too.
-5. Render all loaded prompts into one concatenated system prompt string using the current prompt context.
-6. Append that rendered prompt string to the base system prompt for the agent runtime.
+5. For workspace bootstrap chat, append all shared bootstrap overlays from `prompts/bootstrap/`.
+6. Render all loaded prompts into one concatenated system prompt string using the current prompt context.
+7. Append that rendered prompt string to the base system prompt for the agent runtime.
 
 In addition to prompts, the session enables pi skill discovery from:
 
@@ -246,7 +247,7 @@ The prompt system uses two layers:
 
 All `.md` files in the root `prompts/` directory are auto-discovered, sorted by filename, and included in every session's system prompt. These define the agent's core identity, file-first behavior, routing guidance, agent operating system, and maintenance rules.
 
-Shared prompts are self-gating: each file declares when it applies (e.g., onboarding, self-improvement), so including all of them does not cause unwanted behavior in sessions where they are not relevant.
+Subdirectories under `prompts/` are reserved for explicit shared overlays that are loaded only in the modes that need them. For example, all `.md` files under `prompts/bootstrap/` are appended only for workspace bootstrap chat.
 
 ### 2. Role `AGENTS.md`
 

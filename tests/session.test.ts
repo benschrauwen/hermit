@@ -11,8 +11,10 @@ import {
   loadImageAttachments,
   ONBOARDING_CHAT_OPENING_PROMPT,
   renderTerminalMarkdown,
+  resolveBootstrapSessionDirectory,
   resolveRoleSkillPaths,
   resolvePersistedSessionDirectory,
+  resolveSharedSkillPaths,
   resolveInitialChatPrompt,
 } from "../src/session.js";
 import type { RoleDefinition } from "../src/types.js";
@@ -154,6 +156,14 @@ describe("heartbeat session helpers", () => {
       "/tmp/workspace/skills",
       "/tmp/workspace/agents/role-a/skills",
     ]);
+  });
+
+  it("stores bootstrap chat history outside role-local directories", () => {
+    expect(resolveBootstrapSessionDirectory("/tmp/workspace")).toBe("/tmp/workspace/.hermit/sessions/bootstrap");
+  });
+
+  it("loads only shared skills during workspace bootstrap chat", () => {
+    expect(resolveSharedSkillPaths("/tmp/workspace")).toEqual(["/tmp/workspace/skills"]);
   });
 
   it("uses a backlog-focused default prompt for heartbeat turns", () => {

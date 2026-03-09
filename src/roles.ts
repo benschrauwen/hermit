@@ -146,13 +146,20 @@ function parseEntityDefinitions(value: unknown): RoleEntityDefinition[] {
       throw new Error(`Unsupported role entity ID strategy: ${idStrategy}`);
     }
 
+    const idSourceFields = asOptionalStringArray(record.id_source_fields, `entities[${index}].id_source_fields`);
+    if (idStrategy !== "singleton" && (!idSourceFields || idSourceFields.length === 0)) {
+      throw new Error(
+        `entities[${index}].id_source_fields is required when id_strategy is prefixed-slug or year-sequence-slug`,
+      );
+    }
+
     const parsed: RoleEntityDefinition = {
       key: asString(record.key, `entities[${index}].key`),
       label: asString(record.label, `entities[${index}].label`),
       type: asString(record.type, `entities[${index}].type`),
       createDirectory: asString(record.create_directory, `entities[${index}].create_directory`),
       idStrategy,
-      idSourceFields: asStringArray(record.id_source_fields, `entities[${index}].id_source_fields`),
+      idSourceFields: idSourceFields ?? [],
       nameTemplate: asString(record.name_template, `entities[${index}].name_template`),
       fields: parseFieldDefinitions(record.fields),
       files: parseFileDefinitions(record.files),
@@ -346,7 +353,7 @@ export async function loadRole(root: string, roleId: string): Promise<RoleDefini
     entityDefsDir: paths.entityDefsDir,
     agentDir: paths.agentDir,
     sessionsDir: paths.sessionsDir,
-    roleDirectories: asStringArray(data.role_directories, "role_directories"),
+    roleDirectories: asOptionalStringArray(data.role_directories, "role_directories") ?? [],
     agentFiles: [...ROLE_AGENT_FILES],
     entities: entityDefs.entities,
     ...(transcriptIngest ? { transcriptIngest } : {}),
@@ -373,6 +380,39 @@ export async function resolveRole(root: string, explicitRoleId?: string): Promis
   }
 
   throw new Error(`Multiple roles are configured (${roleIds.join(", ")}). Re-run with --role <id>.`);
+}
+
+export type ChatSessionResolution =
+  | {
+      kind: "role";
+      root: string;
+      role: RoleDefinition;
+    }
+  | {
+      kind: "bootstrap";
+      root: string;
+    };
+
+export async function resolveChatSession(root: string, options: {
+  explicitRoleId?: string;
+  inferredRoleId?: string;
+} = {}): Promise<ChatSessionResolution> {
+  const roleId = options.explicitRoleId ?? options.inferredRoleId;
+  if (roleId) {
+    return {
+      kind: "role",
+      root,
+      role: await loadRole(root, roleId),
+    };
+  }
+
+  const roleIds = await listRoleIds(root);
+  if (roleIds.length === 0) {
+    return { kind: "bootstrap", root };
+  }
+
+  const roleList = roleIds.join(", ");
+  throw new Error(`A role is required for chat once roles exist (${roleList}). Re-run with --role <id>.`);
 }
 
 export function inferRootAndRoleFromCwd(cwd: string): { root: string; roleId?: string } {

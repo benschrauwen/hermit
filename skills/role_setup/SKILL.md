@@ -46,6 +46,9 @@ If the workspace has no agents yet:
 - It is allowed, and often necessary, to create the supporting entity types, templates, and starter records in the same workflow as the role.
 - If the workspace also has no entity definitions yet, use `entity_setup` in the same pass so the role can point at real shared and owned data.
 - Let the runtime scaffold `agents/<role-id>/agent/` and `.role-agent/` when possible. If you are only doing file setup by hand, create `agent/record.md` and `agent/inbox.md` from the shared templates.
+- Keep the first pass focused, but not hollow. Create the smallest complete role that can actually operate in its domain.
+- If the role already has clear recurring work modes, create the matching `prompts/*.md` files in the first pass instead of leaving the prompt index empty.
+- If the role clearly needs extra working directories or capabilities such as evidence intake or transcript ingest, include them in the first pass instead of deferring them by default.
 
 ## Interview Checklist
 
@@ -63,6 +66,12 @@ Ask these questions before writing the role:
 - Which common failure modes should it call out directly?
 - What kind of leader or operator should it resemble in judgment, not just tone?
 - Can the user give 2-3 example tasks this role should handle well and 2 tasks it should explicitly avoid?
+
+Treat these answers as build inputs, not just discussion:
+
+- If the user names recurring task clusters, turn them into `prompts/*.md` files during the first draft unless they are clearly one-off edge cases.
+- If the user names evidence flows, ingestion work, or special working areas, reflect that in `role_directories`, `transcript_ingest`, or both when the workflow is real.
+- If startup files or shared context are obviously required for competent work, include them in `AGENTS.md` immediately instead of leaving them implied.
 
 ## How To Get A Strong Persona
 
@@ -87,7 +96,7 @@ If the persona still sounds generic, ask more pointed questions:
 
 Put each kind of information in the right file:
 
-- `role.md`: manifest facts only, such as `id`, `name`, `description`, `role_directories`, and optional `transcript_ingest`
+- `role.md`: manifest facts only, such as `id`, `name`, `description`, optional `role_directories`, and optional `transcript_ingest`
 - `AGENTS.md`: operating standard, startup context, entity context, and links to on-demand prompts
 - `prompts/*.md`: deep, recurring subdomain guidance that should be read only when relevant
 - `agent/record.md`: clarified role-local operating system
@@ -102,7 +111,7 @@ Put each kind of information in the right file:
    - startup context
    - entity context
    - on-demand prompt index
-4. Add `agents/<role-id>/prompts/*.md` for recurring subdomains.
+4. Add `agents/<role-id>/prompts/*.md` for recurring subdomains that are already clear from the user's description. Do not leave `On-Demand Prompts` empty when the role obviously has repeated dense work modes.
 5. Ensure `prompts/templates/agent/record.md` and `prompts/templates/agent/inbox.md` exist.
 6. If needed, declare `transcript_ingest` only after the target entity type, evidence path, and prompt files already exist.
 7. Validate with `bun cli doctor --role <role-id>`.
@@ -116,10 +125,17 @@ Keep it short:
 id: operations
 name: Head of Operations
 description: File-first operations leadership role for process quality, execution control, and cross-functional follow-through.
+---
+```
+
+`role_directories` is optional. Omit it when the role needs no extra working directories; the runtime will default it to `[]`.
+
+If the role needs extra working directories, add them explicitly:
+
+```yaml
 role_directories:
   - supporting-files
   - supporting-files/inbox
----
 ```
 
 Only add `transcript_ingest` when the workflow is real:
@@ -143,9 +159,20 @@ Use this outline:
 # <Role Name>
 
 ## Operating Standard
-- Leadership lens
-- Core standard
-- Operating expectations
+- Brief statement of what this role owns and protects
+
+### Leadership Lens
+- How this role sees the world
+- What it optimizes for
+
+### Core Standard
+- A few explicit non-negotiables
+- "We do not..." lines when they sharpen judgment
+
+### Operating Expectations
+- The recurring motions this role runs
+- What good and bad look like
+- Which conclusions require evidence before trust
 
 ## Startup Context
 - `agent/record.md`
@@ -160,6 +187,8 @@ Use this outline:
 - Link each recurring subdomain prompt
 ```
 
+Keep `AGENTS.md` concise, but make the first screenful specific enough that the role already sounds like a real operator instead of a generic assistant with domain nouns.
+
 ## Good On-Demand Prompt Candidates
 
 Create a separate role prompt when a subdomain is both recurring and dense, for example:
@@ -173,6 +202,8 @@ Create a separate role prompt when a subdomain is both recurring and dense, for 
 - operating reviews
 
 Keep the main `AGENTS.md` sharp. If the file starts reading like five manuals pasted together, split it.
+Do not create prompt files for every possible topic. Create them when they meaningfully reduce ambiguity in recurring work.
+Do not leave the section empty just because the workspace is new. If the user's description already reveals recurring modes, capture them now.
 
 ## Minimal Shared Agent Templates
 
@@ -247,12 +278,14 @@ Raw internal commitments, reminders, and follow-up ideas that still need clarifi
 - The entity context should make it obvious where this role works in the workspace.
 - The role should have a small set of strong opinions that improve decisions under ambiguity.
 - The role should be able to explain what good looks like and what bad smells like.
+- The first draft should be focused, but complete enough that repeated task modes, obvious directories, and real capabilities are not silently deferred.
 
 ## Anti-Patterns
 
 - Packing every domain detail into `role.md`.
 - Writing an `AGENTS.md` that is all tone and no inspectable operating standard.
 - Creating many prompt files before the core role behavior is clear.
+- Leaving `On-Demand Prompts` empty even though the role already has obvious recurring work modes.
 - Inventing special agent files per role instead of using the shared `prompts/templates/agent/` templates.
 - Giving the role broad authority without clarifying what evidence it needs.
 

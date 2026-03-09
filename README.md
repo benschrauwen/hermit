@@ -17,20 +17,20 @@
 ```bash
 bun install
 export OPENAI_API_KEY=your_key_here
-bun cli chat --role sales
+bun cli chat
 ```
 
-When running from inside `agents/<role-id>/`, the role is inferred automatically.
+Use `bun cli chat` to bootstrap the very first role in an empty workspace. Once roles exist, run `bun cli chat --role <role-id>` from the workspace root, or run the command from inside `agents/<role-id>/` to infer the role from the current directory.
 
 ## Commands
 
 ```bash
-bun cli chat --role sales              # interactive session
-bun cli chat --role engineering        # switch roles
-bun cli ask --role sales "Review the top open deals"
-bun cli heartbeat --role sales         # one autonomous GTD upkeep turn
-bun cli ingest transcript ./notes/acme-call.md --role sales --entity d-2026-0001-acme-expansion
-bun cli doctor --role sales            # validate workspace integrity
+bun cli chat                            # bootstrap the first role when no roles exist
+bun cli chat --role <role-id>              # interactive session
+bun cli ask --role <role-id> "Review the top open deals"
+bun cli heartbeat --role <role-id>         # one autonomous GTD upkeep turn
+bun cli ingest transcript ./notes/acme-call.md --role <role-id> --entity d-2026-0001-acme-expansion
+bun cli doctor --role <role-id>            # validate workspace integrity
 bun cli telemetry report --window 7d   # aggregate local runtime telemetry
 bun run explorer                       # launch the workspace UI
 ```
@@ -51,34 +51,19 @@ bun run explorer                       # launch the workspace UI
 
 ```
 entities/
-  company/         # shared company context
-  people/          # shared people records
-  deals/           # deal entities
-  product/         # product entities
-  tickets/         # ticket entities
-  initiatives/     # initiative entities
-  systems/         # system entities
-  incidents/       # incident entities
+  <entity-id>/     # entity data
 entity-defs/
   entities.md      # entity schema and explorer config
-  deal/            # deal scaffold templates
-  product/         # product scaffold templates
-  ...              # other entity type templates
+  <entity-id>/     # entity scaffold templates
   renderers/       # custom explorer renderers
 skills/            # shared pi skills available to all roles
 agents/
-  sales/
+  <role-id>/
     role.md        # role contract (manifest)
     AGENTS.md      # prompt index
     agent/         # operating state (record.md, inbox.md)
     prompts/       # role-specific prompts
     skills/        # role-specific pi skills
-  engineering/
-    role.md
-    AGENTS.md
-    agent/
-    prompts/
-    skills/
 prompts/           # shared prompt library
 explorer/          # read-only Astro workspace UI
 ```

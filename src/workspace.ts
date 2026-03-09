@@ -277,6 +277,16 @@ export async function getWorkspaceInitializationState(root: string, role: RoleDe
   };
 }
 
+export async function getWorkspaceBootstrapInitializationState(root: string): Promise<WorkspaceInitializationState> {
+  const sharedEntities = await scanDirectoryForEntities(getWorkspacePaths(root).entitiesDir, "shared");
+  return {
+    initialized: sharedEntities.length > 0,
+    sharedEntityCount: sharedEntities.length,
+    roleEntityCount: 0,
+    roleEntityCounts: {},
+  };
+}
+
 async function readEntityRecord(
   recordPath: string,
   scope: "shared" | "role",

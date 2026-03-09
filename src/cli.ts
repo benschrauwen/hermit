@@ -7,8 +7,9 @@ import process from "node:process";
 
 import { runDoctor } from "./doctor.js";
 import { runTranscriptIngest } from "./ingest.js";
-import { inferRootAndRoleFromCwd, loadRole, resolveRole } from "./roles.js";
+import { inferRootAndRoleFromCwd, loadRole, resolveChatSession, resolveRole } from "./roles.js";
 import {
+  createBootstrapSession,
   createRoleSession,
   DEFAULT_HEARTBEAT_PROMPT,
   resolveInitialChatPrompt,
@@ -72,7 +73,7 @@ program.name("hermit").description("Local file-first runtime for autonomous appl
 
 program
   .command("chat")
-  .description("Open an interactive role chat session.")
+  .description("Open an interactive chat session.")
   .option("--role <id>", "Role ID to run.")
   .option("--continue", "Continue the most recent persisted session for this workspace.")
   .option("--image <path>", "Attach image(s) to the initial prompt.", (value, previous: string[] = []) => [...previous, value], [])
@@ -84,26 +85,46 @@ program
       image?: string[];
       prompt?: string;
     }) => {
-      const { root, role, promptContext } = await resolveSessionContext(options);
-      const { session, workspaceState, telemetry } = await createRoleSession({
-        root,
-        role,
-        persist: true,
-        continueRecent: Boolean(options.continue),
-        telemetryCommandName: "chat",
-        promptContext,
+      const inferred = inferRootAndRoleFromCwd(process.cwd());
+      const resolved = await resolveChatSession(inferred.root, {
+        ...(options.role !== undefined ? { explicitRoleId: options.role } : {}),
+        ...(inferred.roleId !== undefined ? { inferredRoleId: inferred.roleId } : {}),
       });
 
+      const sessionContext =
+        resolved.kind === "bootstrap"
+          ? await createBootstrapSession({
+              root: resolved.root,
+              persist: true,
+              continueRecent: Boolean(options.continue),
+              telemetryCommandName: "chat",
+              promptContext: {
+                workspaceRoot: resolved.root,
+              },
+            })
+          : await createRoleSession({
+              root: resolved.root,
+              role: resolved.role,
+              persist: true,
+              continueRecent: Boolean(options.continue),
+              telemetryCommandName: "chat",
+              promptContext: {
+                workspaceRoot: resolved.root,
+                roleId: resolved.role.id,
+                roleRoot: path.relative(resolved.root, resolved.role.roleDir) || ".",
+              },
+            });
+
       const initialPrompt = resolveInitialChatPrompt({
-        workspaceState,
+        workspaceState: sessionContext.workspaceState,
         ...(options.prompt !== undefined ? { initialPrompt: options.prompt } : {}),
         ...(options.continue !== undefined ? { continueRecent: options.continue } : {}),
       });
 
-      await runChatLoop(session, {
+      await runChatLoop(sessionContext.session, {
         ...(initialPrompt !== undefined ? { initialPrompt } : {}),
         initialImages: collectImagePaths(options.image),
-        telemetry,
+        telemetry: sessionContext.telemetry,
       });
     },
   );

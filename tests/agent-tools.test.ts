@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { createCustomTools, createEntityLookupTool, createWebSearchTool } from "../src/agent-tools.js";
+import { createBootstrapTools, createCustomTools, createEntityLookupTool, createWebSearchTool } from "../src/agent-tools.js";
 import { loadRole } from "../src/roles.js";
 import { ensureWorkspaceScaffold } from "../src/workspace.js";
 import { seedRoleWorkspace } from "./test-helpers.js";
@@ -73,6 +73,13 @@ describe("createCustomTools", () => {
     expect(names).toContain("create_case_record");
     expect(names).toContain("create_issue_record");
     rmSync(root, { recursive: true, force: true });
+  });
+});
+
+describe("createBootstrapTools", () => {
+  it("returns web search for bootstrap sessions", () => {
+    const tools = createBootstrapTools();
+    expect(tools.map((tool) => tool.name)).toEqual(["web_search"]);
   });
 });
 

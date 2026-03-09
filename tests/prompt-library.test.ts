@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -23,6 +23,26 @@ describe("PromptLibrary", () => {
     it("loads from the configured role", async () => {
       const lib = await PromptLibrary.load(await loadRole(root, "role-a"));
       expect(lib).toBeInstanceOf(PromptLibrary);
+    });
+
+    it("keeps bootstrap guidance out of the default shared prompt stack", async () => {
+      const lib = await PromptLibrary.loadForWorkspace(root);
+      const out = await lib.renderSystemPrompt({
+        workspaceRoot: "/my/root",
+      });
+      expect(out).not.toContain("# Bootstrap Guidance");
+    });
+
+    it("can render all explicit shared bootstrap prompts from the directory", async () => {
+      writeFileSync(path.join(root, "prompts", "bootstrap", "20-extra.md"), "# Extra Bootstrap\n\nSecond overlay.\n");
+      const lib = await PromptLibrary.loadForWorkspace(root);
+      const out = await lib.renderSharedPromptDirectory("bootstrap", {
+        workspaceRoot: "/my/root",
+      });
+      expect(out).toContain("# Bootstrap Guidance");
+      expect(out).toContain("focused, file-first setup that is complete enough to be genuinely useful");
+      expect(out).toContain("# Extra Bootstrap");
+      expect(out).toContain("Second overlay.");
     });
   });
 
