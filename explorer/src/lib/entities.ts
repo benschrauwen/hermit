@@ -5,12 +5,6 @@ import { readEntityFrontmatter } from "./entity-content.js";
 import type { EntityRecord, RoleEntityDefinition } from "./workspace.js";
 
 export function getEntityTypeHref(entityDef: RoleEntityDefinition): string {
-  if (entityDef.type === "company") {
-    return "/company";
-  }
-  if (entityDef.type === "person") {
-    return "/people";
-  }
   return `/entities/${entityDef.type}`;
 }
 
@@ -41,7 +35,29 @@ export async function scanGlobalEntitiesByDefinition(
   entityDef: RoleEntityDefinition,
 ): Promise<EntityRecord[]> {
   if (entityDef.idStrategy === "singleton") {
-    return [];
+    const entityPath = path.join(root, "entities", entityDef.createDirectory);
+    try {
+      await fs.access(path.join(entityPath, "record.md"));
+    } catch {
+      return [];
+    }
+
+    const frontmatter = await readEntityFrontmatter(entityPath);
+    return [
+      {
+        id: String(frontmatter.id ?? entityDef.type),
+        type: String(frontmatter.type ?? entityDef.type),
+        name: String(frontmatter.name ?? entityDef.label),
+        path: entityPath,
+        scope: "shared",
+        ...(entityDef.statusField && frontmatter[entityDef.statusField]
+          ? { status: String(frontmatter[entityDef.statusField]) }
+          : {}),
+        ...(entityDef.ownerField && frontmatter[entityDef.ownerField]
+          ? { owner: String(frontmatter[entityDef.ownerField]) }
+          : {}),
+      } satisfies EntityRecord,
+    ];
   }
 
   const directories = entityDef.scanDirectories ?? [entityDef.createDirectory];
@@ -83,14 +99,5 @@ export async function countGlobalEntitiesByDefinition(
   root: string,
   entityDef: RoleEntityDefinition,
 ): Promise<number> {
-  if (entityDef.idStrategy === "singleton") {
-    try {
-      await fs.access(path.join(root, "entities", entityDef.createDirectory, "record.md"));
-      return 1;
-    } catch {
-      return 0;
-    }
-  }
-
   return (await scanGlobalEntitiesByDefinition(root, entityDef)).length;
 }

@@ -8,11 +8,11 @@ import { loadRole } from "../src/roles.js";
 import { createCompanyRecords, createRoleEntityRecord, ensureWorkspaceScaffold } from "../src/workspace.js";
 import { repoRoot, seedRoleWorkspace } from "./test-helpers.js";
 
-describe("entities skill scripts", () => {
+describe("entity_query skill scripts", () => {
   let root: string;
 
   beforeEach(() => {
-    root = mkdtempSync(path.join(tmpdir(), "entities-skill-"));
+    root = mkdtempSync(path.join(tmpdir(), "entity-query-skill-"));
     seedRoleWorkspace(root, ["sales"]);
   });
 
@@ -50,7 +50,7 @@ describe("entities skill scripts", () => {
 
     const query = spawnSync(
       "bun",
-      [path.join(repoRoot, "skills", "entities", "scripts", "query-entities.ts"), "--root", root, "--type", "product", "--format", "paths"],
+      [path.join(repoRoot, "skills", "entity_query", "entities", "scripts", "query-entities.ts"), "--root", root, "--type", "product", "--format", "paths"],
       { encoding: "utf8" },
     );
     expect(query.status).toBe(0);
@@ -58,7 +58,7 @@ describe("entities skill scripts", () => {
 
     const summary = spawnSync(
       "bun",
-      [path.join(repoRoot, "skills", "entities", "scripts", "summarize-entities.ts"), "--root", root, "--top", "3"],
+      [path.join(repoRoot, "skills", "entity_query", "entities", "scripts", "summarize-entities.ts"), "--root", root, "--top", "3"],
       { encoding: "utf8" },
     );
     expect(summary.status).toBe(0);
@@ -67,7 +67,7 @@ describe("entities skill scripts", () => {
 
     const inventory = spawnSync(
       "bun",
-      [path.join(repoRoot, "skills", "entities", "scripts", "inventory-entities.ts"), "--root", root, "--group-by", "type", "--top", "3"],
+      [path.join(repoRoot, "skills", "entity_query", "entities", "scripts", "inventory-entities.ts"), "--root", root, "--group-by", "type", "--top", "3"],
       { encoding: "utf8" },
     );
     expect(inventory.status).toBe(0);

@@ -158,9 +158,9 @@ This means the CLI and explorer read the same role and entity model, while the e
 Current route model:
 
 - `/` shows the explorer home page with links to shared and agent areas
-- `/company` renders the shared company markdown files from `entities/company/`
-- `/people` lists shared people records from `entities/people/`
-- `/people/:personId` renders a person's markdown files such as `record.md` and `development-plan.md`
+- `/entities` shows the global entity catalog, including shared types such as company and person
+- `/entities/:entityType` renders a generic list view for that entity type using entity definition metadata
+- `/entities/:entityType/:entityId` renders the entity detail view from the markdown files declared in `entity-defs/entities.md`
 - `/agents/:roleId` shows an agent overview
 - `/agents/:roleId/agent` renders `agent/record.md` and `agent/inbox.md` for that agent
 - `/agents/:roleId/:entityType` renders a generic list view for that entity type using entity definition metadata

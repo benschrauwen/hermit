@@ -8,9 +8,6 @@ import { getWorkspaceRoot, loadEntityDefs } from "../../../lib/workspace.js";
 const { entityType, entityId } = Astro.params;
 if (!entityType || !entityId) return Astro.redirect("/entities");
 
-if (entityType === "company") return Astro.redirect("/company");
-if (entityType === "person") return Astro.redirect(`/people/${entityId}`);
-
 const root = getWorkspaceRoot();
 const { entities: entityDefs, explorer } = await loadEntityDefs(root);
 const entityDef = entityDefs.find((entity) => entity.type === entityType);
