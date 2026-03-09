@@ -39,6 +39,7 @@ Do **not** use this file as the source of truth for the operated business or com
   - `entities/people/`: shared people records with `record.md`, `development-plan.md`, `notes/`, and `artifacts/`.
   - Entity data directories such as `entities/deals/`, `entities/product/`, `entities/tickets/`, etc.
 - `entity-defs/`: entity type definitions, scaffold templates, and custom explorer renderers.
+- `skills/`: shared pi skills that can be loaded on demand across roles.
 - `agents/`: one subdirectory per operating role (agent).
 - `docs/`: Hermit implementation and architecture documentation.
 - `examples/`: Hermit examples for extensions, custom tools, and SDK usage.
@@ -49,6 +50,7 @@ Each agent directory contains its own:
 - `AGENTS.md`: role prompt index and startup guidance
 - `agent/`: role-specific operating system with `record.md` and `inbox.md`
 - `prompts/`: reusable role instructions
+- `skills/`: reusable role-local pi skills
 
 ## Naming Rules
 
@@ -67,6 +69,7 @@ Each agent directory contains its own:
 - Entity `record.md` files store the best current state for each entity instance.
 - Role-defined supporting files such as qualification sheets, activity logs, or ticket notes live beside the canonical record when the role manifest requires them.
 - Prompt files are editable operating instructions, but they are not business facts.
+- Skill files are editable operating instructions and helper workflows, but they are not business facts.
 
 ## Prompt Index
 

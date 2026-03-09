@@ -11,6 +11,7 @@ import {
   loadImageAttachments,
   ONBOARDING_CHAT_OPENING_PROMPT,
   renderTerminalMarkdown,
+  resolveRoleSkillPaths,
   resolvePersistedSessionDirectory,
   resolveInitialChatPrompt,
 } from "../src/session.js";
@@ -135,6 +136,8 @@ describe("heartbeat session helpers", () => {
     manifestFile: "/tmp/workspace/agents/sales/role.md",
     sharedPromptsDir: "/tmp/workspace/prompts",
     rolePromptsDir: "/tmp/workspace/agents/sales/prompts",
+    sharedSkillsDir: "/tmp/workspace/skills",
+    roleSkillsDir: "/tmp/workspace/agents/sales/skills",
     entityDefsDir: "/tmp/workspace/entity-defs",
     agentDir: "/tmp/workspace/agents/sales/agent",
     sessionsDir: "/tmp/workspace/agents/sales/.role-agent/sessions",
@@ -148,6 +151,13 @@ describe("heartbeat session helpers", () => {
     expect(resolvePersistedSessionDirectory(role, "heartbeat")).toBe(
       "/tmp/workspace/agents/sales/.role-agent/heartbeat-sessions",
     );
+  });
+
+  it("adds shared and role-local skill directories to the session loader", () => {
+    expect(resolveRoleSkillPaths(role)).toEqual([
+      "/tmp/workspace/skills",
+      "/tmp/workspace/agents/sales/skills",
+    ]);
   });
 
   it("uses a backlog-focused default prompt for heartbeat turns", () => {

@@ -21,6 +21,7 @@ The `entity-defs/` directory contains entity type definitions:
 
 - scaffold templates organized by type (e.g., `entity-defs/deal/`, `entity-defs/product/`)
 - custom explorer renderers under `entity-defs/renderers/`
+- shared skills live under `skills/`
 
 Each agent directory contains its own:
 
@@ -28,6 +29,7 @@ Each agent directory contains its own:
 - `AGENTS.md` prompt index
 - `agent/` operating system
 - `prompts/` role-specific reusable instructions
+- `skills/` role-specific pi skills
 
 Shared prompts live at the workspace root in `prompts/`. Role-specific prompts live in `agents/<role-id>/prompts/`.
 
@@ -45,7 +47,9 @@ Roles are defined primarily by markdown and frontmatter:
 
 - `role.md` defines the role contract
 - shared prompts live under `prompts/`
+- shared skills live under `skills/`
 - role-specific prompts live under `agents/<role-id>/prompts/`
+- role-specific skills live under `agents/<role-id>/skills/`
 - scaffold templates live under `entity-defs/`
 
 This makes new roles mostly a file-creation exercise instead of a TypeScript refactor.
@@ -174,6 +178,13 @@ Session prompt assembly works like this:
 5. Render all loaded prompts into one concatenated system prompt string using the current prompt context.
 6. Append that rendered prompt string to the base system prompt for the agent runtime.
 
+In addition to prompts, the session enables pi skill discovery from:
+
+- shared workspace `skills/`
+- role-local `agents/<role-id>/skills/`
+
+Those skills stay on-demand. They are not concatenated into the Hermit prompt stack; pi advertises them to the model so the model can read the relevant `SKILL.md` only when the task matches.
+
 For normal `chat` and `ask`, prompt context usually includes the workspace and role but not a preselected entity. The startup prompt explicitly tells the agent to resolve the relevant deal, product, or person during the session before going deep, then read additional role prompt files on demand when they are relevant. Transcript ingest is the main path that still commonly starts with an explicit entity target.
 
 Heartbeat runs use the same role system prompt stack but send a deterministic one-shot upkeep prompt focused on small GTD-style backlog advancement. Their persisted transcripts live in a separate role-local history directory so unattended background sessions do not mix with interactive chat history.
@@ -217,6 +228,7 @@ For prompts specifically, doctor verifies:
 - `entities/company/`
 - `entities/people/`
 - `entity-defs/`
+- `skills/`
 - `prompts/`
 - `agents/`
 - `explorer/`
@@ -227,6 +239,7 @@ For prompts specifically, doctor verifies:
 - `agents/<role-id>/AGENTS.md`
 - `agents/<role-id>/agent/`
 - `agents/<role-id>/prompts/` for role-only overlays
+- `agents/<role-id>/skills/` for role-only pi skills
 
 ## Prompt Contract
 

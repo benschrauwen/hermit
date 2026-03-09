@@ -29,11 +29,14 @@ export interface WorkspacePaths {
   companyDir: string;
   peopleDir: string;
   agentsDir: string;
+  skillsDir: string;
   roleDir?: string;
   agentsFile?: string;
   manifestFile?: string;
   sharedPromptsDir?: string;
   rolePromptsDir?: string;
+  sharedSkillsDir?: string;
+  roleSkillsDir?: string;
   entityDefsDir?: string;
   agentDir?: string;
   sessionsDir?: string;
@@ -58,6 +61,8 @@ export function getWorkspacePaths(root: string, role?: RoleDefinition): Workspac
     manifestFile: rolePaths.manifestFile,
     sharedPromptsDir: rolePaths.sharedPromptsDir,
     rolePromptsDir: rolePaths.rolePromptsDir,
+    sharedSkillsDir: rolePaths.sharedSkillsDir,
+    roleSkillsDir: rolePaths.roleSkillsDir,
     entityDefsDir: rolePaths.entityDefsDir,
     agentDir: rolePaths.agentDir,
     sessionsDir: rolePaths.sessionsDir,
@@ -215,6 +220,7 @@ export async function ensureWorkspaceScaffold(root: string, role?: RoleDefinitio
   await ensureDirectory(role.roleDir, [
     "agent",
     "prompts",
+    "skills",
     ".role-agent/sessions",
     ".role-agent/heartbeat-sessions",
     ...role.roleDirectories,

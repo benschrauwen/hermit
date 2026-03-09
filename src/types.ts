@@ -103,6 +103,8 @@ export interface RoleDefinition {
   manifestFile: string;
   sharedPromptsDir: string;
   rolePromptsDir: string;
+  sharedSkillsDir: string;
+  roleSkillsDir: string;
   entityDefsDir: string;
   agentDir: string;
   sessionsDir: string;

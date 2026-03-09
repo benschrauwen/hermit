@@ -43,7 +43,10 @@ describe("workspace", () => {
     const rolePaths = getWorkspacePaths(tmpRoot, role);
     expect(sharedPaths.companyDir).toBe(path.join(tmpRoot, "entities", "company"));
     expect(sharedPaths.peopleDir).toBe(path.join(tmpRoot, "entities", "people"));
+    expect(sharedPaths.skillsDir).toBe(path.join(tmpRoot, "skills"));
     expect(rolePaths.roleDir).toBe(path.join(tmpRoot, "agents", "sales"));
+    expect(rolePaths.sharedSkillsDir).toBe(path.join(tmpRoot, "skills"));
+    expect(rolePaths.roleSkillsDir).toBe(path.join(tmpRoot, "agents", "sales", "skills"));
     expect(rolePaths.sessionsDir).toBe(path.join(tmpRoot, "agents", "sales", ".role-agent", "sessions"));
   });
 
@@ -55,9 +58,10 @@ describe("workspace", () => {
   it("creates shared and role scaffolds", async () => {
     const role = await loadRole(tmpRoot, "sales");
     await ensureWorkspaceScaffold(tmpRoot, role);
-    expect(readdirSync(tmpRoot)).toEqual(expect.arrayContaining(["entities", "agents"]));
+    expect(readdirSync(tmpRoot)).toEqual(expect.arrayContaining(["entities", "agents", "skills"]));
     expect(readFileSync(path.join(tmpRoot, "agents", "sales", "agent", "record.md"), "utf8")).toContain("Sales Leader");
     expect(readFileSync(path.join(tmpRoot, "agents", "sales", "agent", "inbox.md"), "utf8")).toContain("Open Inbox Items");
+    expect(readdirSync(path.join(tmpRoot, "agents", "sales"))).toContain("skills");
     expect(readdirSync(path.join(tmpRoot, "agents", "sales", ".role-agent"))).toEqual(
       expect.arrayContaining(["sessions", "heartbeat-sessions"]),
     );

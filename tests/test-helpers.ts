@@ -9,8 +9,12 @@ export function seedRoleWorkspace(root: string, roleIds: string[] = ["sales"]): 
   mkdirSync(path.join(root, "entities"), { recursive: true });
   mkdirSync(path.join(root, "agents"), { recursive: true });
   mkdirSync(path.join(root, "prompts"), { recursive: true });
+  mkdirSync(path.join(root, "skills"), { recursive: true });
 
   cpSync(path.join(repoRoot, "prompts"), path.join(root, "prompts"), {
+    recursive: true,
+  });
+  cpSync(path.join(repoRoot, "skills"), path.join(root, "skills"), {
     recursive: true,
   });
   cpSync(path.join(repoRoot, "entity-defs"), path.join(root, "entity-defs"), {
@@ -26,6 +30,11 @@ export function seedRoleWorkspace(root: string, roleIds: string[] = ["sales"]): 
     cpSync(path.join(sourceRoleDir, "prompts"), path.join(targetRoleDir, "prompts"), {
       recursive: true,
     });
+    if (existsSync(path.join(sourceRoleDir, "skills"))) {
+      cpSync(path.join(sourceRoleDir, "skills"), path.join(targetRoleDir, "skills"), {
+        recursive: true,
+      });
+    }
   }
 }
 

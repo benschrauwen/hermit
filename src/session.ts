@@ -402,6 +402,10 @@ function enrichPromptContextWithCurrentTime(promptContext: PromptContext): Promp
   };
 }
 
+export function resolveRoleSkillPaths(role: RoleDefinition): string[] {
+  return [role.sharedSkillsDir, role.roleSkillsDir];
+}
+
 export async function createRoleSession(options: SessionOptions): Promise<{
   session: AgentSession;
   promptLibrary: PromptLibrary;
@@ -418,7 +422,7 @@ export async function createRoleSession(options: SessionOptions): Promise<{
   const loader = new DefaultResourceLoader({
     cwd: options.root,
     noExtensions: true,
-    noSkills: true,
+    additionalSkillPaths: resolveRoleSkillPaths(options.role),
     noPromptTemplates: true,
     noThemes: true,
     appendSystemPromptOverride: (base) => [...base, systemPrompt],

@@ -40,6 +40,7 @@ bun run explorer                       # launch the workspace UI
 ## Features
 
 - **Role-based agents** — each role ships its own prompts, templates, workflows, entity types, and operating rules via a declarative `role.md` manifest.
+- **Shared and role-local skills** — reusable pi skills can live under `skills/` or `agents/<role-id>/skills/` and are auto-exposed to sessions.
 - **Deterministic scaffolding** — entities, records, and evidence are created through safe, ID-stable operations.
 - **Evidence ingestion** — transcripts and supporting material update canonical records without replacing them.
 - **Workspace explorer** — a local read-only Astro UI for browsing the system of record, driven by the same runtime the CLI uses.
@@ -63,17 +64,20 @@ entity-defs/
   product/         # product scaffold templates
   ...              # other entity type templates
   renderers/       # custom explorer renderers
+skills/            # shared pi skills available to all roles
 agents/
   sales/
     role.md        # role contract (manifest)
     AGENTS.md      # prompt index
     agent/         # operating state (record.md, inbox.md)
     prompts/       # role-specific prompts
+    skills/        # role-specific pi skills
   engineering/
     role.md
     AGENTS.md
     agent/
     prompts/
+    skills/
 prompts/           # shared prompt library
 explorer/          # read-only Astro workspace UI
 ```
@@ -84,6 +88,7 @@ Each role is defined by `agents/<role-id>/role.md`. The manifest declares:
 
 - **Prompt catalog** — maps stable IDs to shared or role-local prompt files
 - **Prompt bundles** — ordered sets injected at session startup (`default`, `onboarding`, `transcript-ingest`)
+- **Skill directories** — optional shared `skills/` and role-local `agents/<role-id>/skills/` instructions loaded by pi on demand
 - **Entity types** — directory layout, ID strategy, fields, required files
 - **Templates** — markdown scaffolds in `entity-defs/` with placeholder substitution
 - **Capabilities** — optional features like transcript ingestion

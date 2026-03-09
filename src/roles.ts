@@ -218,6 +218,7 @@ export function getRootPaths(root: string): {
   companyDir: string;
   peopleDir: string;
   agentsDir: string;
+  skillsDir: string;
 } {
   const entitiesDir = path.join(root, "entities");
   return {
@@ -226,6 +227,7 @@ export function getRootPaths(root: string): {
     companyDir: path.join(entitiesDir, "company"),
     peopleDir: path.join(entitiesDir, "people"),
     agentsDir: path.join(root, "agents"),
+    skillsDir: path.join(root, "skills"),
   };
 }
 
@@ -236,6 +238,8 @@ export function getRolePaths(root: string, roleId: string): {
   manifestFile: string;
   sharedPromptsDir: string;
   rolePromptsDir: string;
+  sharedSkillsDir: string;
+  roleSkillsDir: string;
   entityDefsDir: string;
   agentDir: string;
   sessionsDir: string;
@@ -249,6 +253,8 @@ export function getRolePaths(root: string, roleId: string): {
     manifestFile: path.join(roleDir, ROLE_MANIFEST_FILE),
     sharedPromptsDir: path.join(root, "prompts"),
     rolePromptsDir: path.join(roleDir, "prompts"),
+    sharedSkillsDir: rootPaths.skillsDir,
+    roleSkillsDir: path.join(roleDir, "skills"),
     entityDefsDir: path.join(root, "entity-defs"),
     agentDir: path.join(roleDir, "agent"),
     sessionsDir: path.join(roleDir, ".role-agent", "sessions"),
@@ -306,6 +312,8 @@ export async function loadRole(root: string, roleId: string): Promise<RoleDefini
     manifestFile: paths.manifestFile,
     sharedPromptsDir: paths.sharedPromptsDir,
     rolePromptsDir: paths.rolePromptsDir,
+    sharedSkillsDir: paths.sharedSkillsDir,
+    roleSkillsDir: paths.roleSkillsDir,
     entityDefsDir: paths.entityDefsDir,
     agentDir: paths.agentDir,
     sessionsDir: paths.sessionsDir,
