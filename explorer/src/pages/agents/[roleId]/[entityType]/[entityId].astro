@@ -16,11 +16,11 @@ try {
 }
 
 const entityDef = role.entities.find((e) => e.type === entityType);
-if (!entityDef) return Astro.redirect(`/roles/${roleId}`);
+if (!entityDef) return Astro.redirect(`/agents/${roleId}`);
 
 const entities = await findEntitiesByType(root, role, entityType);
 const entity = entities.find((candidate) => candidate.id === entityId);
-if (!entity) return Astro.redirect(`/roles/${roleId}/${entityType}`);
+if (!entity) return Astro.redirect(`/agents/${roleId}/${entityType}`);
 
 const files = await readEntityRecordContent(entity.path, role, entityType);
 const rendered = await renderRoleEntityDetail({
@@ -34,8 +34,8 @@ const rendered = await renderRoleEntityDetail({
 ---
 <BaseLayout title={`${entity.name} · ${role.name}`} roleId={roleId} roleName={role.name}>
   <div class="breadcrumb">
-    <a href={`/roles/${roleId}`}>{role.name}</a> →
-    <a href={`/roles/${roleId}/${entityType}`}>{entityDef?.label ?? entityType}</a> →
+    <a href={`/agents/${roleId}`}>{role.name}</a> →
+    <a href={`/agents/${roleId}/${entityType}`}>{entityDef?.label ?? entityType}</a> →
     {entity.name}
   </div>
   <div class="page-intro">

@@ -6,7 +6,7 @@ import { getWorkspaceRoot } from "../../lib/workspace.js";
 import { marked } from "marked";
 
 const root = getWorkspaceRoot();
-const companyDir = path.join(root, "company");
+const companyDir = path.join(root, "entities", "company");
 
 marked.setOptions({ gfm: true });
 const files = await Promise.all(

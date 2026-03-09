@@ -17,7 +17,7 @@ Turn partial company and role input into a usable leadership workspace without f
 
 ## Priorities
 
-- Create `company/record.md` early so later work has a shared anchor.
+- Create `entities/company/record.md` early so later work has a shared anchor.
 - Add people and role-local entities incrementally as the user provides enough detail.
 - Prefer a useful first draft on disk over waiting for perfect information.
 - Preserve open questions in the relevant canonical files so future sessions can close the gaps.

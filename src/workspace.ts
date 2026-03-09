@@ -25,15 +25,16 @@ const templateLibrary = new TemplateLibrary();
 
 export interface WorkspacePaths {
   root: string;
+  entitiesDir: string;
   companyDir: string;
   peopleDir: string;
-  rolesDir: string;
+  agentsDir: string;
   roleDir?: string;
   agentsFile?: string;
   manifestFile?: string;
   sharedPromptsDir?: string;
   rolePromptsDir?: string;
-  templatesDir?: string;
+  entityDefsDir?: string;
   agentDir?: string;
   sessionsDir?: string;
 }
@@ -55,9 +56,9 @@ export function getWorkspacePaths(root: string, role?: RoleDefinition): Workspac
     roleDir: rolePaths.roleDir,
     agentsFile: rolePaths.agentsFile,
     manifestFile: rolePaths.manifestFile,
-      sharedPromptsDir: rolePaths.sharedPromptsDir,
-      rolePromptsDir: rolePaths.rolePromptsDir,
-    templatesDir: rolePaths.templatesDir,
+    sharedPromptsDir: rolePaths.sharedPromptsDir,
+    rolePromptsDir: rolePaths.rolePromptsDir,
+    entityDefsDir: rolePaths.entityDefsDir,
     agentDir: rolePaths.agentDir,
     sessionsDir: rolePaths.sessionsDir,
   };
@@ -89,7 +90,7 @@ function applyTemplateValues(template: string, values: Record<string, string>): 
 }
 
 function getSharedTemplatePath(root: string, relativePath: string): string {
-  return path.join(root, "templates", "shared", relativePath);
+  return path.join(root, "entity-defs", relativePath);
 }
 
 function joinFieldValues(input: Record<string, unknown>, fieldNames: string[]): string {
@@ -147,7 +148,7 @@ async function listDirectoryNames(directory: string): Promise<string[]> {
 async function getNextSequencedEntityNumber(root: string, role: RoleDefinition, entity: RoleEntityDefinition): Promise<number> {
   const year = new Date().getFullYear();
   const scanDirectories = entity.scanDirectories ?? [entity.createDirectory];
-  const names = (await Promise.all(scanDirectories.map((directory) => listDirectoryNames(path.join(role.roleDir, directory))))).flat();
+  const names = (await Promise.all(scanDirectories.map((directory) => listDirectoryNames(path.join(role.entitiesDir, directory))))).flat();
   const values = names
     .map((name) => {
       const match = name.match(/^([a-z]+)-(\d{4})-(\d{4})-/);
@@ -181,7 +182,7 @@ async function renderRoleTemplate(
   relativeTemplatePath: string,
   values: Record<string, string>,
 ): Promise<string> {
-  return templateLibrary.render(path.join(role.templatesDir, relativeTemplatePath), values);
+  return templateLibrary.render(path.join(role.entityDefsDir, relativeTemplatePath), values);
 }
 
 export async function writeFileSafely(filePath: string, content: string, force = false): Promise<void> {
@@ -213,10 +214,18 @@ export async function ensureWorkspaceScaffold(root: string, role?: RoleDefinitio
     return;
   }
 
+  const entityDirectories = new Set<string>();
+  for (const entity of role.entities) {
+    entityDirectories.add(entity.createDirectory);
+    for (const scanDir of entity.scanDirectories ?? []) {
+      entityDirectories.add(scanDir);
+    }
+  }
+  await ensureDirectory(role.entitiesDir, [...entityDirectories]);
+
   await ensureDirectory(role.roleDir, [
     "agent",
     "prompts",
-    "templates",
     ".role-agent/sessions",
     ...role.roleDirectories,
   ]);
@@ -343,7 +352,7 @@ async function scanRoleEntities(root: string, role: RoleDefinition): Promise<Ent
     role.entities.flatMap((entity) =>
       (entity.scanDirectories ?? [entity.createDirectory]).map((directory) =>
         scanDirectoryForEntities(
-          path.join(role.roleDir, directory),
+          path.join(role.entitiesDir, directory),
           "role",
           role.id,
           entity.excludeDirectoryNames ? { excludeDirectoryNames: entity.excludeDirectoryNames } : {},
@@ -377,7 +386,7 @@ export async function findCreatableRoleEntities(root: string, role: RoleDefiniti
   }
 
   const all = await findEntitiesByType(root, role, entityType);
-  const createDirectoryPath = path.join(role.roleDir, definition.createDirectory);
+  const createDirectoryPath = path.join(role.entitiesDir, definition.createDirectory);
   const createDirectoryParent = path.dirname(createDirectoryPath);
   return all.filter((entity) => {
     const parentDirectory = path.dirname(entity.path);
@@ -502,7 +511,7 @@ export async function resolveTranscriptEntity(
 }
 
 function buildRoleEntityPath(role: RoleDefinition, entity: RoleEntityDefinition, entityId: string): string {
-  return path.join(role.roleDir, entity.createDirectory, entityId);
+  return path.join(role.entitiesDir, entity.createDirectory, entityId);
 }
 
 export async function createCompanyRecords(

@@ -18,9 +18,9 @@ Do **not** use this file as the source of truth for the operated business or com
 ## Business Context Boundary
 
 - The top-level workspace/project name `Hermit` refers to the software environment, not the company being operated on.
-- The canonical company identity and business context come from `company/record.md` and related files under `company/`.
-- Shared people context comes from `people/`.
-- Role operating context comes from `roles/<role-id>/AGENTS.md`, `roles/<role-id>/role.md`, and that role's canonical files.
+- The canonical company identity and business context come from `entities/company/record.md` and related files under `entities/company/`.
+- Shared people context comes from `entities/people/`.
+- Role operating context comes from `agents/<role-id>/AGENTS.md`, `agents/<role-id>/role.md`, and that role's canonical files.
 - If workspace/software metadata conflicts with company files, prefer the canonical company and role files for business-facing work.
 
 ## Operating Model For Software Work
@@ -34,20 +34,21 @@ Do **not** use this file as the source of truth for the operated business or com
 
 ## Canonical Directories
 
-- `company/`: shared company-level context for the operated business.
-- `people/`: shared people records with `record.md`, `development-plan.md`, `notes/`, and `artifacts/`.
-- `roles/`: one subdirectory per operating role.
+- `entities/`: entity instance data only.
+  - `entities/company/`: shared company-level context for the operated business.
+  - `entities/people/`: shared people records with `record.md`, `development-plan.md`, `notes/`, and `artifacts/`.
+  - Entity data directories such as `entities/deals/`, `entities/product/`, `entities/tickets/`, etc.
+- `entity-defs/`: entity type definitions, scaffold templates, and custom explorer renderers.
+- `agents/`: one subdirectory per operating role (agent).
 - `docs/`: Hermit implementation and architecture documentation.
 - `examples/`: Hermit examples for extensions, custom tools, and SDK usage.
 
-Each role directory contains its own:
+Each agent directory contains its own:
 
 - `role.md`: machine-readable role contract
 - `AGENTS.md`: role prompt index and startup guidance
 - `agent/`: role-specific operating system with `record.md` and `inbox.md`
 - `prompts/`: reusable role instructions
-- `templates/`: role-local scaffold templates
-- role-defined entity directories such as `deals/`, `product/`, `tickets/`, `campaigns/`, or `leads/`
 
 ## Naming Rules
 
@@ -60,16 +61,16 @@ Each role directory contains its own:
 
 ## Canonical Truth Rules
 
-- `roles/<role-id>/agent/record.md` stores the current clarified operating system for that role.
-- `roles/<role-id>/agent/inbox.md` stores that role's raw captured commitments until clarified.
-- Shared `record.md` files under `company/` and `people/` store the best current shared state.
-- Role-local `record.md` files store the best current state for that role's entities.
+- `agents/<role-id>/agent/record.md` stores the current clarified operating system for that role.
+- `agents/<role-id>/agent/inbox.md` stores that role's raw captured commitments until clarified.
+- Shared `record.md` files under `entities/company/` and `entities/people/` store the best current shared state.
+- Entity `record.md` files store the best current state for each entity instance.
 - Role-defined supporting files such as qualification sheets, activity logs, or ticket notes live beside the canonical record when the role manifest requires them.
 - Prompt files are editable operating instructions, but they are not business facts.
 
 ## Prompt Index
 
-Each role owns its own prompt index under `roles/<role-id>/AGENTS.md`.
+Each role owns its own prompt index under `agents/<role-id>/AGENTS.md`.
 Use the selected role's prompt directory as canonical for role work.
 
 ## Internal Architecture Reference

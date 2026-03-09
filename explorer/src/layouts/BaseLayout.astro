@@ -29,7 +29,7 @@ const { title, roleId, roleName } = Astro.props;
             <a class="nav-link" href="/people">People</a>
             <a class="nav-link" href="/architecture">Architecture</a>
             <a class="nav-link" href="/license">License</a>
-            {roleId && (<a class="nav-link" href={`/roles/${roleId}`}>{roleName ?? roleId}</a>)}
+            {roleId && (<a class="nav-link" href={`/agents/${roleId}`}>{roleName ?? roleId}</a>)}
           </nav>
         </div>
       </header>

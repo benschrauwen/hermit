@@ -26,7 +26,7 @@ describe("roles explorer renderers", () => {
     seedRoleWorkspace(root, ["sales"]);
 
     const role = await loadRole(root, "sales");
-    expect(role.explorer?.renderers?.detail?.deal).toBe("explorer/renderers/deal-detail.mjs");
+    expect(role.explorer?.renderers?.detail?.deal).toBe("renderers/deal-detail.mjs");
     await expect(validateRoleManifest(root, "sales")).resolves.toBeUndefined();
   });
 
@@ -35,15 +35,15 @@ describe("roles explorer renderers", () => {
     roots.push(root);
     seedRoleWorkspace(root, ["sales"]);
 
-    const roleManifestPath = path.join(root, "roles", "sales", "role.md");
+    const roleManifestPath = path.join(root, "agents", "sales", "role.md");
     replaceInFile(
       roleManifestPath,
-      "deal: explorer/renderers/deal-detail.mjs",
-      "deal: explorer/renderers/missing-detail.mjs",
+      "deal: renderers/deal-detail.mjs",
+      "deal: renderers/missing-detail.mjs",
     );
 
     await expect(validateRoleManifest(root, "sales")).rejects.toThrow(
-      "Role sales is missing explorer detail renderer: explorer/renderers/missing-detail.mjs",
+      "Role sales is missing explorer detail renderer: renderers/missing-detail.mjs",
     );
   });
 });

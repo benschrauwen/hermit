@@ -41,10 +41,10 @@ describe("workspace", () => {
     const role = await loadRole(tmpRoot, "sales");
     const sharedPaths = getWorkspacePaths(tmpRoot);
     const rolePaths = getWorkspacePaths(tmpRoot, role);
-    expect(sharedPaths.companyDir).toBe(path.join(tmpRoot, "company"));
-    expect(sharedPaths.peopleDir).toBe(path.join(tmpRoot, "people"));
-    expect(rolePaths.roleDir).toBe(path.join(tmpRoot, "roles", "sales"));
-    expect(rolePaths.sessionsDir).toBe(path.join(tmpRoot, "roles", "sales", ".role-agent", "sessions"));
+    expect(sharedPaths.companyDir).toBe(path.join(tmpRoot, "entities", "company"));
+    expect(sharedPaths.peopleDir).toBe(path.join(tmpRoot, "entities", "people"));
+    expect(rolePaths.roleDir).toBe(path.join(tmpRoot, "agents", "sales"));
+    expect(rolePaths.sessionsDir).toBe(path.join(tmpRoot, "agents", "sales", ".role-agent", "sessions"));
   });
 
   it("slugifies and generates shared person IDs", () => {
@@ -55,9 +55,9 @@ describe("workspace", () => {
   it("creates shared and role scaffolds", async () => {
     const role = await loadRole(tmpRoot, "sales");
     await ensureWorkspaceScaffold(tmpRoot, role);
-    expect(readdirSync(tmpRoot)).toEqual(expect.arrayContaining(["company", "people", "roles"]));
-    expect(readFileSync(path.join(tmpRoot, "roles", "sales", "agent", "record.md"), "utf8")).toContain("Sales Leader");
-    expect(readdirSync(path.join(tmpRoot, "roles", "sales", "deals"))).toEqual(
+    expect(readdirSync(tmpRoot)).toEqual(expect.arrayContaining(["entities", "agents"]));
+    expect(readFileSync(path.join(tmpRoot, "agents", "sales", "agent", "record.md"), "utf8")).toContain("Sales Leader");
+    expect(readdirSync(path.join(tmpRoot, "entities", "deals"))).toEqual(
       expect.arrayContaining(["active", "closed-won", "closed-lost"]),
     );
   });
@@ -121,7 +121,7 @@ describe("workspace", () => {
       { sourceRefs: ["agent onboarding"] },
     );
     expect(person.id).toBe("p-jane-doe");
-    expect(readFileSync(path.join(tmpRoot, "company", "record.md"), "utf8")).toContain("Subscription");
+    expect(readFileSync(path.join(tmpRoot, "entities", "company", "record.md"), "utf8")).toContain("Subscription");
     expect(readFileSync(path.join(person.path, "development-plan.md"), "utf8")).toContain("Review Cadence");
   });
 
@@ -158,7 +158,7 @@ describe("workspace", () => {
 
     expect(product.id).toBe("prd-widget");
     expect(deal.id).toMatch(/^d-\d{4}-\d{4}-acme-expansion$/);
-    expect(deal.path).toContain(path.join("roles", "sales", "deals", "active"));
+    expect(deal.path).toContain(path.join("entities", "deals", "active"));
     expect(readFileSync(path.join(product.path, "playbook.md"), "utf8")).toContain("Ideal Buyers");
     expect(readFileSync(path.join(deal.path, "meddicc.md"), "utf8")).toContain("Economic Buyer");
   });
@@ -166,9 +166,9 @@ describe("workspace", () => {
   it("scans shared and role entities together", async () => {
     const role = await loadRole(tmpRoot, "sales");
     await ensureWorkspaceScaffold(tmpRoot, role);
-    mkdirSync(path.join(tmpRoot, "people", "p-jane"), { recursive: true });
+    mkdirSync(path.join(tmpRoot, "entities", "people", "p-jane"), { recursive: true });
     writeFileSync(
-      path.join(tmpRoot, "people", "p-jane", "record.md"),
+      path.join(tmpRoot, "entities", "people", "p-jane", "record.md"),
       "---\nid: p-jane\ntype: person\nname: Jane\n---\n",
     );
     await createRoleEntityRecord(

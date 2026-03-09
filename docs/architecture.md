@@ -8,19 +8,28 @@ Hermit implements a local, file-first runtime for autonomous applications. In th
 
 Separate the workspace into:
 
-- shared root context in `company/` and `people/`
-- role-local workspaces in `roles/<role-id>/`
+- entity instance data in `entities/`
+- entity type definitions, templates, and renderers in `entity-defs/`
+- agent-local workspaces in `agents/<role-id>/`
 
-Each role directory contains its own:
+The `entities/` directory contains entity data only:
+
+- `entities/company/` and `entities/people/` for shared context
+- entity data directories such as `entities/deals/`, `entities/tickets/`, etc.
+
+The `entity-defs/` directory contains entity type definitions:
+
+- scaffold templates organized by type (e.g., `entity-defs/deal/`, `entity-defs/product/`)
+- custom explorer renderers under `entity-defs/renderers/`
+
+Each agent directory contains its own:
 
 - `role.md` manifest
 - `AGENTS.md` prompt index
 - `agent/` operating system
 - `prompts/` role-specific reusable instructions
-- `templates/` markdown scaffold templates
-- role-specific entity directories such as `deals/`, `tickets/`, or `campaigns/`
 
-Shared prompts live at the workspace root in `prompts/`. Role-specific prompts live in `roles/<role-id>/prompts/`.
+Shared prompts live at the workspace root in `prompts/`. Role-specific prompts live in `agents/<role-id>/prompts/`.
 
 This keeps the shared organization context canonical while allowing each leadership role to define its own domain model and its own prompt overlays without changing the generic orchestration code.
 
@@ -28,7 +37,7 @@ This keeps the shared organization context canonical while allowing each leaders
 
 ### 1. File-first system of record
 
-Business state lives in markdown files and directories, not in a database. Shared truth and role-local truth are both inspectable, portable, and versionable.
+Business state lives in markdown files and directories, not in a database. Shared truth and entity data are both inspectable, portable, and versionable.
 
 ### 2. File-defined role contracts
 
@@ -36,8 +45,8 @@ Roles are defined primarily by markdown and frontmatter:
 
 - `role.md` defines the role contract
 - shared prompts live under `prompts/`
-- role-specific prompts live under `roles/<role-id>/prompts/`
-- scaffold templates live under `roles/<role-id>/templates/`
+- role-specific prompts live under `agents/<role-id>/prompts/`
+- scaffold templates live under `entity-defs/`
 
 This makes new roles mostly a file-creation exercise instead of a TypeScript refactor.
 
@@ -66,7 +75,7 @@ The local explorer is a separate Astro app under `explorer/`, but it is intentio
 
 The explorer should:
 
-- read the shared root context from `company/` and `people/`
+- read the shared root context from `entities/company/` and `entities/people/`
 - read role manifests and scanned entities from the same root TypeScript runtime used by the CLI
 - render markdown files directly instead of copying data into a database or API layer
 - stay thin enough that adding a new role or entity type is still primarily a manifest-and-files exercise
@@ -81,8 +90,8 @@ flowchart TD
   roleResolver --> roleManifest[role.md]
   roleManifest --> templateLibrary[TemplateLibrary]
   roleManifest --> workspaceRules[WorkspaceRules]
-  workspaceRules --> sharedData[company_people]
-  workspaceRules --> roleData[roles_roleId]
+  workspaceRules --> entitiesData[entities/]
+  workspaceRules --> agentData[agents/roleId]
   sharedPrompts[prompts/] --> promptLibrary[PromptLibrary]
   agentsMd[AGENTS.md] --> promptLibrary
   promptLibrary --> sessionFactory[SessionFactory]
@@ -101,7 +110,7 @@ Normal `chat` and `ask` sessions take the role and the user prompt. The user poi
 
 ### `src/roles.ts`
 
-Loads and validates `roles/<role-id>/role.md`, lists available roles, and infers the current role from the working directory when possible.
+Loads and validates `agents/<role-id>/role.md`, lists available roles, and infers the current role from the working directory when possible.
 
 ### `src/prompt-library.ts`
 
@@ -117,7 +126,7 @@ Loads markdown starter templates from disk and performs simple placeholder subst
 
 ### `src/workspace.ts`
 
-Owns shared and role-local path resolution, scaffold creation, shared record creation, generic role-entity creation, entity scanning, transcript matching, and evidence placement.
+Owns shared and entity path resolution, scaffold creation, shared record creation, generic role-entity creation, entity scanning, transcript matching, and evidence placement.
 
 ### `explorer/`
 
@@ -140,14 +149,14 @@ This means the CLI and explorer read the same role and entity model, while the e
 
 Current route model:
 
-- `/` shows the explorer home page with links to shared and role-local areas
-- `/company` renders the shared company markdown files
-- `/people` lists shared people records
+- `/` shows the explorer home page with links to shared and agent areas
+- `/company` renders the shared company markdown files from `entities/company/`
+- `/people` lists shared people records from `entities/people/`
 - `/people/:personId` renders a person's markdown files such as `record.md` and `development-plan.md`
-- `/roles/:roleId` shows a role overview
-- `/roles/:roleId/agent` renders `agent/record.md` and `agent/inbox.md` for that role
-- `/roles/:roleId/:entityType` renders a generic list view for that entity type using role manifest field metadata
-- `/roles/:roleId/:entityType/:entityId` renders the entity detail view from the markdown files declared in the role manifest
+- `/agents/:roleId` shows an agent overview
+- `/agents/:roleId/agent` renders `agent/record.md` and `agent/inbox.md` for that agent
+- `/agents/:roleId/:entityType` renders a generic list view for that entity type using role manifest field metadata
+- `/agents/:roleId/:entityType/:entityId` renders the entity detail view from the markdown files declared in the role manifest
 
 The explorer has no write path. Any canonical update still happens through normal file edits or the CLI runtime.
 
@@ -193,21 +202,20 @@ For prompts specifically, doctor verifies:
 
 ### Shared root
 
-- `company/`
-- `people/`
+- `entities/`
+- `entities/company/`
+- `entities/people/`
+- `entity-defs/`
 - `prompts/`
-- `roles/`
-- `templates/shared/`
+- `agents/`
 - `explorer/`
 
-### Per role
+### Per agent
 
-- `roles/<role-id>/role.md`
-- `roles/<role-id>/AGENTS.md`
-- `roles/<role-id>/agent/`
-- `roles/<role-id>/prompts/` for role-only overlays
-- `roles/<role-id>/templates/`
-- role-specific entity directories from the manifest
+- `agents/<role-id>/role.md`
+- `agents/<role-id>/AGENTS.md`
+- `agents/<role-id>/agent/`
+- `agents/<role-id>/prompts/` for role-only overlays
 
 ## Prompt Contract
 
@@ -227,10 +235,10 @@ This is both the role-level system prompt and the on-demand prompt index. It is 
 
 - the role's operating standard (leadership lens, core standard, operating expectations)
 - startup context (which files to read first at session start)
-- role-local context (which directories contain role-specific entities)
+- entity context (which entities in `entities/` this role manages)
 - an on-demand prompt index linking to role prompt files in `prompts/`
 
-On-demand role prompts live in `roles/<role-id>/prompts/` and are read by the agent during the session when the task requires them. The runtime does not inject them automatically.
+On-demand role prompts live in `agents/<role-id>/prompts/` and are read by the agent during the session when the task requires them. The runtime does not inject them automatically.
 
 For transcript ingest sessions, `transcript_ingest.system_prompts` in `role.md` lists additional role prompt files to append to the system prompt alongside the shared prompts and `AGENTS.md`.
 
@@ -239,7 +247,7 @@ For transcript ingest sessions, `transcript_ingest.system_prompts` in `role.md` 
 Templates are defined generically rather than hardcoded in TypeScript for each business object. Instead:
 
 - role manifests declare which files each entity needs
-- markdown templates provide starter content
+- markdown templates in `entity-defs/` provide starter content
 - TypeScript computes dynamic values such as IDs, timestamps, ownership, and source references
 
 That keeps the mechanism generic while keeping behavior deterministic.
@@ -248,10 +256,10 @@ That keeps the mechanism generic while keeping behavior deterministic.
 
 To add a new role:
 
-1. Create `roles/<role-id>/role.md` with entity types and fields
+1. Create `agents/<role-id>/role.md` with entity types and fields
 2. Create `AGENTS.md` with the role operating standard, startup context, and on-demand prompt index
-3. Add role-specific prompts under `roles/<role-id>/prompts/`
-4. Add entity templates under `roles/<role-id>/templates/`
+3. Add role-specific prompts under `agents/<role-id>/prompts/`
+4. Add entity templates under `entity-defs/`
 5. Optionally declare transcript ingest if that role needs it
 
 No orchestration changes should be required for a standard role.
@@ -268,22 +276,22 @@ Why:
 
 In practice, this means:
 
-- shared pages such as `company` and `people` read markdown from disk directly
+- shared pages such as `company` and `people` read markdown from `entities/` directly
 - role pages reuse the root `dist/` modules for manifest-aware scanning
 - role entity lists are driven by manifest metadata, not hardcoded per entity type
 - role detail pages render the markdown files declared by each entity definition
 - role manifests may optionally declare explorer renderers for entity detail pages or specific entity files, with fallback to the default markdown renderer
 
-Optional role-local explorer renderers live under the role directory and are referenced from `role.md`, for example:
+Optional explorer renderers live under `entity-defs/renderers/` and are referenced from `role.md`, for example:
 
 ```yaml
 explorer:
   renderers:
     detail:
-      deal: explorer/renderers/deal-detail.mjs
+      deal: renderers/deal-detail.mjs
     files:
       deal:
-        meddicc.md: explorer/renderers/deal-meddicc.mjs
+        meddicc.md: renderers/deal-meddicc.mjs
 ```
 
 Each renderer module is loaded dynamically by the explorer at runtime. Detail renderers can replace the full entity detail body for a given entity type. File renderers can replace the default rendering for a specific file like `meddicc.md`. If no matching renderer is declared, the explorer uses the built-in generic markdown view.

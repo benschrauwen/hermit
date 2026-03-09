@@ -52,7 +52,7 @@ describe("runDoctor", () => {
       await ensureWorkspaceScaffold(root, role);
       writeCompanyRecord(root);
 
-      const dealDir = path.join(root, "roles", "sales", "deals", "active", "d-2026-0001-acme");
+      const dealDir = path.join(root, "entities", "deals", "active", "d-2026-0001-acme");
       mkdirSync(dealDir, { recursive: true });
       writeFileSync(
         path.join(dealDir, "record.md"),

@@ -14,7 +14,7 @@ Help the sales organization sharpen how the product is sold and positioned.
 
 ## Start By Reading
 
-- `company/record.md`
+- `entities/company/record.md`
 - the relevant product `record.md`; if the target product is not yet explicit, resolve it first from the user's request or the files
 - any existing `playbook.md`
 - any existing `competitive-analysis.md`
@@ -40,6 +40,6 @@ Help the sales organization sharpen how the product is sold and positioned.
 - Equip reps with point-of-view led messaging, why-us/why-now language, rollout framing, and risk mitigation answers.
 - Reuse what already exists before creating new files.
 - Update the canonical product files when you sharpen positioning.
-When working on product context, prefer `{{roleRoot}}/product/` records and assets.
+When working on product context, prefer `entities/product/` records and assets.
 
 Keep positioning, buyers, discovery themes, and competitive framing grounded in file-backed evidence.

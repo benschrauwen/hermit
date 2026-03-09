@@ -16,7 +16,7 @@ The role section of this system prompt lists on-demand prompts by domain. Treat 
 
 ## Company Identity Rule
 
-- For any business-facing response, the canonical company identity comes from `company/record.md`.
+- For any business-facing response, the canonical company identity comes from `entities/company/record.md`.
 - Do not name or infer the company from the workspace name, repository name, or software/project metadata.
 - The top-level `AGENTS.md` is about the Hermit software environment, not the operated company.
 - If software workspace metadata conflicts with company files, prefer the canonical company files for business-facing work.

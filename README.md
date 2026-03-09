@@ -20,7 +20,7 @@ export OPENAI_API_KEY=your_key_here
 bun cli chat --role sales
 ```
 
-When running from inside `roles/<role-id>/`, the role is inferred automatically.
+When running from inside `agents/<role-id>/`, the role is inferred automatically.
 
 ## Commands
 
@@ -44,44 +44,50 @@ bun run explorer                       # launch the workspace UI
 ## Workspace Structure
 
 ```
-company/           # shared company context
-people/            # shared people records
-prompts/           # shared prompt library
-roles/
+entities/
+  company/         # shared company context
+  people/          # shared people records
+  deals/           # deal entities
+  product/         # product entities
+  tickets/         # ticket entities
+  initiatives/     # initiative entities
+  systems/         # system entities
+  incidents/       # incident entities
+entity-defs/
+  deal/            # deal scaffold templates
+  product/         # product scaffold templates
+  ...              # other entity type templates
+  renderers/       # custom explorer renderers
+agents/
   sales/
     role.md        # role contract (manifest)
     AGENTS.md      # prompt index
     agent/         # operating state (record.md, inbox.md)
     prompts/       # role-specific prompts
-    templates/     # scaffold templates
-    deals/         # role entities
-    product/
   engineering/
     role.md
     AGENTS.md
     agent/
     prompts/
-    templates/
-    tickets/
-templates/shared/
+prompts/           # shared prompt library
 explorer/          # read-only Astro workspace UI
 ```
 
 ## How Roles Work
 
-Each role is defined by `roles/<role-id>/role.md`. The manifest declares:
+Each role is defined by `agents/<role-id>/role.md`. The manifest declares:
 
 - **Prompt catalog** — maps stable IDs to shared or role-local prompt files
 - **Prompt bundles** — ordered sets injected at session startup (`default`, `onboarding`, `transcript-ingest`)
 - **Entity types** — directory layout, ID strategy, fields, required files
-- **Templates** — markdown scaffolds with placeholder substitution
+- **Templates** — markdown scaffolds in `entity-defs/` with placeholder substitution
 - **Capabilities** — optional features like transcript ingestion
 
 The runtime stays generic. Roles define behavior through files, not code changes. Adding a new role:
 
-1. Create `roles/<role-id>/role.md`
+1. Create `agents/<role-id>/role.md`
 2. Add prompt catalog entries and prompt files
-3. Add `AGENTS.md`, templates, and entity directories
+3. Add `AGENTS.md`, entity directories under `entities/`, and templates under `entity-defs/`
 4. Run `bun cli doctor --role <role-id>` to validate
 
 ## Environment

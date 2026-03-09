@@ -6,7 +6,7 @@ import { readEntityFrontmatter } from "../../lib/entity-content.js";
 import { getWorkspaceRoot } from "../../lib/workspace.js";
 
 const root = getWorkspaceRoot();
-const peopleDir = path.join(root, "people");
+const peopleDir = path.join(root, "entities", "people");
 
 const entries = await fs.readdir(peopleDir, { withFileTypes: true });
 const people = (

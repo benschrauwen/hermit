@@ -20,7 +20,7 @@ try {
 }
 
 const entityDef = role.entities.find((e) => e.type === entityType);
-if (!entityDef) return Astro.redirect(`/roles/${roleId}`);
+if (!entityDef) return Astro.redirect(`/agents/${roleId}`);
 
 const rawEntities = await findEntitiesByType(root, role, entityType);
 const allEntities: EntityListRow[] = await Promise.all(
@@ -75,7 +75,7 @@ function buildSortHref(nextSort: string): string {
 ---
 <BaseLayout title={`${entityDef.label} · ${role.name}`} roleId={roleId} roleName={role.name}>
   <div class="breadcrumb">
-    <a href={`/roles/${roleId}`}>{role.name}</a> → {entityDef.label}
+    <a href={`/agents/${roleId}`}>{role.name}</a> → {entityDef.label}
   </div>
   <div class="page-intro">
     <h1>{entityDef.label}</h1>
@@ -108,7 +108,7 @@ function buildSortHref(nextSort: string): string {
       <tbody>
         {entities.map((entity) => (
           <tr>
-            <td><a href={`/roles/${roleId}/${entityType}/${entity.id}`}>{entity.name}</a></td>
+            <td><a href={`/agents/${roleId}/${entityType}/${entity.id}`}>{entity.name}</a></td>
             <td class="meta">{entity.id}</td>
             {entityDef.fields.map((field) => (
               <td>{entity.fieldValues[field.key] || "—"}</td>

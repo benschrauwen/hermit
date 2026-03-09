@@ -1,5 +1,5 @@
 /**
- * Resolves the leadership workspace root (repo root with roles/, company/, etc.).
+ * Resolves the leadership workspace root (repo root with agents/, entities/, etc.).
  * Use WORKSPACE_ROOT env when running explorer from repo root; otherwise
  * defaults to parent of explorer dir when cwd is explorer.
  */

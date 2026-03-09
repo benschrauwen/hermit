@@ -98,11 +98,12 @@ export interface RoleDefinition {
   description: string;
   roleDir: string;
   root: string;
+  entitiesDir: string;
   agentsFile: string;
   manifestFile: string;
   sharedPromptsDir: string;
   rolePromptsDir: string;
-  templatesDir: string;
+  entityDefsDir: string;
   agentDir: string;
   sessionsDir: string;
   roleDirectories: string[];

@@ -23,9 +23,9 @@ describe("PromptLibrary", () => {
       const out = await lib.renderSystemPrompt({
         workspaceRoot: "/my/root",
         roleId: "sales",
-        roleRoot: "roles/sales",
+        roleRoot: "agents/sales",
         entityId: "d-1",
-        entityPath: "/my/root/roles/sales/deals/active/d-1",
+        entityPath: "/my/root/entities/deals/active/d-1",
         transcriptPath: "/path/to/transcript.md",
       });
       expect(out).toContain("file-first leadership agent");
@@ -39,9 +39,9 @@ describe("PromptLibrary", () => {
       const out = await lib.renderSystemPrompt({
         workspaceRoot: "/my/root",
         roleId: "sales",
-        roleRoot: "roles/sales",
+        roleRoot: "agents/sales",
       });
-      expect(out).toContain("`roles/sales/AGENTS.md`");
+      expect(out).toContain("`agents/sales/AGENTS.md`");
       expect(out).not.toContain("{{roleRoot}}");
     });
 
@@ -52,9 +52,9 @@ describe("PromptLibrary", () => {
         {
           workspaceRoot: "/my/root",
           roleId: "sales",
-          roleRoot: "roles/sales",
+          roleRoot: "agents/sales",
           entityId: "d-1",
-          entityPath: "/my/root/roles/sales/deals/active/d-1",
+          entityPath: "/my/root/entities/deals/active/d-1",
           transcriptPath: "/tmp/call.md",
         },
         ["23-mode-transcript-ingest.md"],
@@ -70,11 +70,11 @@ describe("PromptLibrary", () => {
       const out = await lib.renderRolePrompt("40-command-transcript-run.md", {
         workspaceRoot: "/root",
         roleId: "sales",
-        roleRoot: "roles/sales",
-        transcriptPath: "/root/roles/sales/deals/active/d-1/transcripts/call.md",
+        roleRoot: "agents/sales",
+        transcriptPath: "/root/entities/deals/active/d-1/transcripts/call.md",
       });
       expect(out).toContain("Transcript Processing Request");
-      expect(out).toContain("/root/roles/sales/deals/active/d-1/transcripts/call.md");
+      expect(out).toContain("/root/entities/deals/active/d-1/transcripts/call.md");
     });
 
     it("uses not-selected for missing optional context", async () => {
@@ -82,7 +82,7 @@ describe("PromptLibrary", () => {
       const out = await lib.renderRolePrompt("40-command-transcript-run.md", {
         workspaceRoot: "/root",
         roleId: "sales",
-        roleRoot: "roles/sales",
+        roleRoot: "agents/sales",
       });
       expect(out).toContain("not-selected");
     });

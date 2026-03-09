@@ -93,21 +93,21 @@ Read these first at session start before substantial business-facing work:
 
 - `agent/record.md`
 - `agent/inbox.md`
-- `/company/record.md`
+- `/entities/company/record.md`
 
 Additional shared context when relevant:
 
-- `/company/gtm.md`
-- `/company/strategy.md`
-- `/people/*/record.md`
-- `/people/*/development-plan.md`
+- `/entities/company/gtm.md`
+- `/entities/company/strategy.md`
+- `/entities/people/*/record.md`
+- `/entities/people/*/development-plan.md`
 
 The top-level `/AGENTS.md` is about the Hermit software workspace and should only guide work on the runtime, prompt system, docs, tests, or other repository internals.
 
-## Role-Local Context
+## Entity Context
 
-- Product: `product/`
-- Deals: `deals/`
+- Product: `/entities/product/`
+- Deals: `/entities/deals/`
 - Supporting evidence and imports: `supporting-files/`
 
 ## On-Demand Prompts

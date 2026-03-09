@@ -2,12 +2,7 @@
 id: engineering
 name: Head of Engineering
 description: File-first engineering leadership role for agentic product delivery, systems ownership, execution control, and incident follow-through.
-role_directories:
-  - tickets
-  - initiatives
-  - systems
-  - incidents/open
-  - incidents/resolved
+role_directories: []
 entities:
   - key: system
     label: System
@@ -248,4 +243,4 @@ entities:
 
 # Engineering Role
 
-This role owns engineering execution, systems clarity, initiative control, ticket hygiene, and incident follow-through inside its role workspace.
+This role owns engineering execution, systems clarity, initiative control, ticket hygiene, and incident follow-through using the shared entities directory.

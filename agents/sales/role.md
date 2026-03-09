@@ -3,11 +3,6 @@ id: sales
 name: Sales Leader
 description: File-first sales leadership role with deals and product context.
 role_directories:
-  - deals
-  - deals/active
-  - deals/closed-won
-  - deals/closed-lost
-  - product
   - supporting-files
   - supporting-files/inbox
   - supporting-files/unmatched-transcripts
@@ -124,7 +119,8 @@ entities:
 explorer:
   renderers:
     detail:
-      deal: explorer/renderers/deal-detail.mjs
+      deal: renderers/deal-detail.mjs
+
 transcript_ingest:
   entity_type: deal
   command_prompt: 40-command-transcript-run.md
@@ -137,4 +133,4 @@ transcript_ingest:
 
 # Sales Role
 
-This role owns product and deal execution inside its own role workspace.
+This role owns product and deal execution using the shared entities directory.

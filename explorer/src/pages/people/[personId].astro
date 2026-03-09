@@ -10,7 +10,7 @@ const { personId } = Astro.params;
 if (!personId) return Astro.redirect("/people");
 
 const root = getWorkspaceRoot();
-const personDir = path.join(root, "people", personId);
+const personDir = path.join(root, "entities", "people", personId);
 if (!existsSync(personDir)) return Astro.redirect("/people");
 
 marked.setOptions({ gfm: true });

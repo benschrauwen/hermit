@@ -14,8 +14,8 @@ Help engineering leadership decide what should be built, what should wait, and w
 
 ## Start By Reading
 
-- `company/record.md`
-- `company/strategy.md`
+- `entities/company/record.md`
+- `entities/company/strategy.md`
 - the selected initiative `record.md`, `plan.md`, and `review.md` when one is in scope
 - linked system records and the highest-risk tickets
 - recent incident files when reliability work competes with roadmap work

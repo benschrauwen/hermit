@@ -229,59 +229,65 @@ function parseExplorerConfig(value: unknown): RoleExplorerConfig | undefined {
 
 export function getRootPaths(root: string): {
   root: string;
+  entitiesDir: string;
   companyDir: string;
   peopleDir: string;
-  rolesDir: string;
+  agentsDir: string;
 } {
+  const entitiesDir = path.join(root, "entities");
   return {
     root,
-    companyDir: path.join(root, "company"),
-    peopleDir: path.join(root, "people"),
-    rolesDir: path.join(root, "roles"),
+    entitiesDir,
+    companyDir: path.join(entitiesDir, "company"),
+    peopleDir: path.join(entitiesDir, "people"),
+    agentsDir: path.join(root, "agents"),
   };
 }
 
 export function getRolePaths(root: string, roleId: string): {
   roleDir: string;
+  entitiesDir: string;
   agentsFile: string;
   manifestFile: string;
   sharedPromptsDir: string;
   rolePromptsDir: string;
-  templatesDir: string;
+  entityDefsDir: string;
   agentDir: string;
   sessionsDir: string;
 } {
-  const roleDir = path.join(getRootPaths(root).rolesDir, roleId);
+  const rootPaths = getRootPaths(root);
+  const roleDir = path.join(rootPaths.agentsDir, roleId);
   return {
     roleDir,
+    entitiesDir: rootPaths.entitiesDir,
     agentsFile: path.join(roleDir, ROLE_AGENTS_FILE),
     manifestFile: path.join(roleDir, ROLE_MANIFEST_FILE),
     sharedPromptsDir: path.join(root, "prompts"),
     rolePromptsDir: path.join(roleDir, "prompts"),
-    templatesDir: path.join(roleDir, "templates"),
+    entityDefsDir: path.join(root, "entity-defs"),
     agentDir: path.join(roleDir, "agent"),
     sessionsDir: path.join(roleDir, ".role-agent", "sessions"),
   };
 }
 
-export function resolveRoleLocalPath(role: RoleDefinition, relativePath: string): string {
-  const resolvedPath = path.resolve(role.roleDir, relativePath);
-  const relativeToRoleDir = path.relative(role.roleDir, resolvedPath);
-  if (relativeToRoleDir.startsWith("..") || path.isAbsolute(relativeToRoleDir)) {
-    throw new Error(`Role ${role.id} references a path outside its role directory: ${relativePath}`);
+export function resolveEntityDefsLocalPath(role: RoleDefinition, relativePath: string): string {
+  const resolvedPath = path.resolve(role.entityDefsDir, relativePath);
+  const relativeToEntityDefsDir = path.relative(role.entityDefsDir, resolvedPath);
+  if (relativeToEntityDefsDir.startsWith("..") || path.isAbsolute(relativeToEntityDefsDir)) {
+    throw new Error(`Role ${role.id} references a path outside the entity-defs directory: ${relativePath}`);
   }
   return resolvedPath;
 }
 
 export async function listRoleIds(root: string): Promise<string[]> {
   try {
-    const entries = await fs.readdir(getRootPaths(root).rolesDir, { withFileTypes: true });
+    const entries = await fs.readdir(getRootPaths(root).agentsDir, { withFileTypes: true });
     const roleIds = await Promise.all(
       entries
         .filter((entry) => entry.isDirectory())
         .map(async (entry) => {
           try {
-            await fs.access(path.join(getRootPaths(root).rolesDir, entry.name, ROLE_MANIFEST_FILE));
+            await fs.access(path.join(getRootPaths(root).agentsDir, entry.name, ROLE_MANIFEST_FILE));
             return entry.name;
           } catch {
             return undefined;
@@ -309,11 +315,12 @@ export async function loadRole(root: string, roleId: string): Promise<RoleDefini
     description: asString(data.description, "description"),
     root,
     roleDir: paths.roleDir,
+    entitiesDir: paths.entitiesDir,
     agentsFile: paths.agentsFile,
     manifestFile: paths.manifestFile,
     sharedPromptsDir: paths.sharedPromptsDir,
     rolePromptsDir: paths.rolePromptsDir,
-    templatesDir: paths.templatesDir,
+    entityDefsDir: paths.entityDefsDir,
     agentDir: paths.agentDir,
     sessionsDir: paths.sessionsDir,
     roleDirectories: asStringArray(data.role_directories, "role_directories"),
@@ -339,7 +346,7 @@ export async function resolveRole(root: string, explicitRoleId?: string): Promis
   }
 
   if (roleIds.length === 0) {
-    throw new Error("No roles are configured. Add a role under roles/<role-id>/role.md.");
+    throw new Error("No roles are configured. Add a role under agents/<role-id>/role.md.");
   }
 
   throw new Error(`Multiple roles are configured (${roleIds.join(", ")}). Re-run with --role <id>.`);
@@ -348,20 +355,20 @@ export async function resolveRole(root: string, explicitRoleId?: string): Promis
 export function inferRootAndRoleFromCwd(cwd: string): { root: string; roleId?: string } {
   const normalized = path.resolve(cwd);
   const segments = normalized.split(path.sep);
-  const rolesIndex = segments.lastIndexOf("roles");
-  if (rolesIndex === -1 || rolesIndex === segments.length - 1) {
+  const agentsIndex = segments.lastIndexOf("agents");
+  if (agentsIndex === -1 || agentsIndex === segments.length - 1) {
     return { root: normalized };
   }
 
-  const roleId = segments[rolesIndex + 1];
-  const rootSegments = segments.slice(0, rolesIndex);
+  const roleId = segments[agentsIndex + 1];
+  const rootSegments = segments.slice(0, agentsIndex);
   const root = rootSegments.length === 0 ? path.sep : rootSegments.join(path.sep);
   return roleId ? { root, roleId } : { root };
 }
 
 export async function ensureRoleTemplatesExist(role: RoleDefinition): Promise<void> {
   const files = [
-    ...role.entities.flatMap((entity) => entity.files.map((file) => path.join(role.templatesDir, file.template))),
+    ...role.entities.flatMap((entity) => entity.files.map((file) => path.join(role.entityDefsDir, file.template))),
   ];
   if (role.transcriptIngest) {
     files.push(path.join(role.rolePromptsDir, role.transcriptIngest.commandPrompt));
@@ -411,7 +418,7 @@ export async function validateRoleManifest(root: string, roleId: string): Promis
       throw new Error(`Role ${roleId} references explorer detail renderer for unknown entity type ${entityType}.`);
     }
     try {
-      await fs.access(resolveRoleLocalPath(role, rendererPath));
+      await fs.access(resolveEntityDefsLocalPath(role, rendererPath));
     } catch {
       throw new Error(`Role ${roleId} is missing explorer detail renderer: ${rendererPath}`);
     }
@@ -424,7 +431,7 @@ export async function validateRoleManifest(root: string, roleId: string): Promis
     }
     for (const rendererPath of Object.values(rendererMap)) {
       try {
-        await fs.access(resolveRoleLocalPath(role, rendererPath));
+        await fs.access(resolveEntityDefsLocalPath(role, rendererPath));
       } catch {
         throw new Error(`Role ${roleId} is missing explorer file renderer: ${rendererPath}`);
       }

@@ -122,11 +122,12 @@ function normalizeRendererResult(result: RendererResult, description: string): s
   throw new Error(`${description} must return a string or an object with an html field.`);
 }
 
-function resolveRoleRendererPath(role: RoleDefinition, rendererPath: string): string {
-  const resolvedPath = path.resolve(role.roleDir, rendererPath);
-  const relativeToRoleDir = path.relative(role.roleDir, resolvedPath);
-  if (relativeToRoleDir.startsWith("..") || path.isAbsolute(relativeToRoleDir)) {
-    throw new Error(`Role ${role.id} references a renderer outside its role directory: ${rendererPath}`);
+function resolveRendererPath(root: string, rendererPath: string): string {
+  const entityDefsDir = path.join(root, "entity-defs");
+  const resolvedPath = path.resolve(entityDefsDir, rendererPath);
+  const relativeToEntityDefsDir = path.relative(entityDefsDir, resolvedPath);
+  if (relativeToEntityDefsDir.startsWith("..") || path.isAbsolute(relativeToEntityDefsDir)) {
+    throw new Error(`Renderer references a path outside the entity-defs directory: ${rendererPath}`);
   }
   return resolvedPath;
 }
@@ -168,7 +169,7 @@ export async function renderRoleEntityDetail(args: {
   const detailRendererPath = args.role.explorer?.renderers?.detail?.[args.entityType];
 
   if (detailRendererPath) {
-    const module = await loadPluginModule<DetailRendererModule>(resolveRoleRendererPath(args.role, detailRendererPath));
+    const module = await loadPluginModule<DetailRendererModule>(resolveRendererPath(args.root, detailRendererPath));
     const renderer = module.renderEntityDetail ?? module.default;
     if (typeof renderer !== "function") {
       throw new Error(
@@ -196,7 +197,7 @@ export async function renderRoleEntityDetail(args: {
         };
       }
 
-      const module = await loadPluginModule<FileRendererModule>(resolveRoleRendererPath(args.role, fileRendererPath));
+      const module = await loadPluginModule<FileRendererModule>(resolveRendererPath(args.root, fileRendererPath));
       const renderer = module.renderEntityFile ?? module.default;
       if (typeof renderer !== "function") {
         throw new Error(
