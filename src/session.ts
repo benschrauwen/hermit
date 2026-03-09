@@ -17,8 +17,8 @@ import {
 import { createBootstrapTools, createCustomTools } from "./agent-tools.js";
 import { DEFAULT_MODEL, DEFAULT_THINKING_LEVEL } from "./constants.js";
 import { PromptLibrary } from "./prompt-library.js";
-import { TelemetryRecorder } from "./telemetry.js";
-import type { PromptContext, RoleDefinition, WorkspaceInitializationState } from "./types.js";
+import { TelemetryRecorder } from "./telemetry-recorder.js";
+import type { PromptContext, RoleDefinition, TelemetrySessionContext, WorkspaceInitializationState } from "./types.js";
 import { ensureWorkspaceScaffold, getWorkspaceBootstrapInitializationState, getWorkspaceInitializationState } from "./workspace.js";
 
 export type SessionHistoryType = "interactive" | "heartbeat";
@@ -32,6 +32,7 @@ interface SessionOptions {
   sessionHistoryType?: SessionHistoryType;
   additionalRolePrompts?: string[];
   telemetryCommandName?: string;
+  telemetryContext?: Partial<TelemetrySessionContext>;
 }
 
 export const ONBOARDING_CHAT_OPENING_PROMPT =
@@ -470,6 +471,7 @@ export async function createRoleSession(options: SessionOptions): Promise<{
     ...(options.continueRecent !== undefined ? { continueRecent: options.continueRecent } : {}),
     modelProvider: model.provider,
     modelId: model.id,
+    ...options.telemetryContext,
   });
 
   return { session, promptLibrary, workspaceState, telemetry };
@@ -481,6 +483,7 @@ export async function createBootstrapSession(options: {
   persist: boolean;
   continueRecent?: boolean;
   telemetryCommandName?: string;
+  telemetryContext?: Partial<TelemetrySessionContext>;
 }): Promise<{
   session: AgentSession;
   promptLibrary: PromptLibrary;
@@ -539,6 +542,7 @@ export async function createBootstrapSession(options: {
     ...(options.continueRecent !== undefined ? { continueRecent: options.continueRecent } : {}),
     modelProvider: model.provider,
     modelId: model.id,
+    ...options.telemetryContext,
   });
 
   return { session, promptLibrary, workspaceState, telemetry };
@@ -772,7 +776,6 @@ export async function runOneShotPrompt(
     });
   } finally {
     stopStreaming();
-    await telemetry?.close();
   }
 }
 
@@ -813,6 +816,5 @@ export async function runChatLoop(
   } finally {
     stopStreaming();
     rl.close();
-    await options.telemetry?.close();
   }
 }

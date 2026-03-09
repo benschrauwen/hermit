@@ -46,6 +46,7 @@ bun run explorer                       # launch the workspace UI
 - **Workspace explorer** — a local read-only Astro UI for browsing the system of record, driven by the same runtime the CLI uses.
 - **Doctor** — validates workspace integrity: prompt links, required files, duplicate IDs, placeholder drift.
 - **Local observability** — append-only local telemetry for sessions, turns, tool calls, retries, and report generation for recent runtime performance.
+- **Git-aware session checkpoints** — `chat`, `ask`, and `heartbeat` can create command-boundary checkpoint commits over allowlisted workspace paths and record the linkage in telemetry.
 
 ## Workspace Structure
 
@@ -106,6 +107,17 @@ Hermit separates **deterministic orchestration** (TypeScript) from **operating c
 The explorer reuses the same role and entity model as the CLI — no separate domain layer, no data duplication.
 
 For the full design document, see [`docs/architecture.md`](docs/architecture.md). For runtime telemetry, reporting, and storage conventions, see [`docs/observability.md`](docs/observability.md).
+
+## Git Checkpoints
+
+`chat`, `ask`, and `heartbeat` are git-aware session commands.
+
+- A `before` checkpoint is created only when relevant tracked workspace paths are already dirty.
+- An `after` checkpoint is created only when the command leaves relevant allowlisted workspace changes behind.
+- Checkpoints are ordinary commits with Hermit trailers, not tags.
+- Automatic checkpoint staging is restricted to canonical workspace paths such as `agents/`, `entities/`, `entity-defs/`, `prompts/`, `skills/`, `src/`, `tests/`, `docs/`, and `README.md`.
+- `.hermit/` runtime artifacts are intentionally excluded.
+- No rollback happens automatically. If history needs to be undone, use an explicit safe operation such as `git revert`.
 
 ## License
 

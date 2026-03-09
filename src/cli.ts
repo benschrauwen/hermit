@@ -2,10 +2,12 @@
 
 import "dotenv/config";
 import { Command } from "commander";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import process from "node:process";
 
 import { runDoctor } from "./doctor.js";
+import { createCheckpoint, getRepoState, shouldCheckpoint } from "./git.js";
 import { runTranscriptIngest } from "./ingest.js";
 import { inferRootAndRoleFromCwd, loadRole, resolveChatSession, resolveRole } from "./roles.js";
 import {
@@ -17,6 +19,7 @@ import {
   runOneShotPrompt,
 } from "./session.js";
 import { generateTelemetryReport, renderTelemetryReportSummary, writeTelemetryReport } from "./telemetry.js";
+import type { TelemetryRecorder } from "./telemetry-recorder.js";
 import type { RoleDefinition } from "./types.js";
 
 async function resolveRoleContext(explicitRoleId?: string): Promise<{ root: string; roleId: string }> {
@@ -67,6 +70,81 @@ async function resolveSessionContext(options: { role?: string }): Promise<{
   };
 }
 
+type SessionCommandName = "chat" | "ask" | "heartbeat";
+
+interface CommandGitContext {
+  sessionId: string;
+  promptContext: {
+    gitBranch?: string;
+    gitHeadSha?: string;
+    gitHeadShortSha?: string;
+    gitHeadSubject?: string;
+    gitDirty?: boolean;
+    gitCheckpointBeforeSha?: string;
+  };
+  telemetryContext: {
+    sessionId: string;
+    gitBranch?: string;
+    gitHeadAtStart?: string;
+    checkpointBeforeSha?: string;
+  };
+}
+
+async function withGitCheckpoint(options: {
+  root: string;
+  commandName: SessionCommandName;
+  roleId?: string;
+  run: (context: CommandGitContext) => Promise<TelemetryRecorder | undefined>;
+}): Promise<void> {
+  const sessionId = randomUUID();
+  const checkpointMeta = {
+    commandName: options.commandName,
+    sessionId,
+    ...(options.roleId !== undefined ? { roleId: options.roleId } : {}),
+  };
+
+  const beforeState = await getRepoState(options.root);
+  const checkpointBefore = shouldCheckpoint(beforeState)
+    ? await createCheckpoint(options.root, { ...checkpointMeta, phase: "before" })
+    : undefined;
+
+  const startState = checkpointBefore ? await getRepoState(options.root) : beforeState;
+  const context: CommandGitContext = {
+    sessionId,
+    promptContext: {
+      ...(startState?.branch !== undefined ? { gitBranch: startState.branch } : {}),
+      ...(startState?.headSha !== undefined ? { gitHeadSha: startState.headSha } : {}),
+      ...(startState?.headShortSha !== undefined ? { gitHeadShortSha: startState.headShortSha } : {}),
+      ...(startState?.headSubject !== undefined ? { gitHeadSubject: startState.headSubject } : {}),
+      ...(startState !== undefined ? { gitDirty: startState.dirty } : {}),
+      ...(checkpointBefore?.checkpointSha !== undefined ? { gitCheckpointBeforeSha: checkpointBefore.checkpointSha } : {}),
+    },
+    telemetryContext: {
+      sessionId,
+      ...(startState?.branch !== undefined ? { gitBranch: startState.branch } : {}),
+      ...(startState?.headSha !== undefined ? { gitHeadAtStart: startState.headSha } : {}),
+      ...(checkpointBefore?.checkpointSha !== undefined ? { checkpointBeforeSha: checkpointBefore.checkpointSha } : {}),
+    },
+  };
+
+  let telemetry: TelemetryRecorder | undefined;
+  try {
+    telemetry = await options.run(context);
+  } finally {
+    const afterState = await getRepoState(options.root);
+    const checkpointAfter = shouldCheckpoint(afterState)
+      ? await createCheckpoint(options.root, { ...checkpointMeta, phase: "after" })
+      : undefined;
+    const endHead = checkpointAfter ?? afterState;
+
+    telemetry?.setGitSessionEndContext({
+      ...(endHead?.headSha !== undefined ? { gitHeadAtEnd: endHead.headSha } : {}),
+      ...(checkpointAfter?.checkpointSha !== undefined ? { checkpointAfterSha: checkpointAfter.checkpointSha } : {}),
+    });
+    await telemetry?.close();
+  }
+}
+
 const program = new Command();
 
 program.name("hermit").description("Local file-first runtime for autonomous applications").version("0.1.0");
@@ -90,41 +168,53 @@ program
         ...(options.role !== undefined ? { explicitRoleId: options.role } : {}),
         ...(inferred.roleId !== undefined ? { inferredRoleId: inferred.roleId } : {}),
       });
+      await withGitCheckpoint({
+        root: resolved.root,
+        commandName: "chat",
+        ...(resolved.kind === "role" ? { roleId: resolved.role.id } : {}),
+        run: async (gitContext) => {
+          const sessionContext =
+            resolved.kind === "bootstrap"
+              ? await createBootstrapSession({
+                  root: resolved.root,
+                  persist: true,
+                  continueRecent: Boolean(options.continue),
+                  telemetryCommandName: "chat",
+                  telemetryContext: gitContext.telemetryContext,
+                  promptContext: {
+                    workspaceRoot: resolved.root,
+                    ...gitContext.promptContext,
+                  },
+                })
+              : await createRoleSession({
+                  root: resolved.root,
+                  role: resolved.role,
+                  persist: true,
+                  continueRecent: Boolean(options.continue),
+                  telemetryCommandName: "chat",
+                  telemetryContext: gitContext.telemetryContext,
+                  promptContext: {
+                    workspaceRoot: resolved.root,
+                    roleId: resolved.role.id,
+                    roleRoot: path.relative(resolved.root, resolved.role.roleDir) || ".",
+                    ...gitContext.promptContext,
+                  },
+                });
 
-      const sessionContext =
-        resolved.kind === "bootstrap"
-          ? await createBootstrapSession({
-              root: resolved.root,
-              persist: true,
-              continueRecent: Boolean(options.continue),
-              telemetryCommandName: "chat",
-              promptContext: {
-                workspaceRoot: resolved.root,
-              },
-            })
-          : await createRoleSession({
-              root: resolved.root,
-              role: resolved.role,
-              persist: true,
-              continueRecent: Boolean(options.continue),
-              telemetryCommandName: "chat",
-              promptContext: {
-                workspaceRoot: resolved.root,
-                roleId: resolved.role.id,
-                roleRoot: path.relative(resolved.root, resolved.role.roleDir) || ".",
-              },
-            });
+          const initialPrompt = resolveInitialChatPrompt({
+            workspaceState: sessionContext.workspaceState,
+            ...(options.prompt !== undefined ? { initialPrompt: options.prompt } : {}),
+            ...(options.continue !== undefined ? { continueRecent: options.continue } : {}),
+          });
 
-      const initialPrompt = resolveInitialChatPrompt({
-        workspaceState: sessionContext.workspaceState,
-        ...(options.prompt !== undefined ? { initialPrompt: options.prompt } : {}),
-        ...(options.continue !== undefined ? { continueRecent: options.continue } : {}),
-      });
+          await runChatLoop(sessionContext.session, {
+            ...(initialPrompt !== undefined ? { initialPrompt } : {}),
+            initialImages: collectImagePaths(options.image),
+            telemetry: sessionContext.telemetry,
+          });
 
-      await runChatLoop(sessionContext.session, {
-        ...(initialPrompt !== undefined ? { initialPrompt } : {}),
-        initialImages: collectImagePaths(options.image),
-        telemetry: sessionContext.telemetry,
+          return sessionContext.telemetry;
+        },
       });
     },
   );
@@ -144,15 +234,27 @@ program
       },
     ) => {
       const { root, role, promptContext } = await resolveSessionContext(options);
-      const { session, telemetry } = await createRoleSession({
+      await withGitCheckpoint({
         root,
-        role,
-        persist: false,
-        telemetryCommandName: "ask",
-        promptContext,
-      });
+        commandName: "ask",
+        roleId: role.id,
+        run: async (gitContext) => {
+          const { session, telemetry } = await createRoleSession({
+            root,
+            role,
+            persist: false,
+            telemetryCommandName: "ask",
+            telemetryContext: gitContext.telemetryContext,
+            promptContext: {
+              ...promptContext,
+              ...gitContext.promptContext,
+            },
+          });
 
-      await runOneShotPrompt(session, promptParts.join(" "), collectImagePaths(options.image), telemetry);
+          await runOneShotPrompt(session, promptParts.join(" "), collectImagePaths(options.image), telemetry);
+          return telemetry;
+        },
+      });
     },
   );
 
@@ -169,17 +271,29 @@ program
       prompt?: string;
     }) => {
       const { root, promptContext, role } = await resolveSessionContext(options);
-      const { session, telemetry } = await createRoleSession({
+      await withGitCheckpoint({
         root,
-        role,
-        persist: true,
-        continueRecent: Boolean(options.continue),
-        sessionHistoryType: "heartbeat",
-        telemetryCommandName: "heartbeat",
-        promptContext,
-      });
+        commandName: "heartbeat",
+        roleId: role.id,
+        run: async (gitContext) => {
+          const { session, telemetry } = await createRoleSession({
+            root,
+            role,
+            persist: true,
+            continueRecent: Boolean(options.continue),
+            sessionHistoryType: "heartbeat",
+            telemetryCommandName: "heartbeat",
+            telemetryContext: gitContext.telemetryContext,
+            promptContext: {
+              ...promptContext,
+              ...gitContext.promptContext,
+            },
+          });
 
-      await runOneShotPrompt(session, options.prompt ?? DEFAULT_HEARTBEAT_PROMPT, [], telemetry);
+          await runOneShotPrompt(session, options.prompt ?? DEFAULT_HEARTBEAT_PROMPT, [], telemetry);
+          return telemetry;
+        },
+      });
     },
   );
 

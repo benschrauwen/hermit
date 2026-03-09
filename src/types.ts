@@ -11,6 +11,12 @@ export interface PromptContext {
   currentDateTimeIso?: string;
   currentLocalDateTime?: string;
   currentTimeZone?: string;
+  gitBranch?: string;
+  gitHeadSha?: string;
+  gitHeadShortSha?: string;
+  gitHeadSubject?: string;
+  gitDirty?: boolean;
+  gitCheckpointBeforeSha?: string;
 }
 
 export interface EntityRecord {
@@ -111,6 +117,7 @@ export interface WorkspaceInitializationState {
 }
 
 export interface TelemetrySessionContext {
+  sessionId?: string;
   workspaceRoot: string;
   roleId?: string;
   commandName: string;
@@ -118,6 +125,9 @@ export interface TelemetrySessionContext {
   continueRecent?: boolean;
   modelProvider: string;
   modelId: string;
+  gitBranch?: string;
+  gitHeadAtStart?: string;
+  checkpointBeforeSha?: string;
 }
 
 export interface TelemetryToolReport {

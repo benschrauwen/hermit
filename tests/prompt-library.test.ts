@@ -70,9 +70,19 @@ describe("PromptLibrary", () => {
         workspaceRoot: "/my/root",
         roleId: "role-a",
         roleRoot: "agents/role-a",
+        gitBranch: "main",
+        gitHeadSha: "1234567890abcdef",
+        gitHeadShortSha: "1234567",
+        gitHeadSubject: "feat: keep git context visible",
+        gitDirty: false,
+        gitCheckpointBeforeSha: "1234567890abcdef",
       });
       expect(out).toContain("`agents/role-a/AGENTS.md`");
+      expect(out).toContain("Current branch: `main`");
+      expect(out).toContain("Current HEAD: `1234567` (`1234567890abcdef`)");
+      expect(out).toContain("Before-checkpoint SHA: `1234567890abcdef`");
       expect(out).not.toContain("{{roleRoot}}");
+      expect(out).not.toContain("{{gitBranch}}");
     });
 
     it("includes additional role prompts when provided", async () => {

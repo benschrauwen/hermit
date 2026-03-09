@@ -77,6 +77,13 @@ export class PromptLibrary {
       currentDateTimeIso: context.currentDateTimeIso ?? "unknown",
       currentLocalDateTime: context.currentLocalDateTime ?? "unknown",
       currentTimeZone: context.currentTimeZone ?? "unknown",
+      gitBranch: context.gitBranch ?? "unknown",
+      gitHeadSha: context.gitHeadSha ?? "unknown",
+      gitHeadShortSha: context.gitHeadShortSha ?? "unknown",
+      gitHeadSubject: context.gitHeadSubject ?? "unknown",
+      gitDirty: context.gitDirty === undefined ? "unknown" : context.gitDirty ? "yes" : "no",
+      gitCheckpointBeforeSha: context.gitCheckpointBeforeSha ?? "not-created",
+      gitCheckpointAfterSha: "not-created",
     };
 
     return template.replaceAll(/\{\{(\w+)\}\}/g, (_match, key: string) => values[key] ?? "");

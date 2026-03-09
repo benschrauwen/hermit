@@ -19,6 +19,7 @@ Current telemetry covers:
 - assistant message errors
 - retry events
 - compaction events
+- session-level git linkage for command-boundary checkpoints when available
 
 This is intentionally local-first and append-only.
 
@@ -57,6 +58,16 @@ Each event includes at least:
 - `commandName`
 - `model`
 - `roleId` when available
+
+For `session_start` and `session_end`, git-aware session commands may also include:
+
+- `gitBranch`
+- `gitHeadAtStart`
+- `gitHeadAtEnd`
+- `checkpointBeforeSha`
+- `checkpointAfterSha`
+
+This lets session logs be correlated with normal git history without writing commit SHAs into canonical records.
 
 ## Commands
 
@@ -100,6 +111,8 @@ The report currently summarizes:
 - slowest turns
 - per-tool breakdown
 
+Git linkage is stored on the raw session events today. It is primarily intended for correlation, debugging, and future history-aware reporting such as `what changed today?`
+
 ## How To Use It
 
 Telemetry is one input to Hermit's self-improvement loop.
@@ -121,3 +134,4 @@ Telemetry is also referenced from:
 - logs are append-only
 - reports are derived artifacts, not the source log
 - raw tool arguments and full prompts are not stored in telemetry events today
+- git linkage is observational metadata only; it does not trigger automatic rollback or background git mutation

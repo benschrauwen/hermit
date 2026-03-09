@@ -17,6 +17,9 @@ interface SessionStartTelemetryEvent extends TelemetryBaseEvent {
   persist: boolean;
   continueRecent: boolean;
   workspaceRoot: string;
+  gitBranch?: string | undefined;
+  gitHeadAtStart?: string | undefined;
+  checkpointBeforeSha?: string | undefined;
 }
 
 export interface SessionEndTelemetryEvent extends TelemetryBaseEvent {
@@ -29,6 +32,11 @@ export interface SessionEndTelemetryEvent extends TelemetryBaseEvent {
   silentTurnCount: number;
   retryCount: number;
   compactionCount: number;
+  gitBranch?: string | undefined;
+  gitHeadAtStart?: string | undefined;
+  gitHeadAtEnd?: string | undefined;
+  checkpointBeforeSha?: string | undefined;
+  checkpointAfterSha?: string | undefined;
 }
 
 interface TurnStartTelemetryEvent extends TelemetryBaseEvent {

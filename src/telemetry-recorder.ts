@@ -33,6 +33,11 @@ interface RecorderStats {
   compactionCount: number;
 }
 
+interface GitSessionEndContext {
+  gitHeadAtEnd?: string;
+  checkpointAfterSha?: string;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -114,6 +119,7 @@ export class TelemetryRecorder {
   private activeTurn: ActiveTurnState | undefined;
   private readonly activeTools = new Map<string, ActiveToolState>();
   private closed = false;
+  private gitSessionEndContext: GitSessionEndContext = {};
 
   private constructor(context: TelemetrySessionContext, sessionId: string, filePath: string, startedAtMs: number) {
     this.context = context;
@@ -123,7 +129,7 @@ export class TelemetryRecorder {
   }
 
   static async create(context: TelemetrySessionContext): Promise<TelemetryRecorder> {
-    const sessionId = randomUUID();
+    const sessionId = context.sessionId ?? randomUUID();
     const startedAt = new Date();
     const filePath = path.join(
       context.workspaceRoot,
@@ -142,6 +148,9 @@ export class TelemetryRecorder {
       persist: context.persist,
       continueRecent: Boolean(context.continueRecent),
       workspaceRoot: context.workspaceRoot,
+      ...(context.gitBranch !== undefined ? { gitBranch: context.gitBranch } : {}),
+      ...(context.gitHeadAtStart !== undefined ? { gitHeadAtStart: context.gitHeadAtStart } : {}),
+      ...(context.checkpointBeforeSha !== undefined ? { checkpointBeforeSha: context.checkpointBeforeSha } : {}),
     });
     return recorder;
   }
@@ -152,6 +161,13 @@ export class TelemetryRecorder {
 
   getFilePath(): string {
     return this.filePath;
+  }
+
+  setGitSessionEndContext(context: GitSessionEndContext): void {
+    this.gitSessionEndContext = {
+      ...this.gitSessionEndContext,
+      ...context,
+    };
   }
 
   handleEvent(event: unknown): void {
@@ -220,6 +236,15 @@ export class TelemetryRecorder {
       silentTurnCount: this.stats.silentTurnCount,
       retryCount: this.stats.retryCount,
       compactionCount: this.stats.compactionCount,
+      ...(this.context.gitBranch !== undefined ? { gitBranch: this.context.gitBranch } : {}),
+      ...(this.context.gitHeadAtStart !== undefined ? { gitHeadAtStart: this.context.gitHeadAtStart } : {}),
+      ...(this.gitSessionEndContext.gitHeadAtEnd !== undefined
+        ? { gitHeadAtEnd: this.gitSessionEndContext.gitHeadAtEnd }
+        : {}),
+      ...(this.context.checkpointBeforeSha !== undefined ? { checkpointBeforeSha: this.context.checkpointBeforeSha } : {}),
+      ...(this.gitSessionEndContext.checkpointAfterSha !== undefined
+        ? { checkpointAfterSha: this.gitSessionEndContext.checkpointAfterSha }
+        : {}),
     });
     await this.writeChain;
   }

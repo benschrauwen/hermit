@@ -113,13 +113,39 @@ Parses commands, resolves the workspace root, resolves or infers `--role`, and s
 
 `chat` has one bootstrap exception: when no roles exist yet and no role can be inferred from the current directory, it starts a workspace-level bootstrap session so the first role can be created. Once roles exist, root-level `chat` requires `--role <id>`; running from inside `agents/<role-id>/` still infers that role from the current directory. `ask` sessions take the role and the user prompt. The user points the agent at the right entity inside the conversation, and the agent resolves that target from the workspace files or `entity_lookup` when needed. `heartbeat` runs a single unattended upkeep turn for a selected role, intended for cron-style GTD maintenance. `ingest transcript` accepts `--entity` because evidence placement benefits from an explicit deterministic target.
 
+`chat`, `ask`, and `heartbeat` are wrapped once at the command boundary with git-aware checkpoint logic. That wrapper can create a `before` checkpoint when relevant workspace paths are already dirty, run the unchanged session body, then create an `after` checkpoint when the session leaves relevant workspace changes behind.
+
+### `src/git.ts`
+
+A deliberately small wrapper around the git CLI.
+
+It is responsible for:
+
+- inspecting branch and HEAD summary for prompt and telemetry context
+- listing relevant changed files from an allowlist of canonical workspace paths
+- creating ordinary checkpoint commits with Hermit trailers
+
+The checkpoint path allowlist is intentionally narrow:
+
+- `agents/`
+- `entities/`
+- `entity-defs/`
+- `prompts/`
+- `skills/`
+- `src/`
+- `tests/`
+- `docs/`
+- `README.md`
+
+This keeps runtime artifacts such as `.hermit/` telemetry out of automatic checkpoint commits.
+
 ### `src/roles.ts`
 
 Loads and validates `agents/<role-id>/role.md`, loads `entity-defs/entities.md`, lists available roles, and infers the current role from the working directory when possible.
 
 ### `src/prompt-library.ts`
 
-Auto-discovers all shared prompts from `prompts/`, loads the role's `AGENTS.md` when a role-backed session exists, and renders them into a single system prompt with lightweight placeholders such as `{{workspaceRoot}}`, `{{roleRoot}}`, `{{entityId}}`, and `{{transcriptPath}}`.
+Auto-discovers all shared prompts from `prompts/`, loads the role's `AGENTS.md` when a role-backed session exists, and renders them into a single system prompt with lightweight placeholders such as `{{workspaceRoot}}`, `{{roleRoot}}`, `{{entityId}}`, `{{transcriptPath}}`, and git facts like `{{gitBranch}}` and `{{gitHeadSha}}`.
 
 Those entity placeholders are optional context, not a requirement for normal chat. Most interactive sessions start unanchored, with `entityId` and `entityPath` left as `not-selected` until the agent resolves the target from the request and the files.
 
@@ -188,6 +214,13 @@ Those skills stay on-demand. They are not concatenated into the Hermit prompt st
 
 For normal `chat` and `ask`, prompt context usually includes the workspace and role but not a preselected entity. The startup prompt explicitly tells the agent to resolve the relevant entity during the session before going deep, then read additional role prompt files on demand when they are relevant. Transcript ingest is the main path that still commonly starts with an explicit entity target.
 
+Session prompt context also carries session-start git facts injected by the CLI wrapper:
+
+- active branch
+- HEAD SHA, short SHA, and subject
+- whether relevant workspace paths were dirty at session start
+- any `before` checkpoint SHA already created for the command
+
 Heartbeat runs use the same role system prompt stack but send a deterministic one-shot upkeep prompt focused on small GTD-style backlog advancement. Their persisted transcripts live in a separate role-local history directory so unattended background sessions do not mix with interactive chat history.
 
 ### `src/agent-tools.ts`
@@ -206,6 +239,14 @@ Runs transcript ingest only for roles that declare a transcript-ingest capabilit
 Owns local-first runtime telemetry capture and aggregation.
 
 It records append-only structured events for session starts and ends, turn starts and ends, first-token latency, tool execution, assistant errors, retries, and compaction. It also generates rollup reports for recent windows such as `24h` or `7d`.
+
+For git-aware session commands, telemetry also records session-level git linkage such as:
+
+- branch name
+- HEAD SHA at session start
+- HEAD SHA at session end
+- `before` checkpoint SHA
+- `after` checkpoint SHA
 
 Raw telemetry stays local under `.hermit/telemetry/events/`. Aggregated reports are written under `.hermit/telemetry/reports/`. Report aggregation only includes completed sessions so in-flight activity does not skew counts and rates.
 
@@ -281,6 +322,8 @@ Improvement work should usually follow this path:
 4. Validate the change with the nearest checks available, such as tests, `doctor`, renderer loading, or telemetry review.
 
 This loop is intentionally local, explicit, and reviewable. Telemetry and validation inform changes, but Hermit does not silently auto-apply repo mutations from runtime observations alone.
+
+Git checkpoints follow the same principle: they happen only at explicit command boundaries, only over allowlisted workspace paths, and never perform rollback automatically.
 
 ## Why The Template Mechanism Is Generic
 

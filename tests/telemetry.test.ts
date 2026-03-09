@@ -38,12 +38,16 @@ describe("telemetry", () => {
 
   it("records append-only telemetry events for a session", async () => {
     const recorder = await TelemetryRecorder.create({
+      sessionId: "session-1",
       workspaceRoot: tmpRoot,
       roleId: "role-a",
       commandName: "ask",
       persist: false,
       modelProvider: "openai",
       modelId: "gpt-test",
+      gitBranch: "main",
+      gitHeadAtStart: "1111111111111111111111111111111111111111",
+      checkpointBeforeSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     });
 
     recorder.handleEvent({ type: "turn_start" });
@@ -71,6 +75,10 @@ describe("telemetry", () => {
       message: { role: "assistant" },
     });
     recorder.handleEvent({ type: "turn_end" });
+    recorder.setGitSessionEndContext({
+      gitHeadAtEnd: "2222222222222222222222222222222222222222",
+      checkpointAfterSha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    });
     await recorder.close();
 
     const files = findTelemetryEventFiles(tmpRoot);
@@ -92,6 +100,20 @@ describe("telemetry", () => {
     ]);
     expect(lines.every((line) => line.commandName === "ask")).toBe(true);
     expect(lines.every((line) => line.roleId === "role-a")).toBe(true);
+    expect(lines[0]).toMatchObject({
+      eventType: "session_start",
+      gitBranch: "main",
+      gitHeadAtStart: "1111111111111111111111111111111111111111",
+      checkpointBeforeSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    });
+    expect(lines.at(-1)).toMatchObject({
+      eventType: "session_end",
+      gitBranch: "main",
+      gitHeadAtStart: "1111111111111111111111111111111111111111",
+      gitHeadAtEnd: "2222222222222222222222222222222222222222",
+      checkpointBeforeSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      checkpointAfterSha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    });
   });
 
   it("aggregates telemetry into a report and writes markdown and json outputs", async () => {
