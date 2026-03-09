@@ -3,9 +3,9 @@ import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { createCompanyRecordTool, createCustomTools, createEntityLookupTool } from "../src/agent-tools.js";
+import { createCustomTools, createEntityLookupTool } from "../src/agent-tools.js";
 import { loadRole } from "../src/roles.js";
-import { ensureWorkspaceScaffold, writeFileSafely } from "../src/workspace.js";
+import { ensureWorkspaceScaffold } from "../src/workspace.js";
 import { seedRoleWorkspace } from "./test-helpers.js";
 
 const originalComputerUseEnv = process.env.ROLE_AGENT_ENABLE_COMPUTER_USE;
@@ -61,40 +61,32 @@ describe("createEntityLookupTool", () => {
 });
 
 describe("createCustomTools", () => {
-  it("returns the core lookup, web, shared creation, and role entity tools", async () => {
+  it("returns entity lookup and create-entity-record tools for shared and role entities", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "agent-tools-custom-"));
     seedRoleWorkspace(root, ["sales"]);
     const role = await loadRole(root, "sales");
     const tools = createCustomTools("/root", role);
     const names = tools.map((t) => t.name);
     expect(names).toContain("entity_lookup");
-    expect(names).toContain("web_search");
     expect(names).toContain("create_company_record");
     expect(names).toContain("create_person_record");
     expect(names).toContain("create_product_record");
     expect(names).toContain("create_deal_record");
     rmSync(root, { recursive: true, force: true });
   });
-
-  it("includes computer_use when ROLE_AGENT_ENABLE_COMPUTER_USE is true", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "agent-tools-computer-"));
-    seedRoleWorkspace(root, ["sales"]);
-    process.env.ROLE_AGENT_ENABLE_COMPUTER_USE = "true";
-    const role = await loadRole(root, "sales");
-    const tools = createCustomTools("/root", role);
-    const names = tools.map((t) => t.name);
-    expect(names).toContain("computer_use");
-    rmSync(root, { recursive: true, force: true });
-  });
 });
 
-describe("createCompanyRecordTool", () => {
-  it("creates canonical company starter files", async () => {
+describe("createEntityRecordTool (company)", () => {
+  it("creates canonical company starter files via generic entity tool", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "agent-tools-"));
     try {
       seedRoleWorkspace(root, ["sales"]);
       await ensureWorkspaceScaffold(root, await loadRole(root, "sales"));
-      const tool = createCompanyRecordTool(root);
+      const role = await loadRole(root, "sales");
+      const companyEntity = role.entities.find((e) => e.key === "company");
+      expect(companyEntity).toBeDefined();
+      const { createEntityRecordTool } = await import("../src/agent-tools.js");
+      const tool = createEntityRecordTool(root, role, companyEntity!);
       const result = await (tool.execute as (id: unknown, params: unknown) => Promise<unknown>)("id", {
         companyName: "Acme",
         companySummary: "Summary",
@@ -104,8 +96,8 @@ describe("createCompanyRecordTool", () => {
         topCompetitors: ["Rival"],
       });
       const typed = result as { details: { path: string } };
-      expect(typed.details.path).toContain(path.join("company", "record.md"));
-      expect(readFileSync(typed.details.path, "utf8")).toContain("agent onboarding");
+      expect(typed.details.path).toContain("company");
+      expect(readFileSync(path.join(typed.details.path, "record.md"), "utf8")).toContain("agent onboarding");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

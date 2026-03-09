@@ -38,7 +38,7 @@ Do **not** use this file as the source of truth for the operated business or com
   - `entities/company/`: shared company-level context for the operated business.
   - `entities/people/`: shared people records with `record.md`, `development-plan.md`, `notes/`, and `artifacts/`.
   - Entity data directories such as `entities/deals/`, `entities/product/`, `entities/tickets/`, etc.
-- `entity-defs/`: entity type definitions, scaffold templates, and custom explorer renderers.
+- `entity-defs/`: shared entity definitions, scaffold templates, and custom explorer renderers.
 - `skills/`: shared pi skills that can be loaded on demand across roles.
 - `agents/`: one subdirectory per operating role (agent).
 - `docs/`: Hermit implementation and architecture documentation.
@@ -46,7 +46,7 @@ Do **not** use this file as the source of truth for the operated business or com
 
 Each agent directory contains its own:
 
-- `role.md`: machine-readable role contract
+- `role.md`: machine-readable role behavior contract
 - `AGENTS.md`: role prompt index and startup guidance
 - `agent/`: role-specific operating system with `record.md` and `inbox.md`
 - `prompts/`: reusable role instructions
@@ -56,7 +56,7 @@ Each agent directory contains its own:
 
 - Use stable IDs at the directory level.
 - Shared people use `p-<slug>`.
-- Role-local entities use the ID strategy declared in the role manifest.
+- Entity IDs and structure come from `entity-defs/entities.md`.
 - Keep one canonical `record.md` per mutable entity directory.
 - Use dated markdown files in `notes/` when a time-bound note should be preserved.
 - Keep binary and supporting artifacts under `artifacts/` or role-defined evidence folders, not mixed into canonical markdown files.
@@ -67,7 +67,7 @@ Each agent directory contains its own:
 - `agents/<role-id>/agent/inbox.md` stores that role's raw captured commitments until clarified.
 - Shared `record.md` files under `entities/company/` and `entities/people/` store the best current shared state.
 - Entity `record.md` files store the best current state for each entity instance.
-- Role-defined supporting files such as qualification sheets, activity logs, or ticket notes live beside the canonical record when the role manifest requires them.
+- Entity-defined supporting files such as qualification sheets, activity logs, or ticket notes live beside the canonical record when `entity-defs/entities.md` requires them.
 - Prompt files are editable operating instructions, but they are not business facts.
 - Skill files are editable operating instructions and helper workflows, but they are not business facts.
 
@@ -83,8 +83,8 @@ Use the selected role's prompt directory as canonical for role work.
 ## Prompt Maintenance
 
 - Prompt files may be improved over time, but changes should preserve the file-first operating model.
-- Keep role manifests explicit. Do not replace them with recursive prompt or template discovery.
-- When a role contract changes, update that role's `AGENTS.md`, `role.md`, prompts, templates, tests, and docs together.
+- Keep role manifests explicit for behavior and capabilities, and keep entity definitions explicit in `entity-defs/entities.md`.
+- When a role contract changes, update that role's `AGENTS.md`, `role.md`, prompts, tests, and docs together. When entity structure changes, update `entity-defs/`, tests, and docs together.
 
 ## Self-Improvement Loop
 

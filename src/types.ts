@@ -1,5 +1,5 @@
 export type RoleFieldType = "string" | "string-array";
-export type RoleEntityIdStrategy = "prefixed-slug" | "year-sequence-slug";
+export type RoleEntityIdStrategy = "prefixed-slug" | "year-sequence-slug" | "singleton";
 
 export interface PromptContext {
   workspaceRoot: string;

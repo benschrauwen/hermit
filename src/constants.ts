@@ -3,7 +3,6 @@ export const SHARED_ROOT_DIRECTORIES = ["entities", "agents", "entity-defs", "sk
 export const SHARED_COMPANY_FILES = ["record.md", "strategy.md", "gtm.md"] as const;
 
 export const DEFAULT_MODEL = process.env.ROLE_AGENT_MODEL ?? "openai/gpt-5.4";
-export const DEFAULT_WEB_SEARCH_MODEL = process.env.ROLE_AGENT_WEB_SEARCH_MODEL ?? DEFAULT_MODEL;
 
 const THINKING_LEVELS = ["minimal", "low", "medium", "high", "xhigh"] as const;
 

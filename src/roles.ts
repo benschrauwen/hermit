@@ -101,6 +101,38 @@ function parseFileDefinitions(value: unknown): Array<{ path: string; template: s
   });
 }
 
+const ENTITIES_FILE = "entities.md";
+
+export interface EntityDefsLoadResult {
+  entities: RoleEntityDefinition[];
+  explorer?: RoleExplorerConfig;
+}
+
+export async function loadEntityDefs(root: string): Promise<EntityDefsLoadResult> {
+  const entityDefsDir = path.join(root, "entity-defs");
+  const filePath = path.join(entityDefsDir, ENTITIES_FILE);
+  try {
+    const raw = await fs.readFile(filePath, "utf8");
+    const parsed = matter(raw);
+    const data = parsed.data as { entities?: unknown; explorer?: unknown };
+    const entities = data.entities ? parseEntityDefinitions(data.entities) : [];
+    const explorer = data.explorer ? parseExplorerConfig(data.explorer) : undefined;
+    return { entities, ...(explorer ? { explorer } : {}) };
+  } catch (err) {
+    const code = err && typeof err === "object" && "code" in err ? (err as NodeJS.ErrnoException).code : undefined;
+    if (code === "ENOENT") {
+      return { entities: [] };
+    }
+    throw err;
+  }
+}
+
+/** @deprecated Use loadEntityDefs(root).entities */
+export async function loadEntityDefinitions(root: string): Promise<RoleEntityDefinition[]> {
+  const defs = await loadEntityDefs(root);
+  return defs.entities;
+}
+
 function parseEntityDefinitions(value: unknown): RoleEntityDefinition[] {
   if (!Array.isArray(value)) {
     throw new Error("Invalid role manifest field: entities");
@@ -109,7 +141,7 @@ function parseEntityDefinitions(value: unknown): RoleEntityDefinition[] {
   return value.map((entry, index) => {
     const record = asObject(entry, `Invalid role entity definition at index ${index}`);
     const idStrategy = asString(record.id_strategy, `entities[${index}].id_strategy`);
-    if (idStrategy !== "prefixed-slug" && idStrategy !== "year-sequence-slug") {
+    if (idStrategy !== "prefixed-slug" && idStrategy !== "year-sequence-slug" && idStrategy !== "singleton") {
       throw new Error(`Unsupported role entity ID strategy: ${idStrategy}`);
     }
 
@@ -300,7 +332,7 @@ export async function loadRole(root: string, roleId: string): Promise<RoleDefini
   const data = parsed.data as RoleManifestData;
 
   const transcriptIngest = parseTranscriptIngestCapability(data.transcript_ingest);
-  const explorer = parseExplorerConfig(data.explorer);
+  const entityDefs = await loadEntityDefs(root);
   return {
     id: asString(data.id, "id"),
     name: asString(data.name, "name"),
@@ -319,9 +351,9 @@ export async function loadRole(root: string, roleId: string): Promise<RoleDefini
     sessionsDir: paths.sessionsDir,
     roleDirectories: asStringArray(data.role_directories, "role_directories"),
     agentFiles: [...ROLE_AGENT_FILES],
-    entities: parseEntityDefinitions(data.entities),
+    entities: entityDefs.entities,
     ...(transcriptIngest ? { transcriptIngest } : {}),
-    ...(explorer ? { explorer } : {}),
+    ...(entityDefs.explorer ? { explorer: entityDefs.explorer } : {}),
   };
 }
 

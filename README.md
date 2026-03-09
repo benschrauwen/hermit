@@ -39,7 +39,7 @@ bun run explorer                       # launch the workspace UI
 
 ## Features
 
-- **Role-based agents** — each role ships its own prompts, templates, workflows, entity types, and operating rules via a declarative `role.md` manifest.
+- **Role-based agents** — each role ships its own prompts, workflows, capabilities, and operating rules via a declarative `role.md` manifest.
 - **Shared and role-local skills** — reusable pi skills can live under `skills/` or `agents/<role-id>/skills/` and are auto-exposed to sessions.
 - **Deterministic scaffolding** — entities, records, and evidence are created through safe, ID-stable operations.
 - **Evidence ingestion** — transcripts and supporting material update canonical records without replacing them.
@@ -60,6 +60,7 @@ entities/
   systems/         # system entities
   incidents/       # incident entities
 entity-defs/
+  entities.md      # entity schema and explorer config
   deal/            # deal scaffold templates
   product/         # product scaffold templates
   ...              # other entity type templates
@@ -89,24 +90,24 @@ Each role is defined by `agents/<role-id>/role.md`. The manifest declares:
 - **Prompt catalog** — maps stable IDs to shared or role-local prompt files
 - **Prompt bundles** — ordered sets injected at session startup (`default`, `onboarding`, `transcript-ingest`)
 - **Skill directories** — optional shared `skills/` and role-local `agents/<role-id>/skills/` instructions loaded by pi on demand
-- **Entity types** — directory layout, ID strategy, fields, required files
-- **Templates** — markdown scaffolds in `entity-defs/` with placeholder substitution
 - **Capabilities** — optional features like transcript ingestion
+
+Entity schema lives in `entity-defs/entities.md`, and entity starter templates and explorer renderers live under `entity-defs/`. The `agents/` directory is for behavior and agent state, while `entities/` and `entity-defs/` define app state and schema.
 
 The runtime stays generic. Roles define behavior through files, not code changes. Adding a new role:
 
 1. Create `agents/<role-id>/role.md`
 2. Add prompt catalog entries and prompt files
-3. Add `AGENTS.md`, entity directories under `entities/`, and templates under `entity-defs/`
-4. Run `bun cli doctor --role <role-id>` to validate
+3. Add `AGENTS.md` plus any role-local prompts or skills
+4. Update `entity-defs/entities.md` and add templates under `entity-defs/` when the role needs new entity types or explorer rendering
+5. Run `bun cli doctor --role <role-id>` to validate
 
 ## Environment
 
 | Variable | Description |
 |---|---|
-| `OPENAI_API_KEY` | Required for agent sessions and web search |
+| `OPENAI_API_KEY` | Required for agent sessions |
 | `ROLE_AGENT_MODEL` | Model override (default: `openai/gpt-5.4`) |
-| `ROLE_AGENT_WEB_SEARCH_MODEL` | Model override for web search tool |
 | `ROLE_AGENT_THINKING_LEVEL` | Thinking level (default: `medium`) |
 | `ROLE_AGENT_ENABLE_COMPUTER_USE` | Set `true` to expose computer-use boundary tool |
 

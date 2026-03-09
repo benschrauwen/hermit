@@ -35,9 +35,9 @@ describe("roles explorer renderers", () => {
     roots.push(root);
     seedRoleWorkspace(root, ["sales"]);
 
-    const roleManifestPath = path.join(root, "agents", "sales", "role.md");
+    const entityDefsPath = path.join(root, "entity-defs", "entities.md");
     replaceInFile(
-      roleManifestPath,
+      entityDefsPath,
       "deal: renderers/deal-detail.mjs",
       "deal: renderers/missing-detail.mjs",
     );

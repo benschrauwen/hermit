@@ -9,7 +9,7 @@
 
 ## Canonical vs Supporting Material
 
-- `record.md` files and other role-local files declared in `{{roleRoot}}/role.md` are canonical.
+- `record.md` files and other entity files declared in `entity-defs/entities.md` are canonical.
 - `{{roleRoot}}/agent/record.md` is canonical for the agent's own clarified commitments and reminders.
 - `{{roleRoot}}/agent/inbox.md` is the canonical capture queue for the agent's own unclarified commitments.
 - Transcripts, PDFs, decks, screenshots, and notes are supporting evidence.
@@ -31,7 +31,8 @@ Read the smallest relevant set of files first:
 - company context before strategic recommendations
 - person record and development plan before coaching
 - the selected role entity record and its required companion files before specific recommendations
-- `{{roleRoot}}/role.md` before changing role-local structure or assuming which files are canonical
+- `entity-defs/entities.md` before changing entity structure or assuming which entity files are canonical
+- `{{roleRoot}}/role.md` before changing role-local behavior, prompts, or capabilities
 
 ## Current Date And Time
 

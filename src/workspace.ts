@@ -165,6 +165,10 @@ async function getNextSequencedEntityNumber(role: RoleDefinition, entity: RoleEn
 }
 
 async function makeRoleEntityId(role: RoleDefinition, entity: RoleEntityDefinition, input: Record<string, unknown>): Promise<string> {
+  if (entity.idStrategy === "singleton") {
+    return "";
+  }
+
   const sourceValue = joinFieldValues(input, entity.idSourceFields);
   const slug = makeSlug(sourceValue);
   const prefix = entity.idPrefix ?? entity.key;

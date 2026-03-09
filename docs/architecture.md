@@ -17,8 +17,9 @@ The `entities/` directory contains entity data only:
 - `entities/company/` and `entities/people/` for shared context
 - entity data directories such as `entities/deals/`, `entities/tickets/`, etc.
 
-The `entity-defs/` directory contains entity type definitions:
+The `entity-defs/` directory contains entity type definitions and explorer config:
 
+- `entity-defs/entities.md` for entity schema and explorer configuration
 - scaffold templates organized by type (e.g., `entity-defs/deal/`, `entity-defs/product/`)
 - custom explorer renderers under `entity-defs/renderers/`
 - shared skills live under `skills/`
@@ -33,7 +34,7 @@ Each agent directory contains its own:
 
 Shared prompts live at the workspace root in `prompts/`. Role-specific prompts live in `agents/<role-id>/prompts/`.
 
-This keeps the shared organization context canonical while allowing each leadership role to define its own domain model and its own prompt overlays without changing the generic orchestration code.
+This keeps the shared organization context canonical while separating app state and schema (`entities/`, `entity-defs/`) from role behavior and operating overlays (`agents/<role-id>/`).
 
 ## Design Principles
 
@@ -45,11 +46,12 @@ Business state lives in markdown files and directories, not in a database. Share
 
 Roles are defined primarily by markdown and frontmatter:
 
-- `role.md` defines the role contract
+- `role.md` defines the role behavior contract
 - shared prompts live under `prompts/`
 - shared skills live under `skills/`
 - role-specific prompts live under `agents/<role-id>/prompts/`
 - role-specific skills live under `agents/<role-id>/skills/`
+- entity schema and explorer config live in `entity-defs/entities.md`
 - scaffold templates live under `entity-defs/`
 
 This makes new roles mostly a file-creation exercise instead of a TypeScript refactor.
@@ -81,7 +83,7 @@ The local explorer is a separate Astro app under `explorer/`, but it is intentio
 The explorer should:
 
 - read the shared root context from `entities/company/` and `entities/people/`
-- read role manifests and scanned entities from the same root TypeScript runtime used by the CLI
+- read role manifests, entity definitions, and scanned entities from the same root TypeScript runtime used by the CLI
 - render markdown files directly instead of copying data into a database or API layer
 - stay thin enough that adding a new role or entity type is still primarily a manifest-and-files exercise
 
@@ -93,8 +95,9 @@ flowchart TD
   explorer[Explorer] --> explorerLoader[Explorer Loader]
   explorerLoader --> workspaceDist[dist roles_workspace]
   roleResolver --> roleManifest[role.md]
-  roleManifest --> templateLibrary[TemplateLibrary]
-  roleManifest --> workspaceRules[WorkspaceRules]
+  entityDefs[entity-defs/entities.md] --> templateLibrary[TemplateLibrary]
+  entityDefs --> workspaceRules[WorkspaceRules]
+  roleManifest --> promptLibrary[PromptLibrary]
   workspaceRules --> entitiesData[entities/]
   workspaceRules --> agentData[agents/roleId]
   sharedPrompts[prompts/] --> promptLibrary[PromptLibrary]
@@ -115,7 +118,7 @@ Normal `chat` and `ask` sessions take the role and the user prompt. The user poi
 
 ### `src/roles.ts`
 
-Loads and validates `agents/<role-id>/role.md`, lists available roles, and infers the current role from the working directory when possible.
+Loads and validates `agents/<role-id>/role.md`, loads `entity-defs/entities.md`, lists available roles, and infers the current role from the working directory when possible.
 
 ### `src/prompt-library.ts`
 
@@ -160,8 +163,8 @@ Current route model:
 - `/people/:personId` renders a person's markdown files such as `record.md` and `development-plan.md`
 - `/agents/:roleId` shows an agent overview
 - `/agents/:roleId/agent` renders `agent/record.md` and `agent/inbox.md` for that agent
-- `/agents/:roleId/:entityType` renders a generic list view for that entity type using role manifest field metadata
-- `/agents/:roleId/:entityType/:entityId` renders the entity detail view from the markdown files declared in the role manifest
+- `/agents/:roleId/:entityType` renders a generic list view for that entity type using entity definition metadata
+- `/agents/:roleId/:entityType/:entityId` renders the entity detail view from the markdown files declared in `entity-defs/entities.md`
 
 The explorer has no write path. Any canonical update still happens through normal file edits or the CLI runtime.
 
@@ -194,9 +197,7 @@ Heartbeat runs use the same role system prompt stack but send a deterministic on
 Defines generic tools such as:
 
 - `entity_lookup`
-- `web_search`
-- shared record creation tools
-- role-derived entity creation tools from the manifest
+- generic entity record creation tools derived from `entity-defs/entities.md`
 
 ### `src/ingest.ts`
 
@@ -277,7 +278,7 @@ Improvement work should usually follow this path:
    - `prompts/` or role prompts for reusable operating guidance
    - `src/` for deterministic runtime behavior
    - `entity-defs/` for scaffold and canonical file defaults
-   - `entity-defs/renderers/` plus role manifests for explorer rendering
+   - `entity-defs/` for entity schema, scaffold defaults, and explorer rendering
    - docs and tests for explicit contract hardening
 3. Make the smallest cohesive change that fixes the root cause.
 4. Validate the change with the nearest checks available, such as tests, `doctor`, renderer loading, or telemetry review.
@@ -288,7 +289,7 @@ This loop is intentionally local, explicit, and reviewable. Telemetry and valida
 
 Templates are defined generically rather than hardcoded in TypeScript for each business object. Instead:
 
-- role manifests declare which files each entity needs
+- `entity-defs/entities.md` declares which files each entity needs
 - markdown templates in `entity-defs/` provide starter content
 - TypeScript computes dynamic values such as IDs, timestamps, ownership, and source references
 
@@ -298,11 +299,12 @@ That keeps the mechanism generic while keeping behavior deterministic.
 
 To add a new role:
 
-1. Create `agents/<role-id>/role.md` with entity types and fields
+1. Create `agents/<role-id>/role.md` with role behavior and capabilities
 2. Create `AGENTS.md` with the role operating standard, startup context, and on-demand prompt index
 3. Add role-specific prompts under `agents/<role-id>/prompts/`
-4. Add entity templates under `entity-defs/`
-5. Optionally declare transcript ingest if that role needs it
+4. Update `entity-defs/entities.md` if the workspace needs new entity types or explorer config
+5. Add entity templates under `entity-defs/`
+6. Optionally declare transcript ingest if that role needs it
 
 No orchestration changes should be required for a standard role.
 
@@ -319,12 +321,12 @@ Why:
 In practice, this means:
 
 - shared pages such as `company` and `people` read markdown from `entities/` directly
-- role pages reuse the root `dist/` modules for manifest-aware scanning
-- role entity lists are driven by manifest metadata, not hardcoded per entity type
+- role pages reuse the root `dist/` modules for entity-definition-aware scanning
+- role entity lists are driven by entity metadata, not hardcoded per entity type
 - role detail pages render the markdown files declared by each entity definition
-- role manifests may optionally declare explorer renderers for entity detail pages or specific entity files, with fallback to the default markdown renderer
+- `entity-defs/entities.md` may declare explorer renderers for entity detail pages or specific entity files, with fallback to the default markdown renderer
 
-Optional explorer renderers live under `entity-defs/renderers/` and are referenced from `role.md`, for example:
+Optional explorer renderers live under `entity-defs/renderers/` and are referenced from `entity-defs/entities.md`, for example:
 
 ```yaml
 explorer:

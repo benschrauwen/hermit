@@ -229,7 +229,7 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
   }
 
   if (!process.env.OPENAI_API_KEY) {
-    addGeneralFinding(findings, "warning", "OPENAI_API_KEY is not set. Agent prompts and web search will not run.");
+    addGeneralFinding(findings, "warning", "OPENAI_API_KEY is not set. Agent prompts will not run.");
   }
 
   if (findings.length === 0) {
