@@ -107,7 +107,7 @@ The runtime stays generic. Roles define behavior through files, not code changes
 
 ## Optional: Sandbox Hermit with `nono`
 
-Hermit runs local agents with read/write access to your workspace, so sandboxing it is optional but strongly advised. [`nono`](https://github.com/always-further/nono) adds kernel-enforced filesystem boundaries on macOS and Linux, can inject secrets from the system keychain, and lets you keep Hermit confined to this repo plus the Bun runtime paths it needs.
+Hermit runs local agents with read/write access to your workspace, so sandboxing it is optional but strongly advised. [`nono`](https://github.com/always-further/nono) adds kernel-enforced filesystem boundaries on macOS and Linux, can inject secrets from the system keychain, and lets you keep Hermit confined to this repo plus the runtime paths it needs.
 
 Install `nono`:
 
@@ -129,18 +129,31 @@ This repo includes an example profile at `examples/nono/hermit.json`. It grants:
 - Normal outbound network access
 - `OPENAI_API_KEY` injection from the keychain
 
-Run Hermit under the sandbox with:
+### Recommended on macOS
+
+On macOS, `nono` uses Seatbelt sandboxing and current Bun releases can fail inside that sandbox with `CouldntReadCurrentDirectory`. The reliable flow is:
+
+```bash
+bun run build
+nono run --profile ./examples/nono/hermit.json --allow-cwd -- node dist/cli.js chat --role <role-id>
+```
+
+Use the same pattern for other commands:
+
+```bash
+nono run --profile ./examples/nono/hermit.json --allow-cwd -- node dist/cli.js ask --role <role-id> "Review the top open deals"
+nono run --profile ./examples/nono/hermit.json --allow-cwd -- node dist/cli.js heartbeat --role <role-id>
+```
+
+### Linux or environments where `bun` works inside `nono`
+
+If `bun` runs correctly under `nono` on your machine, you can invoke the Bun entrypoint directly:
 
 ```bash
 nono run --profile ./examples/nono/hermit.json --allow-cwd -- bun cli chat --role <role-id>
 ```
 
-You can use the same prefix for other commands:
-
-```bash
-nono run --profile ./examples/nono/hermit.json --allow-cwd -- bun cli ask --role <role-id> "Review the top open deals"
-nono run --profile ./examples/nono/hermit.json --allow-cwd -- bun cli heartbeat --role <role-id>
-```
+### Installing dependencies
 
 For the initial dependency install, either run `bun install` outside the sandbox once or temporarily widen Bun's cache access:
 
@@ -148,7 +161,11 @@ For the initial dependency install, either run `bun install` outside the sandbox
 nono run --profile ./examples/nono/hermit.json --allow-cwd --allow ~/.bun -- bun install
 ```
 
-If your Bun binary, Git config, or other tooling lives in non-standard locations, extend `examples/nono/hermit.json` or add extra `--read`, `--read-file`, or `--allow` flags for those paths. For more detail, see the [`nono` installation docs](https://nono.sh/docs/cli/getting_started/installation.md), [profiles docs](https://nono.sh/docs/cli/features/profiles-groups.md), and [credential injection docs](https://nono.sh/docs/cli/features/credential-injection.md).
+If your Bun binary, Git config, or other tooling lives in non-standard locations, extend `examples/nono/hermit.json` or add extra `--read`, `--read-file`, or `--allow` flags for those paths.
+
+`nono` will warn that `OPENAI_API_KEY` is being injected into the sandboxed process. That warning is expected for this profile. It is still much better than exporting the key in your shell, but if Hermit later gains first-class support for `OPENAI_BASE_URL` proxy injection, that would be the stricter option.
+
+For more detail, see the [`nono` installation docs](https://nono.sh/docs/cli/getting_started/installation.md), [profiles docs](https://nono.sh/docs/cli/features/profiles-groups.md), and [credential injection docs](https://nono.sh/docs/cli/features/credential-injection.md).
 
 ## Architecture
 
