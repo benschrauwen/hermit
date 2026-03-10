@@ -5,10 +5,10 @@
 </p>
 
 <p align="center">
-  <strong>Local, file-first runtime for autonomous applications.</strong>
+  <strong>Local, file-first runtime for autonomous applications that build themselves through interaction.</strong>
 </p>
 
-**Hermit** is a local, file-first runtime for autonomous applications. Your workspace *is* the system of record — markdown files you can read, edit, version, and own. Agents run with a built-in GTD loop that captures, clarifies, and autonomously advances work, even when you're not at the keyboard. The runtime monitors its own performance through local telemetry and continuously improves its own prompts, tools, and workflows based on what it learns. No database, no opaque store, no SaaS dependency. Files are the product.
+**Hermit** starts as a small local repo and becomes a job-specific application through conversation. You tell the agent what it should own, and it incrementally creates the operating model, markdown-backed datastore, role prompts, automations, and local explorer UI in the same workspace. Code, data, UI, and agent state live in one directory and evolve together in git. The runtime then keeps the application moving: capturing work, clarifying it, advancing next actions, measuring results, and improving its own prompts, tools, and workflows from local telemetry. No database, no opaque memory layer, no SaaS dependency. Files are the app.
 
 [Architecture](docs/architecture.md) · [Observability](docs/observability.md) · [License](LICENSE)
 
@@ -20,9 +20,17 @@ export OPENAI_API_KEY=your_key_here
 bun cli chat
 ```
 
-Use `bun cli chat` to open the interactive chat. By default it resumes the last active chat role, and falls back to `Hermit` when there is no last role yet. In an empty workspace, that `Hermit` session bootstraps the first role. You can still run `bun cli chat --role <role-id>` from the workspace root, or run the command from inside `agents/<role-id>/` to infer the role from the current directory.
+Use `bun cli chat` to open the interactive chat. By default it resumes the last active chat role, and falls back to `Hermit` when there is no last role yet. In an empty workspace, that first `Hermit` session bootstraps the initial role and starts shaping the application around the responsibility you describe. From there, you can keep talking to the same role, run `bun cli chat --role <role-id>` from the workspace root, or run the command from inside `agents/<role-id>/` to infer the role from the current directory.
 
 If you want Hermit isolated to this repository and its runtime paths, see `Optional: Sandbox Hermit with nono` below.
+
+## How The App Gets Built
+
+- **You define the job in conversation** — start with a role like sales manager, vineyard operator, or household manager, and Hermit begins shaping the application around that responsibility.
+- **Hermit creates the operating model** — it establishes roles, prompts, workflows, and review loops for the work instead of assuming a fixed SaaS schema.
+- **Hermit writes the data layer as files** — entities, records, and supporting evidence live as markdown under `entities/` and `entity-defs/`.
+- **Hermit owns the app surface too** — the runtime, prompts, skills, and explorer UI all live in the same repo, so the agent can extend the system it operates.
+- **Every turn updates versioned app state** — session commands create git checkpoints, so the full application remains inspectable, diffable, and reversible.
 
 ## Recommended Git Workflow
 
@@ -75,22 +83,20 @@ bun run explorer                       # launch the workspace UI
 
 `heartbeat` runs a single background turn for a role. `heartbeat-daemon` is the built-in replacement for an external cron job: it discovers all configured roles, runs one heartbeat turn for each role immediately, then repeats on a fixed interval (default `1h`). Heartbeat runs use a separate persisted session history under each role so automated sessions stay distinct from normal interactive chat history. When `--strategic-review` is passed, or when the last strategic review is more than 24 hours old, the heartbeat runs a full strategic review instead of normal task advancement (see below).
 
-## Why Hermit
+## Why It Feels Different
 
-- **Fully autonomous** — agents capture work into an inbox, clarify it, and advance the highest-impact next action on their own. The built-in `heartbeat-daemon` keeps work moving between interactive sessions so nothing stalls.
-- **File-first, not file-adjacent** — every piece of state is a markdown file in your workspace. No hidden database, no opaque blob store. You can read, edit, or `grep` anything the system knows.
-- **Git-versioned by default** — session commands create checkpoint commits automatically. Your entire operating history is in `git log`, diffable and revertable with standard tools.
-- **Self-improving** — the runtime records local telemetry for every session, aggregates it into reports, and uses the evidence to tighten its own prompts, fix fragile tools, and eliminate repeated failures.
-- **Strategic reflection** — a daily strategic review steps back from task execution to question whether goals are clear, effort is going to the right places, the organizational structure fits the work, and whether prompts, skills, or processes need to evolve. The review also checks telemetry health and researches better approaches or missing skills. Findings are written to `agent/record.md` and surfaced at the next interactive session.
-- **Role-based agents** — each role ships its own prompts, skills, entity types, and operating rules through a declarative `role.md` manifest. Adding a role is a file-creation exercise, not a code change.
-- **Reusable skills** — shared and role-local pi skills are auto-discovered and available on demand across sessions.
-- **Deterministic scaffolding** — entities, records, and evidence are created through safe, ID-stable operations. No accidental overwrites, no orphaned files.
-- **Evidence ingestion** — transcripts, call notes, and supporting material merge into canonical records without replacing them.
-- **Workspace explorer** — a local read-only Astro UI for browsing the full system of record, powered by the same runtime the CLI uses.
-- **Doctor** — validates workspace integrity end to end: prompt links, required files, duplicate IDs, placeholder drift.
-- **100% local** — nothing leaves your machine. No cloud dependency, no vendor lock-in. Bring your own LLM key and run.
+- **The application is built, not pre-modeled** — you start with a runtime and a goal; Hermit creates the roles, schema, files, and workflows that fit the job.
+- **Single-directory architecture** — code, prompts, data, UI, and agent operating state live in one repo instead of being split across app code, a hidden memory layer, and an external database.
+- **Autonomy with structure** — roles capture work, clarify it, and advance next actions through `heartbeat` and `heartbeat-daemon`, while strategic review regularly questions goals, structure, and process.
+- **File-first system of record** — durable state lives in readable markdown, not behind an ORM or opaque store.
+- **Git-native history** — session commands create checkpoint commits, so the entire application state sits in normal git history.
+- **Self-improving runtime** — local telemetry, reports, prompts, and skills let Hermit tighten its own workflows based on evidence.
+- **Extensible by files first** — new roles, skills, prompts, entity definitions, and explorer renderers are mostly file additions instead of framework surgery.
+- **Local by default** — bring your own model key and keep the whole system on your machine.
 
 ## Workspace Structure
+
+A Hermit app is a normal repository. These directories are the application:
 
 ```
 entities/
@@ -113,7 +119,7 @@ explorer/          # read-only Astro workspace UI
 
 ## How Roles Work
 
-Each role is defined by `agents/<role-id>/role.md`. The manifest declares:
+Roles are how Hermit turns a broad job into an operator inside the app. Each role is defined by `agents/<role-id>/role.md`. The manifest declares:
 
 - **Prompt catalog** — maps stable IDs to shared or role-local prompt files
 - **Prompt bundles** — ordered sets injected at session startup (`default`, `onboarding`, `transcript-ingest`)
