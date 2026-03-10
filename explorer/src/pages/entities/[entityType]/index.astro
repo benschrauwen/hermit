@@ -46,6 +46,8 @@ const filteredEntities = normalizedQuery
 const sortKey = Astro.url.searchParams.get("sort") ?? "name";
 const validSortKeys = new Set(["name", "id", ...entityDef.fields.map((field) => field.key)]);
 const sort = validSortKeys.has(sortKey) ? sortKey : "name";
+const dirParam = Astro.url.searchParams.get("dir") ?? "asc";
+const dir = dirParam === "desc" ? "desc" : "asc";
 
 function getSortValue(entity: EntityListRow, key: string): string {
   if (key === "name" || key === "id") {
@@ -54,16 +56,42 @@ function getSortValue(entity: EntityListRow, key: string): string {
   return entity.fieldValues[key] ?? "";
 }
 
-const entities = [...filteredEntities].sort((a, b) =>
-  getSortValue(a, sort).localeCompare(getSortValue(b, sort), undefined, {
+const entities = [...filteredEntities].sort((a, b) => {
+  const result = getSortValue(a, sort).localeCompare(getSortValue(b, sort), undefined, {
     numeric: true,
     sensitivity: "base",
-  }),
-);
+  });
+  return dir === "desc" ? -result : result;
+});
 
 function buildSortHref(nextSort: string): string {
   const params = new URLSearchParams(Astro.url.searchParams);
+  const nextDir = nextSort === sort ? (dir === "asc" ? "desc" : "asc") : "asc";
   params.set("sort", nextSort);
+  if (nextDir === "asc") {
+    params.delete("dir");
+  } else {
+    params.set("dir", nextDir);
+  }
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+function sortIndicator(column: string): string {
+  if (column !== sort) {
+    return "";
+  }
+  return dir === "desc" ? " ↓" : " ↑";
+}
+
+function buildClearHref(): string {
+  const params = new URLSearchParams();
+  if (sort !== "name") {
+    params.set("sort", sort);
+  }
+  if (dir !== "asc") {
+    params.set("dir", dir);
+  }
   const query = params.toString();
   return query ? `?${query}` : "";
 }
@@ -88,17 +116,18 @@ function buildSortHref(nextSort: string): string {
       placeholder={`Filter ${entityDef.label.toLowerCase()} records`}
     />
     {sort !== "name" && <input type="hidden" name="sort" value={sort} />}
+    {dir !== "asc" && <input type="hidden" name="dir" value={dir} />}
     <button type="submit">Filter</button>
-    {searchQuery && <a href={sort === "name" ? "" : buildSortHref(sort)}>Clear</a>}
+    {searchQuery && <a href={buildClearHref()}>Clear</a>}
   </form>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
-          <th><a href={buildSortHref("name")} class="sort-link">Name</a></th>
-          <th><a href={buildSortHref("id")} class="sort-link">ID</a></th>
+          <th><a href={buildSortHref("name")} class="sort-link">Name{sortIndicator("name")}</a></th>
+          <th><a href={buildSortHref("id")} class="sort-link">ID{sortIndicator("id")}</a></th>
           {entityDef.fields.map((field) => (
-            <th><a href={buildSortHref(field.key)} class="sort-link">{field.label}</a></th>
+            <th><a href={buildSortHref(field.key)} class="sort-link">{field.label}{sortIndicator(field.key)}</a></th>
           ))}
         </tr>
       </thead>
