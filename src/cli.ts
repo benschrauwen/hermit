@@ -10,8 +10,15 @@ import process from "node:process";
 
 import { runDoctor } from "./doctor.js";
 import { createCheckpoint, getRepoState, shouldCheckpoint } from "./git.js";
+import {
+  DEFAULT_HEARTBEAT_DAEMON_INTERVAL,
+  formatHeartbeatDaemonDuration,
+  parseHeartbeatDaemonInterval,
+  resolveHeartbeatDaemonDelay,
+  runHeartbeatCycle,
+} from "./heartbeat-daemon.js";
 import { runTranscriptIngest } from "./ingest.js";
-import { inferRootAndRoleFromCwd, loadRole, resolveChatSession, resolveRole } from "./roles.js";
+import { inferRootAndRoleFromCwd, listRoleIds, loadRole, resolveChatSession, resolveRole } from "./roles.js";
 import {
   createBootstrapSession,
   createRoleSession,
@@ -70,6 +77,18 @@ async function resolveSessionContext(options: { role?: string }): Promise<{
       roleId,
       roleRoot: path.relative(root, role.roleDir) || ".",
     },
+  };
+}
+
+function buildRolePromptContext(root: string, role: RoleDefinition): {
+  workspaceRoot: string;
+  roleId: string;
+  roleRoot: string;
+} {
+  return {
+    workspaceRoot: root,
+    roleId: role.id,
+    roleRoot: path.relative(root, role.roleDir) || ".",
   };
 }
 
@@ -163,6 +182,98 @@ async function withGitCheckpoint(options: {
     });
     await telemetry?.close();
   }
+}
+
+interface HeartbeatRunOptions {
+  continue?: boolean;
+  prompt?: string;
+  strategicReview?: boolean;
+}
+
+async function resolveHeartbeatPrompt(role: RoleDefinition, options: HeartbeatRunOptions): Promise<string> {
+  if (options.prompt) {
+    return options.prompt;
+  }
+  if (options.strategicReview || await isStrategicReviewDue(role)) {
+    return STRATEGIC_REVIEW_HEARTBEAT_PROMPT;
+  }
+  return DEFAULT_HEARTBEAT_PROMPT;
+}
+
+async function runHeartbeatForRole(options: {
+  root: string;
+  role: RoleDefinition;
+  promptContext: {
+    workspaceRoot: string;
+    roleId: string;
+    roleRoot: string;
+  };
+  continueRecent?: boolean;
+  prompt?: string;
+  strategicReview?: boolean;
+}): Promise<void> {
+  await withGitCheckpoint({
+    root: options.root,
+    commandName: "heartbeat",
+    roleId: options.role.id,
+    run: async (gitContext) => {
+      const { session, telemetry } = await createRoleSession({
+        root: options.root,
+        role: options.role,
+        persist: true,
+        continueRecent: Boolean(options.continueRecent),
+        sessionHistoryType: "heartbeat",
+        telemetryCommandName: "heartbeat",
+        telemetryContext: gitContext.telemetryContext,
+        promptContext: {
+          ...options.promptContext,
+          ...gitContext.promptContext,
+        },
+      });
+
+      const heartbeatPrompt = await resolveHeartbeatPrompt(options.role, {
+        ...(options.prompt !== undefined ? { prompt: options.prompt } : {}),
+        ...(options.strategicReview !== undefined ? { strategicReview: options.strategicReview } : {}),
+      });
+      await runOneShotPrompt(session, heartbeatPrompt, [], telemetry);
+      return telemetry;
+    },
+  });
+}
+
+function formatDaemonTimestamp(date = new Date()): string {
+  return date.toISOString();
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function sleepUntilNextHeartbeat(ms: number, isRunning: () => boolean): Promise<void> {
+  if (ms <= 0 || !isRunning()) {
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    const timeout = setTimeout(() => {
+      cleanup();
+      resolve();
+    }, ms);
+
+    const onSignal = () => {
+      cleanup();
+      resolve();
+    };
+
+    const cleanup = () => {
+      clearTimeout(timeout);
+      process.off("SIGINT", onSignal);
+      process.off("SIGTERM", onSignal);
+    };
+
+    process.on("SIGINT", onSignal);
+    process.on("SIGTERM", onSignal);
+  });
 }
 
 const program = new Command();
@@ -292,40 +403,111 @@ program
       prompt?: string;
       strategicReview?: boolean;
     }) => {
-      const { root, promptContext, role } = await resolveSessionContext(options);
-      await withGitCheckpoint({
+      const { root, role } = await resolveSessionContext(options);
+      await runHeartbeatForRole({
         root,
-        commandName: "heartbeat",
-        roleId: role.id,
-        run: async (gitContext) => {
-          const { session, telemetry } = await createRoleSession({
-            root,
-            role,
-            persist: true,
-            continueRecent: Boolean(options.continue),
-            sessionHistoryType: "heartbeat",
-            telemetryCommandName: "heartbeat",
-            telemetryContext: gitContext.telemetryContext,
-            promptContext: {
-              ...promptContext,
-              ...gitContext.promptContext,
-            },
-          });
-
-          let heartbeatPrompt: string;
-          if (options.prompt) {
-            heartbeatPrompt = options.prompt;
-          } else if (options.strategicReview || await isStrategicReviewDue(role)) {
-            heartbeatPrompt = STRATEGIC_REVIEW_HEARTBEAT_PROMPT;
-          } else {
-            heartbeatPrompt = DEFAULT_HEARTBEAT_PROMPT;
-          }
-          await runOneShotPrompt(session, heartbeatPrompt, [], telemetry);
-          return telemetry;
-        },
+        role,
+        promptContext: buildRolePromptContext(root, role),
+        ...(options.continue !== undefined ? { continueRecent: options.continue } : {}),
+        ...(options.prompt !== undefined ? { prompt: options.prompt } : {}),
+        ...(options.strategicReview !== undefined ? { strategicReview: options.strategicReview } : {}),
       });
     },
   );
+
+program
+  .command("heartbeat-daemon")
+  .description("Run heartbeat turns for all roles on a repeating interval until stopped.")
+  .option(
+    "--interval <duration>",
+    'Delay between heartbeat cycles. Use a whole number followed by ms, s, m, or h (for example "30m" or "1h").',
+    DEFAULT_HEARTBEAT_DAEMON_INTERVAL,
+  )
+  .option("--continue", "Continue the most recent persisted heartbeat session for each role.")
+  .action(async (options: { interval: string; continue?: boolean }) => {
+    const root = resolveWorkspaceRoot();
+    const intervalMs = parseHeartbeatDaemonInterval(options.interval);
+
+    let keepRunning = true;
+    let firstCycle = true;
+
+    const stop = (signal: NodeJS.Signals) => {
+      if (!keepRunning) {
+        return;
+      }
+      keepRunning = false;
+      console.log(
+        `[${formatDaemonTimestamp()}] Received ${signal}. Stopping heartbeat daemon after the current role finishes.`,
+      );
+    };
+
+    process.on("SIGINT", stop);
+    process.on("SIGTERM", stop);
+
+    try {
+      console.log(
+        `[${formatDaemonTimestamp()}] Heartbeat daemon started. Running all role heartbeats every ${formatHeartbeatDaemonDuration(intervalMs)}.`,
+      );
+
+      while (keepRunning) {
+        const roleIds = await listRoleIds(root);
+        if (roleIds.length === 0) {
+          if (firstCycle) {
+            throw new Error("No roles are configured. Add a role under agents/<role-id>/role.md.");
+          }
+          console.log(
+            `[${formatDaemonTimestamp()}] No roles are currently configured. Waiting ${formatHeartbeatDaemonDuration(intervalMs)} before checking again.`,
+          );
+          await sleepUntilNextHeartbeat(intervalMs, () => keepRunning);
+          continue;
+        }
+
+        firstCycle = false;
+        console.log(
+          `[${formatDaemonTimestamp()}] Starting heartbeat cycle for ${roleIds.length} role(s): ${roleIds.join(", ")}.`,
+        );
+
+        const cycle = await runHeartbeatCycle({
+          roleIds,
+          isCancelled: () => !keepRunning,
+          runRoleHeartbeat: async (roleId) => {
+            const role = await loadRole(root, roleId);
+            console.log(`[${formatDaemonTimestamp()}] Running heartbeat for ${roleId}.`);
+            await runHeartbeatForRole({
+              root,
+              role,
+              promptContext: buildRolePromptContext(root, role),
+              ...(options.continue !== undefined ? { continueRecent: options.continue } : {}),
+            });
+            console.log(`[${formatDaemonTimestamp()}] Finished heartbeat for ${roleId}.`);
+          },
+        });
+
+        for (const failure of cycle.failures) {
+          console.error(
+            `[${formatDaemonTimestamp()}] Heartbeat failed for ${failure.roleId}: ${getErrorMessage(failure.error)}`,
+          );
+        }
+
+        if (!keepRunning) {
+          break;
+        }
+
+        const waitMs = resolveHeartbeatDaemonDelay(intervalMs, cycle.startedAtMs, cycle.completedAtMs);
+        const completedCount = cycle.successfulRoleIds.length;
+        const failedCount = cycle.failures.length;
+        console.log(
+          `[${formatDaemonTimestamp()}] Heartbeat cycle finished in ${formatHeartbeatDaemonDuration(cycle.completedAtMs - cycle.startedAtMs)}. Completed ${completedCount} role(s), failed ${failedCount}. Next cycle in ${formatHeartbeatDaemonDuration(waitMs)}.`,
+        );
+
+        await sleepUntilNextHeartbeat(waitMs, () => keepRunning);
+      }
+    } finally {
+      process.off("SIGINT", stop);
+      process.off("SIGTERM", stop);
+      console.log(`[${formatDaemonTimestamp()}] Heartbeat daemon stopped.`);
+    }
+  });
 
 const ingestCommand = program.command("ingest").description("Ingest evidence into the workspace.");
 

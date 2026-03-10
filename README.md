@@ -1,7 +1,7 @@
 # Hermit
 
 <p align="center">
-  <img src="public/mascot.png" alt="Hermit" width="200" />
+  <img src="public/mascot.png" alt="Hermit" width="300" />
 </p>
 
 <p align="center">
@@ -31,6 +31,7 @@ bun cli chat                            # bootstrap the first role when no roles
 bun cli chat --role <role-id>              # interactive session
 bun cli ask --role <role-id> "Review the top open deals"
 bun cli heartbeat --role <role-id>         # one autonomous GTD upkeep turn
+bun cli heartbeat-daemon                   # run heartbeats for all roles every hour until stopped
 bun cli heartbeat --role <role-id> --strategic-review  # force a full strategic review
 bun cli ingest transcript ./notes/acme-call.md --role <role-id> --entity d-2026-0001-acme-expansion
 bun cli doctor --role <role-id>            # validate workspace integrity
@@ -38,11 +39,11 @@ bun cli telemetry report --window 7d   # aggregate local runtime telemetry
 bun run explorer                       # launch the workspace UI
 ```
 
-`heartbeat` runs a single background turn for a role, intended for cron-style upkeep. It uses a separate persisted session history under that role so automated runs stay distinct from normal interactive chat history. When `--strategic-review` is passed, or when the last strategic review is more than 24 hours old, the heartbeat runs a full strategic review instead of normal task advancement (see below).
+`heartbeat` runs a single background turn for a role. `heartbeat-daemon` is the built-in replacement for an external cron job: it discovers all configured roles, runs one heartbeat turn for each role immediately, then repeats on a fixed interval (default `1h`). Heartbeat runs use a separate persisted session history under each role so automated sessions stay distinct from normal interactive chat history. When `--strategic-review` is passed, or when the last strategic review is more than 24 hours old, the heartbeat runs a full strategic review instead of normal task advancement (see below).
 
 ## Why Hermit
 
-- **Fully autonomous** — agents capture work into an inbox, clarify it, and advance the highest-impact next action on their own. A cron-driven `heartbeat` keeps things moving between interactive sessions so nothing stalls.
+- **Fully autonomous** — agents capture work into an inbox, clarify it, and advance the highest-impact next action on their own. The built-in `heartbeat-daemon` keeps work moving between interactive sessions so nothing stalls.
 - **File-first, not file-adjacent** — every piece of state is a markdown file in your workspace. No hidden database, no opaque blob store. You can read, edit, or `grep` anything the system knows.
 - **Git-versioned by default** — session commands create checkpoint commits automatically. Your entire operating history is in `git log`, diffable and revertable with standard tools.
 - **Self-improving** — the runtime records local telemetry for every session, aggregates it into reports, and uses the evidence to tighten its own prompts, fix fragile tools, and eliminate repeated failures.
