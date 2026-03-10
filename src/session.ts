@@ -14,12 +14,12 @@ import {
   type AgentSession,
 } from "@mariozechner/pi-coding-agent";
 
-import { createBootstrapTools, createCustomTools } from "./agent-tools.js";
-import { DEFAULT_MODEL, DEFAULT_THINKING_LEVEL } from "./constants.js";
+import { createCustomTools, createHermitTools } from "./agent-tools.js";
+import { DEFAULT_MODEL, DEFAULT_THINKING_LEVEL, HERMIT_ROLE_ID } from "./constants.js";
 import { PromptLibrary } from "./prompt-library.js";
 import { TelemetryRecorder } from "./telemetry-recorder.js";
 import type { PromptContext, RoleDefinition, TelemetrySessionContext, WorkspaceInitializationState } from "./types.js";
-import { ensureWorkspaceScaffold, getWorkspaceBootstrapInitializationState, getWorkspaceInitializationState } from "./workspace.js";
+import { ensureWorkspaceScaffold, getWorkspaceChatInitializationState, getWorkspaceInitializationState } from "./workspace.js";
 
 export type SessionHistoryType = "interactive" | "heartbeat";
 
@@ -33,6 +33,7 @@ interface SessionOptions {
   additionalRolePrompts?: string[];
   telemetryCommandName?: string;
   telemetryContext?: Partial<TelemetrySessionContext>;
+  onRoleSwitchRequest?: (request: RoleSwitchRequest) => void;
 }
 
 export const ONBOARDING_CHAT_OPENING_PROMPT =
@@ -58,16 +59,32 @@ const ANSI_UNDERLINE = "\x1b[4m";
 const ANSI_CYAN = "\x1b[36m";
 const ANSI_BRIGHT_MAGENTA = "\x1b[95m";
 const BOOTSTRAP_PROMPTS_DIRECTORY = "bootstrap";
-const WORKSPACE_BOOTSTRAP_SESSION_DIRECTORY = path.join(".hermit", "sessions", "bootstrap");
-const WORKSPACE_BOOTSTRAP_ROLE_ID = "workspace-bootstrap";
+const HERMIT_SESSION_DIRECTORY = path.join(".hermit", "sessions", "hermit");
+
+export interface RoleSwitchRequest {
+  roleId: string;
+  reason?: string;
+}
+
+export interface InteractiveChatSession {
+  session: AgentSession;
+  telemetry: TelemetryRecorder;
+  workspaceState: WorkspaceInitializationState;
+  activeRoleLabel: string;
+  consumeRoleSwitchRequest: () => RoleSwitchRequest | undefined;
+}
 
 interface TerminalRenderState {
   inCodeBlock: boolean;
   pendingLine: string;
 }
 
-export function formatUserPromptEcho(prompt: string): string {
-  return `\n${ANSI_BOLD}${ANSI_BRIGHT_MAGENTA}>>${ANSI_RESET} ${ANSI_BRIGHT_MAGENTA}${prompt}${ANSI_RESET}\n\n`;
+function formatEntryDesignator(activeRoleLabel: string): string {
+  return `${ANSI_BOLD}${ANSI_BRIGHT_MAGENTA}- ${activeRoleLabel} >>${ANSI_RESET}`;
+}
+
+export function formatUserPromptEcho(prompt: string, activeRoleLabel: string): string {
+  return `\n${formatEntryDesignator(activeRoleLabel)} ${ANSI_BRIGHT_MAGENTA}${prompt}${ANSI_RESET}\n\n`;
 }
 
 export function resolveInitialChatPrompt(options: {
@@ -302,8 +319,9 @@ function formatObjectToolStatus(toolName: string, args: Record<string, unknown>)
   const fileValue = typeof args.file === "string" ? args.file : undefined;
   const targetValue = typeof args.target === "string" ? args.target : undefined;
   const idValue = typeof args.id === "string" ? args.id : undefined;
+  const roleValue = typeof args.roleId === "string" ? args.roleId : undefined;
 
-  const inlineValues = [queryValue, promptValue, actionValue, fileValue, targetValue, idValue].filter(
+  const inlineValues = [queryValue, promptValue, actionValue, fileValue, targetValue, idValue, roleValue].filter(
     (value): value is string => value !== undefined && value.length > 0,
   );
 
@@ -378,7 +396,7 @@ export function resolvePersistedSessionDirectory(
 }
 
 export function resolveBootstrapSessionDirectory(root: string): string {
-  return path.join(root, WORKSPACE_BOOTSTRAP_SESSION_DIRECTORY);
+  return path.join(root, HERMIT_SESSION_DIRECTORY);
 }
 
 function getSessionManager(
@@ -455,7 +473,9 @@ export async function createRoleSession(options: SessionOptions): Promise<{
     model,
     thinkingLevel: DEFAULT_THINKING_LEVEL,
     tools: createCodingTools(options.root),
-    customTools: createCustomTools(options.root, options.role),
+    customTools: createCustomTools(options.root, options.role, {
+      ...(options.onRoleSwitchRequest ? { onRoleSwitchRequest: options.onRoleSwitchRequest } : {}),
+    }),
     resourceLoader: loader,
     sessionManager: getSessionManager(
       options.root,
@@ -480,13 +500,15 @@ export async function createRoleSession(options: SessionOptions): Promise<{
   return { session, promptLibrary, workspaceState, telemetry };
 }
 
-export async function createBootstrapSession(options: {
+export async function createHermitSession(options: {
   root: string;
   promptContext: PromptContext;
   persist: boolean;
   continueRecent?: boolean;
+  bootstrapMode?: boolean;
   telemetryCommandName?: string;
   telemetryContext?: Partial<TelemetrySessionContext>;
+  onRoleSwitchRequest?: (request: RoleSwitchRequest) => void;
 }): Promise<{
   session: AgentSession;
   promptLibrary: PromptLibrary;
@@ -495,15 +517,17 @@ export async function createBootstrapSession(options: {
 }> {
   await ensureWorkspaceScaffold(options.root);
 
-  const workspaceState = await getWorkspaceBootstrapInitializationState(options.root);
+  const workspaceState = await getWorkspaceChatInitializationState(options.root);
   const promptLibrary = await PromptLibrary.loadForWorkspace(options.root);
   const promptContext = enrichPromptContextWithCurrentTime({
-    roleId: WORKSPACE_BOOTSTRAP_ROLE_ID,
+    roleId: HERMIT_ROLE_ID,
     roleRoot: ".",
     ...options.promptContext,
   });
   const baseSystemPrompt = await promptLibrary.renderSystemPrompt(promptContext);
-  const bootstrapOverlay = await promptLibrary.renderSharedPromptDirectory(BOOTSTRAP_PROMPTS_DIRECTORY, promptContext);
+  const bootstrapOverlay = options.bootstrapMode
+    ? await promptLibrary.renderSharedPromptDirectory(BOOTSTRAP_PROMPTS_DIRECTORY, promptContext)
+    : "";
   const systemPrompt = [baseSystemPrompt, bootstrapOverlay].filter(Boolean).join("\n\n");
 
   const loader = new DefaultResourceLoader({
@@ -533,13 +557,16 @@ export async function createBootstrapSession(options: {
     model,
     thinkingLevel: DEFAULT_THINKING_LEVEL,
     tools: createCodingTools(options.root),
-    customTools: createBootstrapTools(),
+    customTools: createHermitTools(options.root, {
+      ...(options.onRoleSwitchRequest ? { onRoleSwitchRequest: options.onRoleSwitchRequest } : {}),
+    }),
     resourceLoader: loader,
     sessionManager,
   });
 
   const telemetry = await TelemetryRecorder.create({
     workspaceRoot: options.root,
+    roleId: HERMIT_ROLE_ID,
     commandName: options.telemetryCommandName ?? "chat",
     persist: options.persist,
     ...(options.continueRecent !== undefined ? { continueRecent: options.continueRecent } : {}),
@@ -769,11 +796,12 @@ export async function runOneShotPrompt(
   prompt: string,
   imagePaths: string[] = [],
   telemetry?: TelemetryRecorder,
+  activeRoleLabel = HERMIT_ROLE_ID,
 ): Promise<void> {
   const stopStreaming = attachConsoleStreaming(session, telemetry);
 
   try {
-    process.stdout.write(formatUserPromptEcho(prompt));
+    process.stdout.write(formatUserPromptEcho(prompt, activeRoleLabel));
     await session.prompt(prompt, {
       images: await loadImageAttachments(imagePaths),
     });
@@ -783,28 +811,60 @@ export async function runOneShotPrompt(
 }
 
 export async function runChatLoop(
-  session: AgentSession,
   options: {
+    initialSession: InteractiveChatSession;
     initialPrompt?: string;
     initialImages?: string[];
-    telemetry?: TelemetryRecorder;
-  } = {},
+    onRoleSwitch?: (request: RoleSwitchRequest, previousRoleLabel: string) => Promise<InteractiveChatSession>;
+  },
 ): Promise<void> {
-  const stopStreaming = attachConsoleStreaming(session, options.telemetry);
+  let activeSession = options.initialSession;
+  let stopStreaming = attachConsoleStreaming(activeSession.session, activeSession.telemetry);
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
   });
 
+  async function switchRolesIfRequested(): Promise<void> {
+    let switchCount = 0;
+    while (true) {
+      const request = activeSession.consumeRoleSwitchRequest();
+      if (!request) {
+        return;
+      }
+      if (!options.onRoleSwitch) {
+        return;
+      }
+      switchCount += 1;
+      if (switchCount > 5) {
+        throw new Error("Too many role switches were requested in a single turn.");
+      }
+
+      const previousRoleLabel = activeSession.activeRoleLabel;
+      stopStreaming();
+      activeSession = await options.onRoleSwitch(request, previousRoleLabel);
+      stopStreaming = attachConsoleStreaming(activeSession.session, activeSession.telemetry);
+      process.stdout.write(`${ANSI_DIM}Switched active role to ${activeSession.activeRoleLabel}.${ANSI_RESET}\n`);
+      await activeSession.session.prompt(
+        `The active chat role was switched from ${previousRoleLabel} to ${activeSession.activeRoleLabel}. Briefly acknowledge the switch, adopt the new role immediately, and continue the conversation without asking the user to repeat prior context.`,
+      );
+    }
+  }
+
+  async function promptActiveSession(prompt: string, imagePaths: string[] = []): Promise<void> {
+    await activeSession.session.prompt(prompt, {
+      images: await loadImageAttachments(imagePaths),
+    });
+    await switchRolesIfRequested();
+  }
+
   try {
     if (options.initialPrompt) {
-      await session.prompt(options.initialPrompt, {
-        images: await loadImageAttachments(options.initialImages ?? []),
-      });
+      await promptActiveSession(options.initialPrompt, options.initialImages ?? []);
     }
 
     while (true) {
-      const input = (await rl.question(`\n${ANSI_BOLD}${ANSI_BRIGHT_MAGENTA}>> `)).trim();
+      const input = (await rl.question(`\n${formatEntryDesignator(activeSession.activeRoleLabel)} `)).trim();
       process.stdout.write(ANSI_RESET);
       if (!input) {
         continue;
@@ -814,7 +874,7 @@ export async function runChatLoop(
         break;
       }
 
-      await session.prompt(input);
+      await promptActiveSession(input);
     }
   } finally {
     stopStreaming();

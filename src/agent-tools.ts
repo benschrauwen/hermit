@@ -2,6 +2,8 @@ import OpenAI from "openai";
 import { Type, type Static, type TSchema } from "@sinclair/typebox";
 import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
 
+import { HERMIT_ROLE_ID } from "./constants.js";
+import { isHermitRoleId, loadRole, normalizeRoleId } from "./roles.js";
 import { createRoleEntityRecord, scanEntities } from "./workspace.js";
 import type { RoleDefinition, RoleEntityDefinition, RoleFieldDefinition } from "./types.js";
 
@@ -22,6 +24,17 @@ const webSearchParameters = Type.Object({
 });
 
 type WebSearchToolParams = Static<typeof webSearchParameters>;
+
+const roleSwitchParameters = Type.Object({
+  roleId: Type.String({ description: `Role ID to switch to, or "${HERMIT_ROLE_ID}" for the base system prompt.` }),
+  reason: Type.Optional(Type.String({ description: "Short explanation for why the role should change." })),
+});
+
+type RoleSwitchToolParams = Static<typeof roleSwitchParameters>;
+
+export interface CustomToolOptions {
+  onRoleSwitchRequest?: (request: { roleId: string; reason?: string }) => void;
+}
 
 interface WebSearchCitation {
   url: string;
@@ -235,6 +248,51 @@ export function createWebSearchTool(
   };
 }
 
+export function createRoleSwitchTool(
+  root: string,
+  options: CustomToolOptions = {},
+): ToolDefinition<typeof roleSwitchParameters> {
+  return {
+    name: "switch_role",
+    label: "Switch Role",
+    description: "Switch the active interactive chat to another role or back to Hermit.",
+    promptSnippet: `Use switch_role only when the user explicitly asks to change the active role, or when first-role bootstrap is complete and control should move into the new role. Use "${HERMIT_ROLE_ID}" to return to the base system prompt.`,
+    promptGuidelines: [
+      "Do not pretend the switch already happened. Call switch_role when the active role really needs to change.",
+      `Use "${HERMIT_ROLE_ID}" to return to the base Hermit system prompt.`,
+      "Before switching into a non-Hermit role, make sure that role already exists on disk and is ready to load.",
+    ],
+    parameters: roleSwitchParameters,
+    async execute(_toolCallId, params) {
+      const requestedRoleId = normalizeRoleId(params.roleId);
+      if (!requestedRoleId) {
+        throw new Error("Role ID cannot be empty.");
+      }
+      if (!isHermitRoleId(requestedRoleId)) {
+        await loadRole(root, requestedRoleId);
+      }
+      options.onRoleSwitchRequest?.({
+        roleId: requestedRoleId,
+        ...(params.reason ? { reason: params.reason } : {}),
+      });
+      return {
+        content: [
+          {
+            type: "text",
+            text: isHermitRoleId(requestedRoleId)
+              ? `Role switch requested: ${HERMIT_ROLE_ID}.`
+              : `Role switch requested: ${requestedRoleId}.`,
+          },
+        ],
+        details: {
+          roleId: requestedRoleId,
+          ...(params.reason ? { reason: params.reason } : {}),
+        },
+      };
+    },
+  };
+}
+
 export function createEntityRecordTool(root: string, role: RoleDefinition, entity: RoleEntityDefinition): ToolDefinition<TSchema> {
   const parameters = buildRoleEntityParameters(entity);
   return {
@@ -264,16 +322,24 @@ export function createEntityRecordTool(root: string, role: RoleDefinition, entit
   };
 }
 
-export function createCustomTools(root: string, role: RoleDefinition): Array<ToolDefinition<any>> {
+export function createCustomTools(root: string, role: RoleDefinition, options: CustomToolOptions = {}): Array<ToolDefinition<any>> {
   const tools: Array<ToolDefinition<any>> = [
     createEntityLookupTool(root, role),
     createWebSearchTool(),
     ...role.entities.map((entity) => createEntityRecordTool(root, role, entity)),
   ];
 
+  if (options.onRoleSwitchRequest) {
+    tools.push(createRoleSwitchTool(root, options));
+  }
+
   return tools;
 }
 
-export function createBootstrapTools(): Array<ToolDefinition<any>> {
-  return [createWebSearchTool()];
+export function createHermitTools(root: string, options: CustomToolOptions = {}): Array<ToolDefinition<any>> {
+  const tools: Array<ToolDefinition<any>> = [createWebSearchTool()];
+  if (options.onRoleSwitchRequest) {
+    tools.push(createRoleSwitchTool(root, options));
+  }
+  return tools;
 }

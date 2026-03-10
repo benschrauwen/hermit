@@ -3,7 +3,13 @@ import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { createBootstrapTools, createCustomTools, createEntityLookupTool, createWebSearchTool } from "../src/agent-tools.js";
+import {
+  createCustomTools,
+  createEntityLookupTool,
+  createHermitTools,
+  createRoleSwitchTool,
+  createWebSearchTool,
+} from "../src/agent-tools.js";
 import { loadRole } from "../src/roles.js";
 import { ensureWorkspaceScaffold } from "../src/workspace.js";
 import { seedRoleWorkspace } from "./test-helpers.js";
@@ -76,10 +82,39 @@ describe("createCustomTools", () => {
   });
 });
 
-describe("createBootstrapTools", () => {
-  it("returns web search for bootstrap sessions", () => {
-    const tools = createBootstrapTools();
+describe("createHermitTools", () => {
+  it("returns web search for Hermit sessions by default", () => {
+    const tools = createHermitTools("/tmp/workspace");
     expect(tools.map((tool) => tool.name)).toEqual(["web_search"]);
+  });
+});
+
+describe("createRoleSwitchTool", () => {
+  it("queues a switch into Hermit or another known role", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "agent-tools-switch-"));
+    try {
+      seedRoleWorkspace(root, ["role-a"]);
+      const requests: Array<{ roleId: string; reason?: string }> = [];
+      const tool = createRoleSwitchTool(root, {
+        onRoleSwitchRequest: (request) => {
+          requests.push(request);
+        },
+      });
+      await (tool.execute as (id: unknown, params: unknown) => Promise<unknown>)("call-1", {
+        roleId: "Hermit",
+        reason: "Return to the base prompt.",
+      });
+      await (tool.execute as (id: unknown, params: unknown) => Promise<unknown>)("call-2", {
+        roleId: "role-a",
+      });
+
+      expect(requests).toEqual([
+        { roleId: "Hermit", reason: "Return to the base prompt." },
+        { roleId: "role-a" },
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
 

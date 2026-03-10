@@ -112,5 +112,5 @@ export async function runTranscriptIngest(options: {
     additionalRolePrompts: role.transcriptIngest.systemPrompts,
   });
 
-  await runOneShotPrompt(session, commandPrompt, options.imagePaths, telemetry);
+  await runOneShotPrompt(session, commandPrompt, options.imagePaths, telemetry, role.id);
 }

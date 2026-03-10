@@ -2,6 +2,7 @@ import matter from "gray-matter";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import { HERMIT_ROLE_ID } from "./constants.js";
 import type {
   RoleDefinition,
   RoleEntityDefinition,
@@ -15,6 +16,7 @@ const ROLE_MANIFEST_FILE = "role.md";
 const ROLE_AGENTS_FILE = "AGENTS.md";
 const ROLE_AGENT_FILES = ["agent/record.md", "agent/inbox.md"] as const;
 const SHARED_AGENT_TEMPLATE_DIR = path.join("templates", "agent");
+const LAST_USED_CHAT_ROLE_FILE = path.join(".hermit", "state", "last-role.txt");
 
 interface RoleManifestData {
   id?: unknown;
@@ -361,6 +363,48 @@ export async function loadRole(root: string, roleId: string): Promise<RoleDefini
   };
 }
 
+export function normalizeRoleId(roleId: string): string {
+  return roleId.trim().toLowerCase() === HERMIT_ROLE_ID.toLowerCase() ? HERMIT_ROLE_ID : roleId.trim();
+}
+
+export function isHermitRoleId(roleId: string): boolean {
+  return normalizeRoleId(roleId) === HERMIT_ROLE_ID;
+}
+
+export function resolveLastUsedChatRolePath(root: string): string {
+  return path.join(root, LAST_USED_CHAT_ROLE_FILE);
+}
+
+export async function readLastUsedChatRole(root: string): Promise<string | undefined> {
+  try {
+    const raw = await fs.readFile(resolveLastUsedChatRolePath(root), "utf8");
+    const roleId = normalizeRoleId(raw);
+    if (!roleId) {
+      return undefined;
+    }
+    if (isHermitRoleId(roleId)) {
+      return HERMIT_ROLE_ID;
+    }
+    await loadRole(root, roleId);
+    return roleId;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function writeLastUsedChatRole(root: string, roleId: string): Promise<void> {
+  const normalizedRoleId = normalizeRoleId(roleId);
+  if (!normalizedRoleId) {
+    throw new Error("Role ID cannot be empty.");
+  }
+  if (!isHermitRoleId(normalizedRoleId)) {
+    await loadRole(root, normalizedRoleId);
+  }
+  const filePath = resolveLastUsedChatRolePath(root);
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, `${normalizedRoleId}\n`, "utf8");
+}
+
 export async function resolveRole(root: string, explicitRoleId?: string): Promise<RoleResolution> {
   if (explicitRoleId) {
     return { root, role: await loadRole(root, explicitRoleId) };
@@ -389,15 +433,25 @@ export type ChatSessionResolution =
       role: RoleDefinition;
     }
   | {
-      kind: "bootstrap";
+      kind: "hermit";
       root: string;
+      bootstrapMode: boolean;
     };
 
 export async function resolveChatSession(root: string, options: {
   explicitRoleId?: string;
   inferredRoleId?: string;
+  lastRoleId?: string;
 } = {}): Promise<ChatSessionResolution> {
-  const roleId = options.explicitRoleId ?? options.inferredRoleId;
+  const roleId = normalizeRoleId(options.explicitRoleId ?? options.inferredRoleId ?? options.lastRoleId ?? HERMIT_ROLE_ID);
+  if (isHermitRoleId(roleId)) {
+    return {
+      kind: "hermit",
+      root,
+      bootstrapMode: (await listRoleIds(root)).length === 0,
+    };
+  }
+
   if (roleId) {
     return {
       kind: "role",
@@ -406,13 +460,11 @@ export async function resolveChatSession(root: string, options: {
     };
   }
 
-  const roleIds = await listRoleIds(root);
-  if (roleIds.length === 0) {
-    return { kind: "bootstrap", root };
-  }
-
-  const roleList = roleIds.join(", ");
-  throw new Error(`A role is required for chat once roles exist (${roleList}). Re-run with --role <id>.`);
+  return {
+    kind: "hermit",
+    root,
+    bootstrapMode: (await listRoleIds(root)).length === 0,
+  };
 }
 
 export function inferRootAndRoleFromCwd(cwd: string): { root: string; roleId?: string } {

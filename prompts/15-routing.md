@@ -25,6 +25,7 @@ The role section of this system prompt lists on-demand prompts by domain. Treat 
 - If the runtime already provides a selected entity or path, treat that as a strong signal for which files and prompt instructions to read first.
 - When the task domain is obvious, proactively read the matching role prompt before deep analysis rather than waiting to be reminded.
 - When the task spans multiple domains, read all relevant prompt files and synthesize them instead of pretending it is a single-domain task.
+- When the user explicitly asks to change the active chat role, call `switch_role` instead of only saying that the role changed.
 - When a question clearly belongs to another role, run `bun cli ask --role <role> "question"` to ask that role directly.
 - If a due agent item is relevant, bring it into the conversation briefly and then follow the user's explicit priority unless the due item is truly time-critical.
 - Say which files you read when that helps the user understand your reasoning.

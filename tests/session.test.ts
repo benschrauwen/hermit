@@ -158,11 +158,11 @@ describe("heartbeat session helpers", () => {
     ]);
   });
 
-  it("stores bootstrap chat history outside role-local directories", () => {
-    expect(resolveBootstrapSessionDirectory("/tmp/workspace")).toBe("/tmp/workspace/.hermit/sessions/bootstrap");
+  it("stores Hermit chat history outside role-local directories", () => {
+    expect(resolveBootstrapSessionDirectory("/tmp/workspace")).toBe("/tmp/workspace/.hermit/sessions/hermit");
   });
 
-  it("loads only shared skills during workspace bootstrap chat", () => {
+  it("loads only shared skills during Hermit chat", () => {
     expect(resolveSharedSkillPaths("/tmp/workspace")).toEqual(["/tmp/workspace/skills"]);
   });
 
@@ -174,9 +174,9 @@ describe("heartbeat session helpers", () => {
 });
 
 describe("formatUserPromptEcho", () => {
-  it("wraps the user prompt with spacing, a >> marker, and a distinct color", () => {
-    expect(formatUserPromptEcho("Inspect the top 3 deals.")).toBe(
-      "\n\x1b[1m\x1b[95m>>\x1b[0m \x1b[95mInspect the top 3 deals.\x1b[0m\n\n",
+  it("wraps the user prompt with spacing, the active role, and a distinct color", () => {
+    expect(formatUserPromptEcho("Inspect the top 3 deals.", "sales")).toBe(
+      "\n\x1b[1m\x1b[95m- sales >>\x1b[0m \x1b[95mInspect the top 3 deals.\x1b[0m\n\n",
     );
   });
 });
@@ -206,6 +206,10 @@ describe("formatActivityStatus", () => {
     expect(formatActivityStatus("web_search", { query: "role-a backlog hygiene" })).toBe(
       "web_search role-a backlog hygiene",
     );
+  });
+
+  it("renders role switches from the requested role ID", () => {
+    expect(formatActivityStatus("switch_role", { roleId: "Hermit" })).toBe("switch_role Hermit");
   });
 });
 

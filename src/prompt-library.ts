@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import { HERMIT_ROLE_ID } from "./constants.js";
 import type { PromptContext, RoleDefinition } from "./types.js";
 
 export class PromptLibrary {
@@ -69,7 +70,7 @@ export class PromptLibrary {
   private renderTemplate(template: string, context: PromptContext): string {
     const values: Record<string, string> = {
       workspaceRoot: context.workspaceRoot,
-      roleId: context.roleId ?? this.role?.id ?? "workspace-bootstrap",
+      roleId: context.roleId ?? this.role?.id ?? HERMIT_ROLE_ID,
       roleRoot: context.roleRoot ?? (this.role ? path.relative(context.workspaceRoot, this.role.roleDir) || "." : "."),
       entityId: context.entityId ?? "not-selected",
       entityPath: context.entityPath ?? "not-selected",

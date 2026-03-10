@@ -18,18 +18,28 @@ import {
   runHeartbeatCycle,
 } from "./heartbeat-daemon.js";
 import { runTranscriptIngest } from "./ingest.js";
-import { inferRootAndRoleFromCwd, listRoleIds, loadRole, resolveChatSession, resolveRole } from "./roles.js";
+import { HERMIT_ROLE_ID } from "./constants.js";
 import {
-  createBootstrapSession,
+  inferRootAndRoleFromCwd,
+  listRoleIds,
+  loadRole,
+  readLastUsedChatRole,
+  resolveChatSession,
+  resolveRole,
+  writeLastUsedChatRole,
+} from "./roles.js";
+import {
+  createHermitSession,
   createRoleSession,
   DEFAULT_HEARTBEAT_PROMPT,
+  type InteractiveChatSession,
+  type RoleSwitchRequest,
   STRATEGIC_REVIEW_HEARTBEAT_PROMPT,
   resolveInitialChatPrompt,
   runChatLoop,
   runOneShotPrompt,
 } from "./session.js";
 import { generateTelemetryReport, renderTelemetryReportSummary, writeTelemetryReport } from "./telemetry.js";
-import type { TelemetryRecorder } from "./telemetry-recorder.js";
 import type { RoleDefinition } from "./types.js";
 
 async function resolveRoleContext(explicitRoleId?: string): Promise<{ root: string; roleId: string }> {
@@ -129,11 +139,39 @@ interface CommandGitContext {
   };
 }
 
+interface TelemetryHandle {
+  setGitSessionEndContext(context: {
+    gitHeadAtEnd?: string;
+    checkpointAfterSha?: string;
+  }): void;
+  close(): Promise<void>;
+}
+
+class TelemetryCollection implements TelemetryHandle {
+  private readonly recorders: TelemetryHandle[] = [];
+
+  add(recorder: TelemetryHandle): void {
+    this.recorders.push(recorder);
+  }
+
+  setGitSessionEndContext(context: { gitHeadAtEnd?: string; checkpointAfterSha?: string }): void {
+    for (const recorder of this.recorders) {
+      recorder.setGitSessionEndContext(context);
+    }
+  }
+
+  async close(): Promise<void> {
+    for (const recorder of this.recorders) {
+      await recorder.close();
+    }
+  }
+}
+
 async function withGitCheckpoint(options: {
   root: string;
   commandName: SessionCommandName;
   roleId?: string;
-  run: (context: CommandGitContext) => Promise<TelemetryRecorder | undefined>;
+  run: (context: CommandGitContext) => Promise<TelemetryHandle | undefined>;
 }): Promise<void> {
   const sessionId = randomUUID();
   const checkpointMeta = {
@@ -166,7 +204,7 @@ async function withGitCheckpoint(options: {
     },
   };
 
-  let telemetry: TelemetryRecorder | undefined;
+  let telemetry: TelemetryHandle | undefined;
   try {
     telemetry = await options.run(context);
   } finally {
@@ -235,7 +273,7 @@ async function runHeartbeatForRole(options: {
         ...(options.prompt !== undefined ? { prompt: options.prompt } : {}),
         ...(options.strategicReview !== undefined ? { strategicReview: options.strategicReview } : {}),
       });
-      await runOneShotPrompt(session, heartbeatPrompt, [], telemetry);
+      await runOneShotPrompt(session, heartbeatPrompt, [], telemetry, options.role.id);
       return telemetry;
     },
   });
@@ -295,42 +333,78 @@ program
       prompt?: string;
     }) => {
       const inferred = inferRootAndRoleFromCwd(process.cwd());
+      const lastRoleId =
+        options.role === undefined && inferred.roleId === undefined
+          ? await readLastUsedChatRole(inferred.root)
+          : undefined;
       const resolved = await resolveChatSession(inferred.root, {
         ...(options.role !== undefined ? { explicitRoleId: options.role } : {}),
         ...(inferred.roleId !== undefined ? { inferredRoleId: inferred.roleId } : {}),
+        ...(lastRoleId !== undefined ? { lastRoleId } : {}),
       });
+      const initialRoleId = resolved.kind === "role" ? resolved.role.id : HERMIT_ROLE_ID;
+      await writeLastUsedChatRole(resolved.root, initialRoleId);
       await withGitCheckpoint({
         root: resolved.root,
         commandName: "chat",
-        ...(resolved.kind === "role" ? { roleId: resolved.role.id } : {}),
+        roleId: initialRoleId,
         run: async (gitContext) => {
-          const sessionContext =
-            resolved.kind === "bootstrap"
-              ? await createBootstrapSession({
-                  root: resolved.root,
-                  persist: true,
-                  continueRecent: Boolean(options.continue),
-                  telemetryCommandName: "chat",
-                  telemetryContext: gitContext.telemetryContext,
-                  promptContext: {
-                    workspaceRoot: resolved.root,
-                    ...gitContext.promptContext,
-                  },
-                })
-              : await createRoleSession({
-                  root: resolved.root,
-                  role: resolved.role,
-                  persist: true,
-                  continueRecent: Boolean(options.continue),
-                  telemetryCommandName: "chat",
-                  telemetryContext: gitContext.telemetryContext,
-                  promptContext: {
-                    workspaceRoot: resolved.root,
-                    roleId: resolved.role.id,
-                    roleRoot: path.relative(resolved.root, resolved.role.roleDir) || ".",
-                    ...gitContext.promptContext,
-                  },
-                });
+          const telemetry = new TelemetryCollection();
+
+          const createInteractiveSession = async (
+            target: Awaited<ReturnType<typeof resolveChatSession>>,
+            continueRecent: boolean,
+          ): Promise<InteractiveChatSession> => {
+            let pendingRoleSwitch: RoleSwitchRequest | undefined;
+            const onRoleSwitchRequest = (request: RoleSwitchRequest) => {
+              pendingRoleSwitch = request;
+            };
+            const sessionContext =
+              target.kind === "hermit"
+                ? await createHermitSession({
+                    root: target.root,
+                    persist: true,
+                    continueRecent,
+                    bootstrapMode: target.bootstrapMode,
+                    telemetryCommandName: "chat",
+                    telemetryContext: gitContext.telemetryContext,
+                    promptContext: {
+                      workspaceRoot: target.root,
+                      roleId: HERMIT_ROLE_ID,
+                      roleRoot: ".",
+                      ...gitContext.promptContext,
+                    },
+                    onRoleSwitchRequest,
+                  })
+                : await createRoleSession({
+                    root: target.root,
+                    role: target.role,
+                    persist: true,
+                    continueRecent,
+                    telemetryCommandName: "chat",
+                    telemetryContext: gitContext.telemetryContext,
+                    promptContext: {
+                      workspaceRoot: target.root,
+                      roleId: target.role.id,
+                      roleRoot: path.relative(target.root, target.role.roleDir) || ".",
+                      ...gitContext.promptContext,
+                    },
+                    onRoleSwitchRequest,
+                  });
+
+            telemetry.add(sessionContext.telemetry);
+            return {
+              ...sessionContext,
+              activeRoleLabel: target.kind === "role" ? target.role.id : HERMIT_ROLE_ID,
+              consumeRoleSwitchRequest: () => {
+                const request = pendingRoleSwitch;
+                pendingRoleSwitch = undefined;
+                return request;
+              },
+            };
+          };
+
+          const sessionContext = await createInteractiveSession(resolved, Boolean(options.continue));
 
           const initialPrompt = resolveInitialChatPrompt({
             workspaceState: sessionContext.workspaceState,
@@ -338,13 +412,18 @@ program
             ...(options.continue !== undefined ? { continueRecent: options.continue } : {}),
           });
 
-          await runChatLoop(sessionContext.session, {
+          await runChatLoop({
+            initialSession: sessionContext,
             ...(initialPrompt !== undefined ? { initialPrompt } : {}),
             initialImages: collectImagePaths(options.image),
-            telemetry: sessionContext.telemetry,
+            onRoleSwitch: async (request) => {
+              const nextTarget = await resolveChatSession(resolved.root, { explicitRoleId: request.roleId });
+              await writeLastUsedChatRole(resolved.root, request.roleId);
+              return createInteractiveSession(nextTarget, false);
+            },
           });
 
-          return sessionContext.telemetry;
+          return telemetry;
         },
       });
     },
@@ -382,7 +461,7 @@ program
             },
           });
 
-          await runOneShotPrompt(session, promptParts.join(" "), collectImagePaths(options.image), telemetry);
+          await runOneShotPrompt(session, promptParts.join(" "), collectImagePaths(options.image), telemetry, role.id);
           return telemetry;
         },
       });

@@ -20,14 +20,14 @@ export OPENAI_API_KEY=your_key_here
 bun cli chat
 ```
 
-Use `bun cli chat` to bootstrap the very first role in an empty workspace. Once roles exist, run `bun cli chat --role <role-id>` from the workspace root, or run the command from inside `agents/<role-id>/` to infer the role from the current directory.
+Use `bun cli chat` to open the interactive chat. By default it resumes the last active chat role, and falls back to `Hermit` when there is no last role yet. In an empty workspace, that `Hermit` session bootstraps the first role. You can still run `bun cli chat --role <role-id>` from the workspace root, or run the command from inside `agents/<role-id>/` to infer the role from the current directory.
 
 If you want Hermit isolated to this repository and its runtime paths, see `Optional: Sandbox Hermit with nono` below.
 
 ## Commands
 
 ```bash
-bun cli chat                            # bootstrap the first role when no roles exist
+bun cli chat                                # open the last active role, or Hermit if none is stored yet
 bun cli chat --role <role-id>              # interactive session
 bun cli ask --role <role-id> "Review the top open deals"
 bun cli heartbeat --role <role-id>         # one autonomous GTD upkeep turn

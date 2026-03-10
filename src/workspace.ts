@@ -4,7 +4,7 @@ import path from "node:path";
 import slugifyImport from "slugify";
 
 import { DEAL_SEQUENCE_WIDTH, SHARED_ROOT_DIRECTORIES } from "./constants.js";
-import { getRootPaths, getRolePaths } from "./roles.js";
+import { getRootPaths, getRolePaths, listRoleIds } from "./roles.js";
 import { renderBulletList, renderYamlList, TemplateLibrary } from "./template-library.js";
 import type {
   EntityRecord,
@@ -281,6 +281,19 @@ export async function getWorkspaceBootstrapInitializationState(root: string): Pr
   const sharedEntities = await scanDirectoryForEntities(getWorkspacePaths(root).entitiesDir, "shared");
   return {
     initialized: sharedEntities.length > 0,
+    sharedEntityCount: sharedEntities.length,
+    roleEntityCount: 0,
+    roleEntityCounts: {},
+  };
+}
+
+export async function getWorkspaceChatInitializationState(root: string): Promise<WorkspaceInitializationState> {
+  const [sharedEntities, roleIds] = await Promise.all([
+    scanDirectoryForEntities(getWorkspacePaths(root).entitiesDir, "shared"),
+    listRoleIds(root),
+  ]);
+  return {
+    initialized: sharedEntities.length > 0 || roleIds.length > 0,
     sharedEntityCount: sharedEntities.length,
     roleEntityCount: 0,
     roleEntityCounts: {},
