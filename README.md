@@ -22,6 +22,8 @@ bun cli chat
 
 Use `bun cli chat` to bootstrap the very first role in an empty workspace. Once roles exist, run `bun cli chat --role <role-id>` from the workspace root, or run the command from inside `agents/<role-id>/` to infer the role from the current directory.
 
+If you want Hermit isolated to this repository and its runtime paths, see `Optional: Sandbox Hermit with nono` below.
+
 ## Commands
 
 ```bash
@@ -97,10 +99,55 @@ The runtime stays generic. Roles define behavior through files, not code changes
 
 | Variable | Description |
 |---|---|
-| `OPENAI_API_KEY` | Required for agent sessions |
+| `OPENAI_API_KEY` | Required for agent sessions. If you use `nono`, prefer injecting it from the system keychain instead of exporting it in your shell. |
 | `ROLE_AGENT_MODEL` | Model override (default: `openai/gpt-5.4`) |
 | `ROLE_AGENT_THINKING_LEVEL` | Thinking level (default: `medium`) |
 | `ROLE_AGENT_ENABLE_COMPUTER_USE` | Set `true` to expose computer-use boundary tool |
+
+## Optional: Sandbox Hermit with `nono`
+
+Hermit runs local agents with read/write access to your workspace, so sandboxing it is optional but strongly advised. [`nono`](https://github.com/always-further/nono) adds kernel-enforced filesystem boundaries on macOS and Linux, can inject secrets from the system keychain, and lets you keep Hermit confined to this repo plus the Bun runtime paths it needs.
+
+Install `nono`:
+
+```bash
+brew tap always-further/nono
+brew install nono
+```
+
+Store your OpenAI key in the system keychain once:
+
+```bash
+security add-generic-password -s "nono" -a "openai_api_key" -w "sk-..." -U
+```
+
+This repo includes an example profile at `examples/nono/hermit.json`. It grants:
+
+- Read/write access to the current workspace
+- Read access to Bun and common Git config paths
+- Normal outbound network access
+- `OPENAI_API_KEY` injection from the keychain
+
+Run Hermit under the sandbox with:
+
+```bash
+nono run --profile ./examples/nono/hermit.json --allow-cwd -- bun cli chat --role <role-id>
+```
+
+You can use the same prefix for other commands:
+
+```bash
+nono run --profile ./examples/nono/hermit.json --allow-cwd -- bun cli ask --role <role-id> "Review the top open deals"
+nono run --profile ./examples/nono/hermit.json --allow-cwd -- bun cli heartbeat --role <role-id>
+```
+
+For the initial dependency install, either run `bun install` outside the sandbox once or temporarily widen Bun's cache access:
+
+```bash
+nono run --profile ./examples/nono/hermit.json --allow-cwd --allow ~/.bun -- bun install
+```
+
+If your Bun binary, Git config, or other tooling lives in non-standard locations, extend `examples/nono/hermit.json` or add extra `--read`, `--read-file`, or `--allow` flags for those paths. For more detail, see the [`nono` installation docs](https://nono.sh/docs/cli/getting_started/installation.md), [profiles docs](https://nono.sh/docs/cli/features/profiles-groups.md), and [credential injection docs](https://nono.sh/docs/cli/features/credential-injection.md).
 
 ## Architecture
 

@@ -1,0 +1,23 @@
+{
+  "meta": {
+    "name": "hermit",
+    "version": "1.0.0",
+    "description": "Sandbox profile for running Hermit from a Bun workspace"
+  },
+  "workdir": {
+    "access": "readwrite"
+  },
+  "security": {
+    "groups": ["node_runtime", "unlink_protection"]
+  },
+  "filesystem": {
+    "read": ["$HOME/.bun", "$HOME/.config/git"],
+    "read_file": ["$HOME/.gitconfig"]
+  },
+  "network": {
+    "block": false
+  },
+  "secrets": {
+    "openai_api_key": "OPENAI_API_KEY"
+  }
+}
