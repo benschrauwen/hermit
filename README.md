@@ -24,6 +24,40 @@ Use `bun cli chat` to open the interactive chat. By default it resumes the last 
 
 If you want Hermit isolated to this repository and its runtime paths, see `Optional: Sandbox Hermit with nono` below.
 
+## Recommended Git Workflow
+
+Because Hermit stores app state directly in files, it's best to start from a fresh branch off `main` before using it for a specific app or operating context. That keeps the evolving state in normal git history, separate from the runtime's own source changes.
+
+Create a fresh branch from `main`:
+
+```bash
+git checkout main
+git pull
+git checkout -b my-app-state
+```
+
+You can keep multiple app states in parallel by using separate branches, for example `sales-state`, `ops-state`, or `customer-a-state`. Each branch becomes an isolated snapshot and timeline of that app's files, prompts, entities, and role state.
+
+When `main` gets updates, switch to each app-state branch and rebase or merge the latest `main` into it:
+
+```bash
+git checkout main
+git pull
+git checkout my-app-state
+git rebase main
+```
+
+If you prefer merge commits instead of rebasing:
+
+```bash
+git checkout main
+git pull
+git checkout my-app-state
+git merge main
+```
+
+Repeat that for any other app-state branches you maintain. This keeps each tracked Hermit workspace state current with the latest runtime, prompts, and tooling changes from `main`.
+
 ## Commands
 
 ```bash
@@ -95,6 +129,8 @@ The runtime stays generic. Roles define behavior through files, not code changes
 3. Add `AGENTS.md` plus any role-local prompts or skills
 4. Update `entity-defs/entities.md` and add templates under `entity-defs/` when the role needs new entity types or explorer rendering
 5. Run `bun cli doctor --role <role-id>` to validate
+
+A role can own many responsibilities. Create another role when the work needs a different operating lens: a different operating model, personality, approach, or broad responsibility set that should be judged by a distinct operator. Do not create a new role for every task cluster; split when a new lens would make decisions clearer.
 
 Hermit also treats `entities/user/record.md` as the default shared user-context record. Bootstrap should create it early, and normal sessions should read it at startup so durable user preferences and constraints accumulate over time without relying on chat memory.
 

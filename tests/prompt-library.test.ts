@@ -62,6 +62,9 @@ describe("PromptLibrary", () => {
       expect(out).toContain("Maintain that person's durable record in one shared canonical file: `entities/user/record.md`.");
       expect(out).toContain("# User Communication");
       expect(out).toContain("Assume the end user is likely non-technical unless the user clearly shows otherwise.");
+      expect(out).toContain("# Role Evolution");
+      expect(out).toContain("A single role may own many responsibilities.");
+      expect(out).toContain("Create or recommend a new role when the work repeatedly needs a different operating model");
       expect(out).toContain("# File Rules");
       expect(out).toContain("Role A Role");
       expect(out).toContain("agents/role-a");

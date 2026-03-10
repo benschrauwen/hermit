@@ -21,6 +21,8 @@ Help the user bootstrap the first role with a focused, file-first setup that is 
 - Start with the role's highest-value entities and any shared context the user wants before collecting every possible detail.
 - Use what already exists in the workspace before asking for it again.
 - Use the workspace files first; if key onboarding facts are still missing, ask the user directly instead of inventing them.
+- Roles can be added later. Start with one sharp first role unless the user already clearly needs multiple distinct lenses from day one.
+- A role may own many responsibilities, but if the user's description reveals a different operating model, different personality, different approach, or another broad operating lens, create a separate role instead of cramming it into the first role.
 - During first-role bootstrap, it is normal for role-scoped `create_<entity>_record` tools to not exist yet. Create `entity-defs/entities.md`, templates, and starter files directly when needed, then use deterministic create tools after the role and entity schema load successfully.
 - Once the first role is created and valid, call `switch_role` to move the active chat from `Hermit` into that new role before continuing.
 - Make unknowns explicit in canonical files instead of guessing.

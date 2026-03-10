@@ -92,6 +92,14 @@ If the persona still sounds generic, ask more pointed questions:
 - What does this role treat as fake progress?
 - What should this role say "no" to faster than a normal assistant would?
 
+## When To Create Another Role
+
+- A role can own many responsibilities.
+- Create a new role when the work needs a genuinely different lens: a different operating model, different personality, different approach, or another broad responsibility set that would change judgment.
+- Do not split roles just because one operator has a lot to do. Split when the work would be better served by a distinct operator.
+- If two work modes would disagree on evidence standards, decision cadence, escalation style, or what "good" looks like, they probably want separate roles.
+- Encode this awareness into the role's `AGENTS.md` so the role can clearly say when another role should be created or when a request belongs elsewhere.
+
 ## Split Responsibilities Correctly
 
 Put each kind of information in the right file:
@@ -173,6 +181,7 @@ Use this outline:
 - The recurring motions this role runs
 - What good and bad look like
 - Which conclusions require evidence before trust
+- When this role should recommend creating or switching to another role because the work needs a different operating lens
 
 ## Startup Context
 - `agent/record.md`
@@ -279,6 +288,7 @@ Raw internal commitments, reminders, and follow-up ideas that still need clarifi
 - The role should have a small set of strong opinions that improve decisions under ambiguity.
 - The role should be able to explain what good looks like and what bad smells like.
 - The first draft should be focused, but complete enough that repeated task modes, obvious directories, and real capabilities are not silently deferred.
+- The role should know where its lens stops and when another role should be created instead of absorbing incompatible work.
 
 ## Anti-Patterns
 
@@ -288,6 +298,7 @@ Raw internal commitments, reminders, and follow-up ideas that still need clarifi
 - Leaving `On-Demand Prompts` empty even though the role already has obvious recurring work modes.
 - Inventing special agent files per role instead of using the shared `prompts/templates/agent/` templates.
 - Giving the role broad authority without clarifying what evidence it needs.
+- Cramming several distinct operating lenses into one role just because they touch the same domain or stakeholders.
 
 ## Validation
 
