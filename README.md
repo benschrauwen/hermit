@@ -144,7 +144,7 @@ Hermit also treats `entities/user/record.md` as the default shared user-context 
 
 | Variable | Description |
 |---|---|
-| `OPENAI_API_KEY` | Required for agent sessions. If you use `nono`, prefer injecting it from the system keychain instead of exporting it in your shell. |
+| `OPENAI_API_KEY` | Required for agent sessions. If you use `nono`, prefer storing it in the system keychain and injecting it into the sandbox from there. |
 | `ROLE_AGENT_MODEL` | Model override (default: `openai/gpt-5.4`) |
 | `ROLE_AGENT_THINKING_LEVEL` | Thinking level (default: `medium`) |
 | `ROLE_AGENT_ENABLE_COMPUTER_USE` | Set `true` to expose computer-use boundary tool |
@@ -170,8 +170,8 @@ This repo includes an example profile at `examples/nono/hermit.json`. It grants:
 
 - Read/write access to the current workspace
 - Read access to Bun and common Git config paths
-- Normal outbound network access
-- `OPENAI_API_KEY` injection from the keychain
+- OpenAI API access only (`api.openai.com`)
+- `OPENAI_API_KEY` injection from the keychain into the sandboxed process
 
 ### Recommended on macOS
 
@@ -199,15 +199,13 @@ nono run --profile ./examples/nono/hermit.json --allow-cwd -- bun cli chat --rol
 
 ### Installing dependencies
 
-For the initial dependency install, either run `bun install` outside the sandbox once or temporarily widen Bun's cache access:
+For the initial dependency install, either run `bun install` outside the sandbox once or temporarily widen Bun's cache access and network policy:
 
 ```bash
-nono run --profile ./examples/nono/hermit.json --allow-cwd --allow ~/.bun -- bun install
+nono run --profile ./examples/nono/hermit.json --network-profile developer --allow-cwd --allow ~/.bun -- bun install
 ```
 
 If your Bun binary, Git config, or other tooling lives in non-standard locations, extend `examples/nono/hermit.json` or add extra `--read`, `--read-file`, or `--allow` flags for those paths.
-
-`nono` will warn that `OPENAI_API_KEY` is being injected into the sandboxed process. That warning is expected for this profile. It is still much better than exporting the key in your shell, but if Hermit later gains first-class support for `OPENAI_BASE_URL` proxy injection, that would be the stricter option.
 
 For more detail, see the [`nono` installation docs](https://nono.sh/docs/cli/getting_started/installation.md), [profiles docs](https://nono.sh/docs/cli/features/profiles-groups.md), and [credential injection docs](https://nono.sh/docs/cli/features/credential-injection.md).
 
