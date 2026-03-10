@@ -18,6 +18,7 @@ import {
   runHeartbeatCycle,
 } from "./heartbeat-daemon.js";
 import { runTranscriptIngest } from "./ingest.js";
+import { InteractiveSessionCache, snapshotPreexistingInteractiveSessionKeys } from "./chat-session-cache.js";
 import { HERMIT_ROLE_ID } from "./constants.js";
 import {
   inferRootAndRoleFromCwd,
@@ -350,6 +351,10 @@ program
         roleId: initialRoleId,
         run: async (gitContext) => {
           const telemetry = new TelemetryCollection();
+          const sessionCache = new InteractiveSessionCache(
+            Boolean(options.continue),
+            await snapshotPreexistingInteractiveSessionKeys(resolved.root),
+          );
 
           const createInteractiveSession = async (
             target: Awaited<ReturnType<typeof resolveChatSession>>,
@@ -392,7 +397,6 @@ program
                     onRoleSwitchRequest,
                   });
 
-            telemetry.add(sessionContext.telemetry);
             return {
               ...sessionContext,
               activeRoleLabel: target.kind === "role" ? target.role.id : HERMIT_ROLE_ID,
@@ -404,12 +408,25 @@ program
             };
           };
 
-          const sessionContext = await createInteractiveSession(resolved, Boolean(options.continue));
+          const getSessionKey = (target: Awaited<ReturnType<typeof resolveChatSession>>): string =>
+            target.kind === "role" ? target.role.id : HERMIT_ROLE_ID;
+          const getOrCreateInteractiveSession = async (
+            target: Awaited<ReturnType<typeof resolveChatSession>>,
+          ) => {
+            return sessionCache.getOrCreate(getSessionKey(target), async (continueRecent) => {
+              const sessionContext = await createInteractiveSession(target, continueRecent);
+              telemetry.add(sessionContext.telemetry);
+              return sessionContext;
+            });
+          };
+
+          const initialSessionEntry = await getOrCreateInteractiveSession(resolved);
+          const sessionContext = initialSessionEntry.session;
 
           const initialPrompt = resolveInitialChatPrompt({
             workspaceState: sessionContext.workspaceState,
             ...(options.prompt !== undefined ? { initialPrompt: options.prompt } : {}),
-            ...(options.continue !== undefined ? { continueRecent: options.continue } : {}),
+            ...(initialSessionEntry.continuedFromPersistedSession ? { continueRecent: true } : {}),
           });
 
           await runChatLoop({
@@ -419,7 +436,7 @@ program
             onRoleSwitch: async (request) => {
               const nextTarget = await resolveChatSession(resolved.root, { explicitRoleId: request.roleId });
               await writeLastUsedChatRole(resolved.root, request.roleId);
-              return createInteractiveSession(nextTarget, false);
+              return (await getOrCreateInteractiveSession(nextTarget)).session;
             },
           });
 
