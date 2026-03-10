@@ -58,6 +58,10 @@ describe("PromptLibrary", () => {
         entityPath: "/my/root/entities/cases/active/cs-1",
         transcriptPath: "/path/to/transcript.md",
       });
+      expect(out).toContain("# User Record");
+      expect(out).toContain("Maintain that person's durable record in one shared canonical file: `entities/user/record.md`.");
+      expect(out).toContain("# User Communication");
+      expect(out).toContain("Assume the end user is likely non-technical unless the user clearly shows otherwise.");
       expect(out).toContain("# File Rules");
       expect(out).toContain("Role A Role");
       expect(out).toContain("agents/role-a");

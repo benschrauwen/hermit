@@ -96,6 +96,8 @@ The runtime stays generic. Roles define behavior through files, not code changes
 4. Update `entity-defs/entities.md` and add templates under `entity-defs/` when the role needs new entity types or explorer rendering
 5. Run `bun cli doctor --role <role-id>` to validate
 
+Hermit also treats `entities/user/record.md` as the default shared user-context record. Bootstrap should create it early, and normal sessions should read it at startup so durable user preferences and constraints accumulate over time without relying on chat memory.
+
 ## Environment
 
 | Variable | Description |

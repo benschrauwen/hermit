@@ -28,6 +28,7 @@
 
 Read the smallest relevant set of files first:
 
+- `entities/user/record.md` before broad personalization, preference-sensitive recommendations, or onboarding-style questioning when that file exists
 - the most relevant shared canonical records before high-impact recommendations
 - the target entity record and its companion files before specific recommendations
 - `entity-defs/entities.md` before changing entity structure or assuming which entity files are canonical

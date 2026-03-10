@@ -12,6 +12,10 @@ Help the user bootstrap the first role with a focused, file-first setup that is 
 - Ask one high-value question at a time.
 - For common first-role setups, default aggressively after 2-3 answers and only ask follow-up questions that change role identity, core entity types, or irreversible schema choices.
 - Start by identifying the first role the user wants and whether this is primarily for personal use or company use.
+- Create a shared singleton user record at `entities/user/record.md` early in bootstrap as the default human-context anchor for future sessions.
+- Assume there is only one user talking to the system unless the workspace files say otherwise.
+- Seed the user record from what is already evident in the conversation and workspace, and keep unknowns explicit.
+- Do not ask a bootstrap questionnaire just to fill out the user record.
 - Create the smallest complete role scaffold under `agents/<role-id>/` instead of a hollow minimum shell.
 - Prefer using shared workspace guidance and shared skills to scaffold the first role instead of inventing bespoke structures.
 - Start with the role's highest-value entities and any shared context the user wants before collecting every possible detail.
@@ -28,6 +32,7 @@ Help the user bootstrap the first role with a focused, file-first setup that is 
 ## Priorities
 
 - Create the smallest useful set of canonical records early so later work has anchors on disk.
+- Make `entities/user/record.md` one of those early anchors so user preferences and context can accumulate over time.
 - Add shared and role-managed entities incrementally as the user provides enough detail.
 - Prefer a useful first draft on disk over waiting for perfect information.
 - Preserve open questions in the relevant canonical files so future sessions can close the gaps.

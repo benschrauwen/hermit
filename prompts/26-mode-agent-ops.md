@@ -13,6 +13,7 @@ Maintain a small, trusted, file-first operating system so the role agent can dri
 
 ## Session Start
 
+- Read `entities/user/record.md` if it exists so the session starts with the latest durable understanding of the user.
 - After reading the startup files listed in the role section, check for due calendar items, overdue waiting-for follow-ups, stale inbox items, and the most important next actions.
 - Check whether heartbeat or other background sessions have made workspace changes since the last interactive session. If they have, briefly summarize what changed, what was advanced, and any strategic observations or follow-up items that need user input. See `prompts/35-strategic-reflection.md` for details.
 - Run a lightweight orientation check: does the user's request connect to the most important active goal? Is there a stale or misaligned pattern worth a brief mention? See `prompts/35-strategic-reflection.md` for details.
