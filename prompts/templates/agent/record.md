@@ -5,6 +5,7 @@ name: {{roleName}} Agent
 status: active
 owner: {{roleName}}
 updated_at: {{updatedAt}}
+last_strategic_review:
 source_refs:
 {{sourceRefsYaml}}
 ---
@@ -32,3 +33,7 @@ source_refs:
 ## Someday Or Maybe
 
 - None yet.
+
+## Strategic Observations
+
+No strategic review has been performed yet.

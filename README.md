@@ -8,7 +8,7 @@
   <strong>Local, file-first runtime for autonomous applications.</strong>
 </p>
 
-**Hermit** is a runtime that turns a local workspace into the system of record for autonomous agents. Business state lives in markdown files — inspectable, portable, versionable. The runtime loads role contracts, wires agent sessions, and keeps behavior deterministic while the operating context stays editable. No database, no opaque store. Files are the product.
+**Hermit** is a local, file-first runtime for autonomous applications. Your workspace *is* the system of record — markdown files you can read, edit, version, and own. Agents run with a built-in GTD loop that captures, clarifies, and autonomously advances work, even when you're not at the keyboard. The runtime monitors its own performance through local telemetry and continuously improves its own prompts, tools, and workflows based on what it learns. No database, no opaque store, no SaaS dependency. Files are the product.
 
 [Architecture](docs/architecture.md) · [Observability](docs/observability.md) · [License](LICENSE)
 
@@ -37,16 +37,19 @@ bun run explorer                       # launch the workspace UI
 
 `heartbeat` runs a single background turn for a role, intended for cron-style upkeep. It uses a separate persisted session history under that role so automated runs stay distinct from normal interactive chat history.
 
-## Features
+## Why Hermit
 
-- **Role-based agents** — each role ships its own prompts, workflows, capabilities, and operating rules via a declarative `role.md` manifest.
-- **Shared and role-local skills** — reusable pi skills can live under `skills/` or `agents/<role-id>/skills/` and are auto-exposed to sessions.
-- **Deterministic scaffolding** — entities, records, and evidence are created through safe, ID-stable operations.
-- **Evidence ingestion** — transcripts and supporting material update canonical records without replacing them.
-- **Workspace explorer** — a local read-only Astro UI for browsing the system of record, driven by the same runtime the CLI uses.
-- **Doctor** — validates workspace integrity: prompt links, required files, duplicate IDs, placeholder drift.
-- **Local observability** — append-only local telemetry for sessions, turns, tool calls, retries, and report generation for recent runtime performance.
-- **Git-aware session checkpoints** — `chat`, `ask`, and `heartbeat` can create command-boundary checkpoint commits over allowlisted workspace paths and record the linkage in telemetry.
+- **Fully autonomous** — agents capture work into an inbox, clarify it, and advance the highest-impact next action on their own. A cron-driven `heartbeat` keeps things moving between interactive sessions so nothing stalls.
+- **File-first, not file-adjacent** — every piece of state is a markdown file in your workspace. No hidden database, no opaque blob store. You can read, edit, or `grep` anything the system knows.
+- **Git-versioned by default** — session commands create checkpoint commits automatically. Your entire operating history is in `git log`, diffable and revertable with standard tools.
+- **Self-improving** — the runtime records local telemetry for every session, aggregates it into reports, and uses the evidence to tighten its own prompts, fix fragile tools, and eliminate repeated failures.
+- **Role-based agents** — each role ships its own prompts, skills, entity types, and operating rules through a declarative `role.md` manifest. Adding a role is a file-creation exercise, not a code change.
+- **Reusable skills** — shared and role-local pi skills are auto-discovered and available on demand across sessions.
+- **Deterministic scaffolding** — entities, records, and evidence are created through safe, ID-stable operations. No accidental overwrites, no orphaned files.
+- **Evidence ingestion** — transcripts, call notes, and supporting material merge into canonical records without replacing them.
+- **Workspace explorer** — a local read-only Astro UI for browsing the full system of record, powered by the same runtime the CLI uses.
+- **Doctor** — validates workspace integrity end to end: prompt links, required files, duplicate IDs, placeholder drift.
+- **100% local** — nothing leaves your machine. No cloud dependency, no vendor lock-in. Bring your own LLM key and run.
 
 ## Workspace Structure
 
@@ -107,17 +110,6 @@ Hermit separates **deterministic orchestration** (TypeScript) from **operating c
 The explorer reuses the same role and entity model as the CLI — no separate domain layer, no data duplication.
 
 For the full design document, see [`docs/architecture.md`](docs/architecture.md). For runtime telemetry, reporting, and storage conventions, see [`docs/observability.md`](docs/observability.md).
-
-## Git Checkpoints
-
-`chat`, `ask`, and `heartbeat` are git-aware session commands.
-
-- A `before` checkpoint is created only when relevant tracked workspace paths are already dirty.
-- An `after` checkpoint is created only when the command leaves relevant allowlisted workspace changes behind.
-- Checkpoints are ordinary commits with Hermit trailers, not tags.
-- Automatic checkpoint staging is restricted to canonical workspace paths such as `agents/`, `entities/`, `entity-defs/`, `prompts/`, `skills/`, `src/`, `tests/`, `docs/`, and `README.md`.
-- `.hermit/` runtime artifacts are intentionally excluded.
-- No rollback happens automatically. If history needs to be undone, use an explicit safe operation such as `git revert`.
 
 ## License
 

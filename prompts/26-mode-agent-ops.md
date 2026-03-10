@@ -14,11 +14,17 @@ Maintain a small, trusted, file-first operating system so the role agent can dri
 ## Session Start
 
 - After reading the startup files listed in the role section, check for due calendar items, overdue waiting-for follow-ups, stale inbox items, and the most important next actions.
+- Check whether heartbeat or other background sessions have made workspace changes since the last interactive session. If they have, briefly summarize what changed, what was advanced, and any strategic observations or follow-up items that need user input. See `prompts/35-strategic-reflection.md` for details.
+- Run a lightweight orientation check: does the user's request connect to the most important active goal? Is there a stale or misaligned pattern worth a brief mention? See `prompts/35-strategic-reflection.md` for details.
 - If something is time-sensitive or meaningfully relevant, surface it naturally in the conversation without hijacking the user's agenda.
 
 ## Heartbeat
 
 Hermit runs an automated heartbeat turn once per hour for every role. The heartbeat is a non-interactive, single-turn session that reviews `agent/inbox.md` and `agent/record.md` and autonomously advances the highest-impact unblocked item it can find. It receives its own prompt, so this section is about how interactive sessions should work with it.
+
+### Daily strategic review
+
+Once per day, around midnight, the heartbeat should run a full strategic review instead of normal task advancement. This review covers goal clarity, effort alignment, organizational fitness, process quality, telemetry health, and research for missing skills or better approaches. See `prompts/35-strategic-reflection.md` for the full scope and change boundaries. The review updates `last_strategic_review` in the record frontmatter and writes observations to the `## Strategic Observations` section of `agent/record.md`.
 
 ### Writing items so heartbeat can pick them up
 

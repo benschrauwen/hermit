@@ -2,7 +2,9 @@
 
 import "dotenv/config";
 import { Command } from "commander";
+import matter from "gray-matter";
 import { randomUUID } from "node:crypto";
+import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
@@ -14,6 +16,7 @@ import {
   createBootstrapSession,
   createRoleSession,
   DEFAULT_HEARTBEAT_PROMPT,
+  STRATEGIC_REVIEW_HEARTBEAT_PROMPT,
   resolveInitialChatPrompt,
   runChatLoop,
   runOneShotPrompt,
@@ -68,6 +71,23 @@ async function resolveSessionContext(options: { role?: string }): Promise<{
       roleRoot: path.relative(root, role.roleDir) || ".",
     },
   };
+}
+
+const STRATEGIC_REVIEW_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+async function isStrategicReviewDue(role: RoleDefinition): Promise<boolean> {
+  const recordPath = path.join(role.roleDir, "agent", "record.md");
+  try {
+    const content = await fs.readFile(recordPath, "utf-8");
+    const { data } = matter(content);
+    const lastReview = data.last_strategic_review;
+    if (!lastReview) return true;
+    const lastDate = new Date(lastReview);
+    if (isNaN(lastDate.getTime())) return true;
+    return Date.now() - lastDate.getTime() > STRATEGIC_REVIEW_INTERVAL_MS;
+  } catch {
+    return false;
+  }
 }
 
 type SessionCommandName = "chat" | "ask" | "heartbeat";
@@ -264,11 +284,13 @@ program
   .option("--role <id>", "Role ID to run.")
   .option("--continue", "Continue the most recent persisted heartbeat session for this role.")
   .option("--prompt <text>", "Optional heartbeat prompt override.")
+  .option("--strategic-review", "Force a full strategic review instead of normal task advancement.")
   .action(
     async (options: {
       role?: string;
       continue?: boolean;
       prompt?: string;
+      strategicReview?: boolean;
     }) => {
       const { root, promptContext, role } = await resolveSessionContext(options);
       await withGitCheckpoint({
@@ -290,7 +312,15 @@ program
             },
           });
 
-          await runOneShotPrompt(session, options.prompt ?? DEFAULT_HEARTBEAT_PROMPT, [], telemetry);
+          let heartbeatPrompt: string;
+          if (options.prompt) {
+            heartbeatPrompt = options.prompt;
+          } else if (options.strategicReview || await isStrategicReviewDue(role)) {
+            heartbeatPrompt = STRATEGIC_REVIEW_HEARTBEAT_PROMPT;
+          } else {
+            heartbeatPrompt = DEFAULT_HEARTBEAT_PROMPT;
+          }
+          await runOneShotPrompt(session, heartbeatPrompt, [], telemetry);
           return telemetry;
         },
       });
