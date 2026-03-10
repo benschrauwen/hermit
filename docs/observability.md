@@ -115,18 +115,20 @@ Git linkage is stored on the raw session events today. It is primarily intended 
 
 ## How To Use It
 
-Telemetry is one input to Hermit's self-improvement loop.
+Telemetry is one input to Hermit's self-improvement loop and strategic reflection.
 
 - Use reports to spot repeated failure modes, retries, slow turns, or fragile tools before changing prompts or runtime behavior.
 - Treat telemetry as supporting evidence, then confirm the right fix in prompts, code, templates, renderers, docs, or tests.
 - Do not treat a single anomalous session as enough evidence for a broad workflow rewrite.
+- The daily strategic review (see `docs/architecture.md` and `prompts/35-strategic-reflection.md`) reads telemetry reports as part of its health check. Systemic issues found during the review are recorded in `agent/record.md` and surfaced at the next interactive session.
 
 ## Documentation References
 
 Telemetry is also referenced from:
 
 - `README.md` for feature discovery and CLI usage
-- `docs/architecture.md` for runtime module responsibilities and storage model
+- `docs/architecture.md` for runtime module responsibilities, storage model, and strategic reflection
+- `prompts/35-strategic-reflection.md` for the daily strategic review that consumes telemetry reports
 
 ## Guardrails
 

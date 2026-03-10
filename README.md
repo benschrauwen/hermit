@@ -29,13 +29,14 @@ bun cli chat                            # bootstrap the first role when no roles
 bun cli chat --role <role-id>              # interactive session
 bun cli ask --role <role-id> "Review the top open deals"
 bun cli heartbeat --role <role-id>         # one autonomous GTD upkeep turn
+bun cli heartbeat --role <role-id> --strategic-review  # force a full strategic review
 bun cli ingest transcript ./notes/acme-call.md --role <role-id> --entity d-2026-0001-acme-expansion
 bun cli doctor --role <role-id>            # validate workspace integrity
 bun cli telemetry report --window 7d   # aggregate local runtime telemetry
 bun run explorer                       # launch the workspace UI
 ```
 
-`heartbeat` runs a single background turn for a role, intended for cron-style upkeep. It uses a separate persisted session history under that role so automated runs stay distinct from normal interactive chat history.
+`heartbeat` runs a single background turn for a role, intended for cron-style upkeep. It uses a separate persisted session history under that role so automated runs stay distinct from normal interactive chat history. When `--strategic-review` is passed, or when the last strategic review is more than 24 hours old, the heartbeat runs a full strategic review instead of normal task advancement (see below).
 
 ## Why Hermit
 
@@ -43,6 +44,7 @@ bun run explorer                       # launch the workspace UI
 - **File-first, not file-adjacent** — every piece of state is a markdown file in your workspace. No hidden database, no opaque blob store. You can read, edit, or `grep` anything the system knows.
 - **Git-versioned by default** — session commands create checkpoint commits automatically. Your entire operating history is in `git log`, diffable and revertable with standard tools.
 - **Self-improving** — the runtime records local telemetry for every session, aggregates it into reports, and uses the evidence to tighten its own prompts, fix fragile tools, and eliminate repeated failures.
+- **Strategic reflection** — a daily strategic review steps back from task execution to question whether goals are clear, effort is going to the right places, the organizational structure fits the work, and whether prompts, skills, or processes need to evolve. The review also checks telemetry health and researches better approaches or missing skills. Findings are written to `agent/record.md` and surfaced at the next interactive session.
 - **Role-based agents** — each role ships its own prompts, skills, entity types, and operating rules through a declarative `role.md` manifest. Adding a role is a file-creation exercise, not a code change.
 - **Reusable skills** — shared and role-local pi skills are auto-discovered and available on demand across sessions.
 - **Deterministic scaffolding** — entities, records, and evidence are created through safe, ID-stable operations. No accidental overwrites, no orphaned files.

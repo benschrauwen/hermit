@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   createCheckpoint,
   getRepoState,
-  listRelevantChangedFiles,
+  listChangedFiles,
   shouldCheckpoint,
 } from "../src/git.js";
 
@@ -54,14 +54,14 @@ describe("git runtime helpers", () => {
     }
   });
 
-  it("lists only relevant changed files from the allowlist", async () => {
+  it("lists all changed files in the repository", async () => {
     const root = createGitWorkspace();
     roots.push(root);
 
     writeFile(root, "docs/architecture.md", "# Architecture\n\nUpdated.\n");
-    writeFile(root, ".hermit/telemetry/events/test.jsonl", "{}\n");
+    writeFile(root, "misc/notes.txt", "hello\n");
 
-    expect(await listRelevantChangedFiles(root)).toEqual(["docs/architecture.md"]);
+    expect(await listChangedFiles(root)).toEqual(["docs/architecture.md", "misc/notes.txt"]);
   });
 
   it("reports head summary and dirty state for relevant workspace changes", async () => {
@@ -75,18 +75,18 @@ describe("git runtime helpers", () => {
       branch: "main",
       headSubject: "chore: initial workspace",
       dirty: true,
-      relevantChangedFiles: ["agents/role-a/AGENTS.md"],
+      changedFiles: ["agents/role-a/AGENTS.md"],
     });
     expect(state?.headSha).toMatch(/^[a-f0-9]{40}$/);
     expect(state?.headShortSha).toMatch(/^[a-f0-9]+$/);
   });
 
-  it("creates an allowlisted checkpoint commit without swallowing runtime artifacts", async () => {
+  it("creates a checkpoint commit for all changed files", async () => {
     const root = createGitWorkspace();
     roots.push(root);
 
     writeFile(root, "docs/architecture.md", "# Architecture\n\nCheckpoint me.\n");
-    writeFile(root, ".hermit/runtime/session.jsonl", "{}\n");
+    writeFile(root, "misc/extra.txt", "extra\n");
 
     const checkpoint = await createCheckpoint(root, {
       commandName: "heartbeat",
@@ -96,7 +96,7 @@ describe("git runtime helpers", () => {
     });
 
     expect(checkpoint?.checkpointSha).toMatch(/^[a-f0-9]{40}$/);
-    expect(checkpoint?.changedFiles).toEqual(["docs/architecture.md"]);
+    expect(checkpoint?.changedFiles).toEqual(["docs/architecture.md", "misc/extra.txt"]);
 
     const latestCommit = runGit(root, ["log", "-1", "--pretty=%s%n%b"]);
     expect(latestCommit).toContain("chore(checkpoint): after heartbeat role-a");
@@ -106,8 +106,7 @@ describe("git runtime helpers", () => {
     expect(latestCommit).toContain("Hermit-Session: session-123");
 
     const status = runGit(root, ["status", "--porcelain"]);
-    expect(status).toContain("?? .hermit/");
-    expect(status).not.toContain("docs/architecture.md");
+    expect(status).toBe("");
   });
 
   it("only checkpoints when relevant allowlisted files are dirty", () => {

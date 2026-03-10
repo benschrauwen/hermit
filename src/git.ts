@@ -3,18 +3,6 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
-export const DEFAULT_CHECKPOINT_PATH_ALLOWLIST = [
-  "agents",
-  "entities",
-  "entity-defs",
-  "prompts",
-  "skills",
-  "src",
-  "tests",
-  "docs",
-  "README.md",
-] as const;
-
 type CheckpointPhase = "before" | "after";
 
 export interface GitHeadSummary {
@@ -26,7 +14,7 @@ export interface GitHeadSummary {
 
 export interface RepoState extends GitHeadSummary {
   dirty: boolean;
-  relevantChangedFiles: string[];
+  changedFiles: string[];
 }
 
 export interface CheckpointMetadata {
@@ -152,7 +140,7 @@ export async function getHeadSummary(root: string): Promise<GitHeadSummary | und
   };
 }
 
-export async function listRelevantChangedFiles(root: string): Promise<string[]> {
+export async function listChangedFiles(root: string): Promise<string[]> {
   if (!(await isGitRepository(root))) {
     return [];
   }
@@ -161,8 +149,6 @@ export async function listRelevantChangedFiles(root: string): Promise<string[]> 
     "status",
     "--porcelain=v1",
     "--untracked-files=all",
-    "--",
-    ...DEFAULT_CHECKPOINT_PATH_ALLOWLIST,
   ]);
 
   return parseStatusOutput(result.stdout);
@@ -173,12 +159,12 @@ export async function getRepoState(root: string): Promise<RepoState | undefined>
     return undefined;
   }
 
-  const [head, relevantChangedFiles] = await Promise.all([getHeadSummary(root), listRelevantChangedFiles(root)]);
+  const [head, changedFiles] = await Promise.all([getHeadSummary(root), listChangedFiles(root)]);
 
   return {
     ...head,
-    dirty: relevantChangedFiles.length > 0,
-    relevantChangedFiles,
+    dirty: changedFiles.length > 0,
+    changedFiles,
   };
 }
 
@@ -194,7 +180,7 @@ export async function createCheckpoint(
     return undefined;
   }
 
-  const changedFiles = await listRelevantChangedFiles(root);
+  const changedFiles = await listChangedFiles(root);
   if (changedFiles.length === 0) {
     return undefined;
   }

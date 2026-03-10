@@ -111,7 +111,7 @@ flowchart TD
 
 Parses commands, resolves the workspace root, resolves or infers `--role`, and starts the right flow. The published CLI name is `hermit`.
 
-`chat` has one bootstrap exception: when no roles exist yet and no role can be inferred from the current directory, it starts a workspace-level bootstrap session so the first role can be created. Once roles exist, root-level `chat` requires `--role <id>`; running from inside `agents/<role-id>/` still infers that role from the current directory. `ask` sessions take the role and the user prompt. The user points the agent at the right entity inside the conversation, and the agent resolves that target from the workspace files or `entity_lookup` when needed. `heartbeat` runs a single unattended upkeep turn for a selected role, intended for cron-style GTD maintenance. `ingest transcript` accepts `--entity` because evidence placement benefits from an explicit deterministic target.
+`chat` has one bootstrap exception: when no roles exist yet and no role can be inferred from the current directory, it starts a workspace-level bootstrap session so the first role can be created. Once roles exist, root-level `chat` requires `--role <id>`; running from inside `agents/<role-id>/` still infers that role from the current directory. `ask` sessions take the role and the user prompt. The user points the agent at the right entity inside the conversation, and the agent resolves that target from the workspace files or `entity_lookup` when needed. `heartbeat` runs a single unattended upkeep turn for a selected role, intended for cron-style GTD maintenance. When `--strategic-review` is passed, or when `last_strategic_review` in the role's `agent/record.md` frontmatter is more than 24 hours old, the heartbeat automatically runs a full strategic review instead of normal task advancement. `ingest transcript` accepts `--entity` because evidence placement benefits from an explicit deterministic target.
 
 `chat`, `ask`, and `heartbeat` are wrapped once at the command boundary with git-aware checkpoint logic. That wrapper can create a `before` checkpoint when relevant workspace paths are already dirty, run the unchanged session body, then create an `after` checkpoint when the session leaves relevant workspace changes behind.
 
@@ -122,22 +122,10 @@ A deliberately small wrapper around the git CLI.
 It is responsible for:
 
 - inspecting branch and HEAD summary for prompt and telemetry context
-- listing relevant changed files from an allowlist of canonical workspace paths
+- listing changed files for checkpoint decisions
 - creating ordinary checkpoint commits with Hermit trailers
 
-The checkpoint path allowlist is intentionally narrow:
-
-- `agents/`
-- `entities/`
-- `entity-defs/`
-- `prompts/`
-- `skills/`
-- `src/`
-- `tests/`
-- `docs/`
-- `README.md`
-
-This keeps runtime artifacts such as `.hermit/` telemetry out of automatic checkpoint commits.
+Checkpoints commit all tracked changes. Runtime artifacts such as `.hermit/` are excluded via `.gitignore`.
 
 ### `src/roles.ts`
 
@@ -223,6 +211,8 @@ Session prompt context also carries session-start git facts injected by the CLI 
 
 Heartbeat runs use the same role system prompt stack but send a deterministic one-shot upkeep prompt focused on small GTD-style backlog advancement. Their persisted transcripts live in a separate role-local history directory so unattended background sessions do not mix with interactive chat history.
 
+The heartbeat also handles the daily strategic review. At runtime, the CLI reads `last_strategic_review` from the role's `agent/record.md` frontmatter. If the value is missing or older than 24 hours, or if `--strategic-review` was passed explicitly, the heartbeat uses `STRATEGIC_REVIEW_HEARTBEAT_PROMPT` instead of the default GTD prompt. This review covers goal clarity, effort alignment, organizational fitness, process and prompt quality, telemetry health, and research for missing skills or better approaches. Observations are written to the `## Strategic Observations` section of `agent/record.md`. The next interactive session surfaces these observations and any follow-up items that need user input. See `prompts/35-strategic-reflection.md` for the full prompt guidance.
+
 ### `src/agent-tools.ts`
 
 Defines generic tools such as:
@@ -286,7 +276,7 @@ The prompt system uses two layers:
 
 ### 1. Shared prompts (`prompts/`)
 
-All `.md` files in the root `prompts/` directory are auto-discovered, sorted by filename, and included in every session's system prompt. These define the agent's core identity, file-first behavior, routing guidance, agent operating system, and maintenance rules.
+All `.md` files in the root `prompts/` directory are auto-discovered, sorted by filename, and included in every session's system prompt. These define the agent's core identity, file-first behavior, routing guidance, agent operating system, strategic reflection, and maintenance rules.
 
 Subdirectories under `prompts/` are reserved for explicit shared overlays that are loaded only in the modes that need them. For example, all `.md` files under `prompts/bootstrap/` are appended only for workspace bootstrap chat.
 
@@ -324,6 +314,35 @@ Improvement work should usually follow this path:
 This loop is intentionally local, explicit, and reviewable. Telemetry and validation inform changes, but Hermit does not silently auto-apply repo mutations from runtime observations alone.
 
 Git checkpoints follow the same principle: they happen only at explicit command boundaries, only over allowlisted workspace paths, and never perform rollback automatically.
+
+## Strategic Reflection
+
+Beyond task-level self-improvement, Hermit includes a strategic reflection layer that periodically steps back from execution to evaluate the big picture. This is governed by `prompts/35-strategic-reflection.md` and operates at three levels:
+
+### In-session orientation check
+
+At the start of every interactive session, the agent briefly considers whether the user's request connects to the most important active goal. If something looks misaligned or a stale pattern is visible, it surfaces a brief observation before proceeding. If nothing looks off, it proceeds without comment.
+
+### Background change surfacing
+
+Interactive sessions check whether heartbeat or other background sessions have made workspace changes since the last interaction. Changes, strategic observations, and follow-up items requiring user input are summarized at the start of the session.
+
+### Daily strategic review
+
+Once per day (around midnight, or on demand via `--strategic-review`), the heartbeat runs a full strategic review covering:
+
+- **Goal clarity** — are projects well-defined, tracked on disk, and still relevant?
+- **Effort alignment** — is work going to the highest-leverage items? Are projects stale?
+- **Organizational fitness** — do roles, entities, and directory structures match how the work actually flows?
+- **Process and prompt quality** — are there friction patterns that indicate a prompt, skill, or process gap?
+- **Telemetry and health** — tool errors, retries, slow turns, or other systemic issues
+- **Research and skill gaps** — better methods, missing skills, or relevant external developments
+
+Observations are written to the `## Strategic Observations` section of `agent/record.md` with the review date. Actionable findings are promoted to inbox items or next actions. The `last_strategic_review` frontmatter field is updated so the cadence timer resets.
+
+### Change boundaries
+
+The strategic review may apply small, clearly correct code fixes autonomously, but records them for surfacing at the next interactive session. Prompt, process, entity definition, and role manifest changes are never applied directly — they are captured as follow-up items for user review. This preserves trust by distinguishing what the agent can safely fix on its own from what requires explicit approval.
 
 ## Why The Template Mechanism Is Generic
 

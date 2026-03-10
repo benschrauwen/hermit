@@ -34,5 +34,8 @@ Thumbs.db
 # Test and coverage (if added later)
 coverage/
 
+# Hermit runtime artifacts
+.hermit/
+
 # Cursor / plan artifacts (optional; remove if you want to track plans)
 .cursor/plans/
