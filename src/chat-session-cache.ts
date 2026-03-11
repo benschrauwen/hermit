@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 
 import { HERMIT_ROLE_ID } from "./constants.js";
+import { formatErrorMessage, isMissingPathError } from "./fs-utils.js";
 import { listRoleIds, loadRole } from "./roles.js";
 import { resolveBootstrapSessionDirectory, resolvePersistedSessionDirectory, type InteractiveChatSession } from "./session.js";
 
@@ -8,8 +9,11 @@ async function directoryHasEntries(directoryPath: string): Promise<boolean> {
   try {
     const entries = await fs.readdir(directoryPath);
     return entries.length > 0;
-  } catch {
-    return false;
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return false;
+    }
+    throw new Error(`Failed to inspect session directory ${directoryPath}: ${formatErrorMessage(error)}`);
   }
 }
 

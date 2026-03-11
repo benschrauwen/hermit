@@ -1,6 +1,0 @@
----
-const { entityType } = Astro.params;
-if (!entityType) return Astro.redirect("/entities");
-
-return Astro.redirect(`/entities/${entityType}`);
----

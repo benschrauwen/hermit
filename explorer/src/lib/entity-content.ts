@@ -9,7 +9,20 @@ export interface EntityFileContent {
   content: string;
 }
 
-async function readMarkdownFile(filePath: string, relativePath: string): Promise<EntityFileContent> {
+function getErrorCode(error: unknown): string | undefined {
+  return error && typeof error === "object" && "code" in error ? (error as NodeJS.ErrnoException).code : undefined;
+}
+
+function isMissingPathError(error: unknown): boolean {
+  const code = getErrorCode(error);
+  return code === "ENOENT" || code === "ENOTDIR";
+}
+
+function formatErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function readMarkdownFile(filePath: string, relativePath: string, required = false): Promise<EntityFileContent> {
   try {
     const raw = await fs.readFile(filePath, "utf8");
     const parsed = matter(raw);
@@ -18,12 +31,18 @@ async function readMarkdownFile(filePath: string, relativePath: string): Promise
       frontmatter: (parsed.data as Record<string, unknown>) ?? {},
       content: parsed.content.trim(),
     };
-  } catch {
-    return {
-      relativePath,
-      frontmatter: {},
-      content: "",
-    };
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      if (required) {
+        throw new Error(`Required markdown file is missing: ${filePath}`);
+      }
+      return {
+        relativePath,
+        frontmatter: {},
+        content: "",
+      };
+    }
+    throw new Error(`Failed to read markdown file ${filePath}: ${formatErrorMessage(error)}`);
   }
 }
 
@@ -33,8 +52,11 @@ export async function readEntityFrontmatter(entityPath: string): Promise<Record<
     const raw = await fs.readFile(filePath, "utf8");
     const parsed = matter(raw);
     return (parsed.data as Record<string, unknown>) ?? {};
-  } catch {
-    return {};
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return {};
+    }
+    throw new Error(`Failed to read entity frontmatter ${filePath}: ${formatErrorMessage(error)}`);
   }
 }
 
@@ -49,18 +71,30 @@ export function formatEntityFieldValue(value: unknown): string {
 }
 
 export async function readMarkdownFiles(directoryPath: string, relativePaths?: string[]): Promise<EntityFileContent[]> {
+  const required = Boolean(relativePaths);
   const files = relativePaths
     ? [...relativePaths]
-    : (await fs.readdir(directoryPath, { withFileTypes: true }))
-        .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
-        .map((entry) => entry.name)
-        .sort((left, right) => {
-          if (left === "record.md") return -1;
-          if (right === "record.md") return 1;
-          return left.localeCompare(right);
-        });
+    : await (async () => {
+        try {
+          return (await fs.readdir(directoryPath, { withFileTypes: true }))
+            .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+            .map((entry) => entry.name)
+            .sort((left, right) => {
+              if (left === "record.md") return -1;
+              if (right === "record.md") return 1;
+              return left.localeCompare(right);
+            });
+        } catch (error) {
+          if (isMissingPathError(error)) {
+            return [];
+          }
+          throw new Error(`Failed to list markdown files in ${directoryPath}: ${formatErrorMessage(error)}`);
+        }
+      })();
 
-  return Promise.all(files.map((relativePath) => readMarkdownFile(path.join(directoryPath, relativePath), relativePath)));
+  return Promise.all(
+    files.map((relativePath) => readMarkdownFile(path.join(directoryPath, relativePath), relativePath, required)),
+  );
 }
 
 export async function readEntityRecordContent(

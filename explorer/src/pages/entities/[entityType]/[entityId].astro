@@ -1,9 +1,8 @@
 ---
 import BaseLayout from "../../../layouts/BaseLayout.astro";
 import { readEntityRecordContent } from "../../../lib/entity-content.js";
-import { scanGlobalEntitiesByDefinition } from "../../../lib/entities.js";
 import { renderRoleEntityDetail } from "../../../lib/renderers.js";
-import { getWorkspaceRoot, loadEntityDefs } from "../../../lib/workspace.js";
+import { getWorkspaceRoot, loadEntityDefs, scanEntitiesByDefinition } from "../../../lib/workspace.js";
 
 const { entityType, entityId } = Astro.params;
 if (!entityType || !entityId) return Astro.redirect("/entities");
@@ -13,7 +12,7 @@ const { entities: entityDefs, explorer } = await loadEntityDefs(root);
 const entityDef = entityDefs.find((entity) => entity.type === entityType);
 if (!entityDef) return Astro.redirect("/entities");
 
-const entities = await scanGlobalEntitiesByDefinition(root, entityDef);
+const entities = await scanEntitiesByDefinition(root, entityDef);
 const entity = entities.find((candidate) => candidate.id === entityId);
 if (!entity) return Astro.redirect(`/entities/${entityType}`);
 
@@ -43,22 +42,7 @@ const rendered = await renderRoleEntityDetail({
     <div set:html={rendered.html} />
   ) : (
     rendered.sections.map((section) =>
-      section.kind === "plugin" ? (
-        <div set:html={section.html} />
-      ) : (
-        <section class="file-section card">
-          <h3>{section.file.relativePath}</h3>
-          {Object.keys(section.file.frontmatter).length > 0 && (
-            <dl class="meta-list">
-              {Object.entries(section.file.frontmatter).map(([k, v]) => [
-                <dt>{k}</dt>,
-                <dd>{Array.isArray(v) ? v.join(", ") : String(v)}</dd>,
-              ])}
-            </dl>
-          )}
-          <div class="markdown-body" set:html={section.html} />
-        </section>
-      ),
+      <div set:html={section.html} />
     )
   )}
 </BaseLayout>

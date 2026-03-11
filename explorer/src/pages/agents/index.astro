@@ -8,7 +8,7 @@ const roles = await Promise.all(
   roleIds.map(async (roleId) => {
     const role = await loadRole(root, roleId);
     return {
-      id: role.id,
+      id: roleId,
       name: role.name,
       description: role.description,
     };

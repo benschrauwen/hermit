@@ -16,9 +16,9 @@ describe("parseHeartbeatDaemonInterval", () => {
   });
 
   it("rejects invalid interval strings", () => {
-    expect(() => parseHeartbeatDaemonInterval("1.5h")).toThrow(/Invalid heartbeat interval/);
-    expect(() => parseHeartbeatDaemonInterval("0h")).toThrow(/positive whole number/);
-    expect(() => parseHeartbeatDaemonInterval("hourly")).toThrow(/Invalid heartbeat interval/);
+    expect(() => parseHeartbeatDaemonInterval("1.5h")).toThrow(/Invalid duration/);
+    expect(() => parseHeartbeatDaemonInterval("0h")).toThrow(/positive/);
+    expect(() => parseHeartbeatDaemonInterval("hourly")).toThrow(/Invalid duration/);
   });
 });
 

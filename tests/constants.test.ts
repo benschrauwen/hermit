@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { DEAL_SEQUENCE_WIDTH, DEFAULT_MODEL, DEFAULT_THINKING_LEVEL, SHARED_ROOT_DIRECTORIES } from "../src/constants.js";
+import { ENTITY_SEQUENCE_WIDTH, DEFAULT_MODEL, DEFAULT_THINKING_LEVEL, SHARED_ROOT_DIRECTORIES } from "../src/constants.js";
 
 describe("constants", () => {
   it("shared root directories contain the generic layout", () => {
@@ -8,8 +8,8 @@ describe("constants", () => {
     expect(SHARED_ROOT_DIRECTORIES).toContain("entity-defs");
   });
 
-  it("DEAL_SEQUENCE_WIDTH is 4", () => {
-    expect(DEAL_SEQUENCE_WIDTH).toBe(4);
+  it("ENTITY_SEQUENCE_WIDTH is 4", () => {
+    expect(ENTITY_SEQUENCE_WIDTH).toBe(4);
   });
 
   it("default runtime settings stay generic", () => {

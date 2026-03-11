@@ -109,7 +109,7 @@ describe("git runtime helpers", () => {
     expect(status).toBe("");
   });
 
-  it("only checkpoints when relevant allowlisted files are dirty", () => {
+  it("only checkpoints when the repository is dirty", () => {
     expect(shouldCheckpoint(undefined)).toBe(false);
     expect(shouldCheckpoint({ dirty: false })).toBe(false);
     expect(shouldCheckpoint({ dirty: true })).toBe(true);

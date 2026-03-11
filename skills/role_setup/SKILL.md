@@ -122,7 +122,7 @@ Put each kind of information in the right file:
 4. Add `agents/<role-id>/prompts/*.md` for recurring subdomains that are already clear from the user's description. Do not leave `On-Demand Prompts` empty when the role obviously has repeated dense work modes.
 5. Ensure `prompts/templates/agent/record.md` and `prompts/templates/agent/inbox.md` exist.
 6. If needed, declare `transcript_ingest` only after the target entity type, evidence path, and prompt files already exist.
-7. Validate with `bun cli doctor --role <role-id>`.
+7. Validate with `npm run cli -- doctor --role <role-id>`.
 
 ## `role.md` Skeleton
 
@@ -302,7 +302,7 @@ Raw internal commitments, reminders, and follow-up ideas that still need clarifi
 
 ## Validation
 
-- Run `bun cli doctor --role <role-id>` when the repo supports it.
+- Run `npm run cli -- doctor --role <role-id>` when the repo supports it.
 - Read the final `AGENTS.md` top to bottom and check whether the role sounds concrete in the first screenful.
 - Confirm the role's startup context points to real files.
 - Confirm the entity context matches real directories and real entity types.

@@ -156,4 +156,29 @@ Owns real follow-through for the role.
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it("reports role manifest identity mismatches as errors", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "doctor-role-id-mismatch-"));
+
+    try {
+      seedRoleWorkspace(root, ["role-a"]);
+      writeFileSync(
+        path.join(root, "agents", "role-a", "role.md"),
+        `---
+id: sales
+name: Sales
+description: Mismatched role.
+role_directories:
+  - notes
+---`,
+      );
+
+      const result = await runDoctor(root, "role-a");
+      const logged = consoleSpy.log.mock.calls.map((c) => c[0] as string);
+      expect(result).toBe(false);
+      expect(logged.some((m) => m.includes("Role manifest ID mismatch for agents/role-a/role.md"))).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });

@@ -2,8 +2,7 @@
 import BaseLayout from "../../../layouts/BaseLayout.astro";
 import type { EntityRecord } from "../../../lib/workspace.js";
 import { formatEntityFieldValue, readEntityFrontmatter } from "../../../lib/entity-content.js";
-import { getWorkspaceRoot, loadEntityDefs } from "../../../lib/workspace.js";
-import { scanGlobalEntitiesByDefinition } from "../../../lib/entities.js";
+import { getWorkspaceRoot, loadEntityDefs, scanEntitiesByDefinition } from "../../../lib/workspace.js";
 
 interface EntityListRow extends EntityRecord {
   fieldValues: Record<string, string>;
@@ -17,7 +16,7 @@ const { entities: entityDefs } = await loadEntityDefs(root);
 const entityDef = entityDefs.find((entity) => entity.type === entityType);
 if (!entityDef) return Astro.redirect("/entities");
 
-const rawEntities = await scanGlobalEntitiesByDefinition(root, entityDef);
+const rawEntities = await scanEntitiesByDefinition(root, entityDef);
 const allEntities: EntityListRow[] = await Promise.all(
   rawEntities.map(async (entity) => {
     const frontmatter = await readEntityFrontmatter(entity.path);

@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 
-import { renderBulletList, renderYamlList, TemplateLibrary } from "../src/template-library.js";
+import { renderBulletList, renderTemplateString, renderYamlList } from "../src/template-library.js";
 
-describe("TemplateLibrary", () => {
+describe("renderTemplateString", () => {
   it("renders placeholders from simple context values", () => {
-    const out = TemplateLibrary.renderString("Hello {{name}} from {{role}}.", {
+    const out = renderTemplateString("Hello {{name}} from {{role}}.", {
       name: "Jane",
       role: "primary",
     });
@@ -12,7 +12,7 @@ describe("TemplateLibrary", () => {
   });
 
   it("replaces missing placeholders with empty strings", () => {
-    const out = TemplateLibrary.renderString("Value: {{missing}}.", {});
+    const out = renderTemplateString("Value: {{missing}}.", {});
     expect(out).toBe("Value: .");
   });
 });

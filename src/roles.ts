@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import { HERMIT_ROLE_ID } from "./constants.js";
+import { getErrorCode } from "./fs-utils.js";
 import type {
   RoleDefinition,
   RoleEntityDefinition,
@@ -82,8 +83,21 @@ function parseFieldDefinitions(value: unknown): RoleFieldDefinition[] {
     if (typeof record.required === "boolean") {
       parsed.required = record.required;
     }
-    if (typeof record.defaultValue === "string" || Array.isArray(record.defaultValue)) {
-      parsed.defaultValue = record.defaultValue as string | string[];
+    if (record.defaultValue !== undefined) {
+      if (type === "string") {
+        if (typeof record.defaultValue !== "string") {
+          throw new Error(`Invalid defaultValue for string field ${parsed.key}. Expected a string.`);
+        }
+        parsed.defaultValue = record.defaultValue;
+      } else {
+        if (
+          !Array.isArray(record.defaultValue)
+          || record.defaultValue.some((entry) => typeof entry !== "string")
+        ) {
+          throw new Error(`Invalid defaultValue for string-array field ${parsed.key}. Expected a string array.`);
+        }
+        parsed.defaultValue = [...record.defaultValue];
+      }
     }
 
     return parsed;
@@ -122,8 +136,7 @@ export async function loadEntityDefs(root: string): Promise<EntityDefsLoadResult
     const explorer = data.explorer ? parseExplorerConfig(data.explorer) : undefined;
     return { entities, ...(explorer ? { explorer } : {}) };
   } catch (err) {
-    const code = err && typeof err === "object" && "code" in err ? (err as NodeJS.ErrnoException).code : undefined;
-    if (code === "ENOENT") {
+    if (getErrorCode(err) === "ENOENT") {
       return { entities: [] };
     }
     throw err;
@@ -155,6 +168,8 @@ function parseEntityDefinitions(value: unknown): RoleEntityDefinition[] {
       );
     }
 
+    const fields = parseFieldDefinitions(record.fields);
+    const fieldKeys = new Set(fields.map((field) => field.key));
     const parsed: RoleEntityDefinition = {
       key: asString(record.key, `entities[${index}].key`),
       label: asString(record.label, `entities[${index}].label`),
@@ -163,7 +178,7 @@ function parseEntityDefinitions(value: unknown): RoleEntityDefinition[] {
       idStrategy,
       idSourceFields: idSourceFields ?? [],
       nameTemplate: asString(record.name_template, `entities[${index}].name_template`),
-      fields: parseFieldDefinitions(record.fields),
+      fields,
       files: parseFileDefinitions(record.files),
     };
 
@@ -171,9 +186,15 @@ function parseEntityDefinitions(value: unknown): RoleEntityDefinition[] {
       parsed.idPrefix = record.id_prefix;
     }
     if (typeof record.status_field === "string") {
+      if (!fieldKeys.has(record.status_field)) {
+        throw new Error(`entities[${index}].status_field references unknown field ${record.status_field}`);
+      }
       parsed.statusField = record.status_field;
     }
     if (typeof record.owner_field === "string") {
+      if (!fieldKeys.has(record.owner_field)) {
+        throw new Error(`entities[${index}].owner_field references unknown field ${record.owner_field}`);
+      }
       parsed.ownerField = record.owner_field;
     }
     if (typeof record.include_in_initialization === "boolean") {
@@ -190,6 +211,11 @@ function parseEntityDefinitions(value: unknown): RoleEntityDefinition[] {
         record.exclude_directory_names,
         `entities[${index}].exclude_directory_names`,
       );
+    }
+    for (const fieldName of parsed.idSourceFields) {
+      if (!fieldKeys.has(fieldName)) {
+        throw new Error(`entities[${index}].id_source_fields references unknown field ${fieldName}`);
+      }
     }
 
     return parsed;
@@ -326,9 +352,25 @@ export async function listRoleIds(root: string): Promise<string[]> {
     );
 
     return roleIds.filter((roleId): roleId is string => roleId !== undefined).sort();
-  } catch {
-    return [];
+  } catch (error) {
+    const code = getErrorCode(error);
+    if (code === "ENOENT") {
+      return [];
+    }
+    throw error;
   }
+}
+
+function assertRoleDirectoryMatchesManifestId(roleDirectoryId: string, manifestRoleId: string): void {
+  if (manifestRoleId !== roleDirectoryId) {
+    throw new Error(
+      `Role manifest ID mismatch for agents/${roleDirectoryId}/role.md: expected id "${roleDirectoryId}" but found "${manifestRoleId}".`,
+    );
+  }
+}
+
+export function validateRoleDirectoryIdentity(roleDirectoryId: string, role: Pick<RoleDefinition, "id">): void {
+  assertRoleDirectoryMatchesManifestId(roleDirectoryId, role.id);
 }
 
 export async function loadRole(root: string, roleId: string): Promise<RoleDefinition> {
@@ -337,10 +379,13 @@ export async function loadRole(root: string, roleId: string): Promise<RoleDefini
   const parsed = matter(raw);
   const data = parsed.data as RoleManifestData;
 
+  const manifestRoleId = asString(data.id, "id");
+  assertRoleDirectoryMatchesManifestId(roleId, manifestRoleId);
+
   const transcriptIngest = parseTranscriptIngestCapability(data.transcript_ingest);
   const entityDefs = await loadEntityDefs(root);
   return {
-    id: asString(data.id, "id"),
+    id: manifestRoleId,
     name: asString(data.name, "name"),
     description: asString(data.description, "description"),
     root,
@@ -452,18 +497,10 @@ export async function resolveChatSession(root: string, options: {
     };
   }
 
-  if (roleId) {
-    return {
-      kind: "role",
-      root,
-      role: await loadRole(root, roleId),
-    };
-  }
-
   return {
-    kind: "hermit",
+    kind: "role",
     root,
-    bootstrapMode: (await listRoleIds(root)).length === 0,
+    role: await loadRole(root, roleId),
   };
 }
 

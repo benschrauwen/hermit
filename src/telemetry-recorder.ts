@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { createTelemetryEventCommon } from "./telemetry-events.js";
 import type { StoredTelemetryEvent } from "./telemetry-events.js";
+import { getNumber, getString, isRecord } from "./type-guards.js";
 import type { TelemetrySessionContext } from "./types.js";
 
 interface ActiveTurnState {
@@ -36,18 +37,6 @@ interface RecorderStats {
 interface GitSessionEndContext {
   gitHeadAtEnd?: string;
   checkpointAfterSha?: string;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function getString(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
-
-function getNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 function truncateText(value: string, maxLength = 500): string {

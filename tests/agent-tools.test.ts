@@ -14,22 +14,10 @@ import { loadRole } from "../src/roles.js";
 import { ensureWorkspaceScaffold } from "../src/workspace.js";
 import { seedRoleWorkspace } from "./test-helpers.js";
 
-const originalComputerUseEnv = process.env.ROLE_AGENT_ENABLE_COMPUTER_USE;
-
-afterEach(() => {
-  if (originalComputerUseEnv === undefined) {
-    delete process.env.ROLE_AGENT_ENABLE_COMPUTER_USE;
-    return;
-  }
-
-  process.env.ROLE_AGENT_ENABLE_COMPUTER_USE = originalComputerUseEnv;
-});
-
 describe("createEntityLookupTool", () => {
   let root: string;
 
   beforeEach(() => {
-    delete process.env.ROLE_AGENT_ENABLE_COMPUTER_USE;
     root = mkdtempSync(path.join(tmpdir(), "agent-tools-lookup-"));
     seedRoleWorkspace(root, ["role-a"]);
   });

@@ -1,14 +1,13 @@
 ---
 import BaseLayout from "../../layouts/BaseLayout.astro";
-import { countGlobalEntitiesByDefinition, getEntityTypeHref } from "../../lib/entities.js";
-import { getWorkspaceRoot, loadEntityDefs } from "../../lib/workspace.js";
+import { countEntitiesByDefinition, getWorkspaceRoot, loadEntityDefs } from "../../lib/workspace.js";
 
 const root = getWorkspaceRoot();
 const { entities: entityDefs } = await loadEntityDefs(root);
 const entityTypes = await Promise.all(
   entityDefs.map(async (entityDef) => ({
     entityDef,
-    count: await countGlobalEntitiesByDefinition(root, entityDef),
+    count: await countEntitiesByDefinition(root, entityDef),
   })),
 );
 ---
@@ -18,12 +17,12 @@ const entityTypes = await Promise.all(
   </div>
   <div class="page-intro">
     <h1>Entities</h1>
-    <p class="meta">{entityTypes.length} type{entityTypes.length !== 1 ? "s" : ""} defined globally</p>
+    <p class="meta">{entityTypes.length} type{entityTypes.length !== 1 ? "s" : ""} available in the workspace</p>
   </div>
 
   <div class="entity-type-list">
     {entityTypes.map(({ entityDef, count }) => (
-      <a href={getEntityTypeHref(entityDef)}>
+      <a href={`/entities/${entityDef.type}`}>
         <strong>{entityDef.label}</strong>
         <span class="meta"> — {count} record{count !== 1 ? "s" : ""}</span>
       </a>

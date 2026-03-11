@@ -74,6 +74,22 @@ describe("loadRole", () => {
       "entities[0].id_source_fields is required when id_strategy is prefixed-slug or year-sequence-slug",
     );
   });
+
+  it("requires the manifest id to match the role directory name", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "roles-id-mismatch-"));
+    roots.push(root);
+    seedRoleWorkspace(root, ["role-a"]);
+
+    replaceInFile(
+      path.join(root, "agents", "role-a", "role.md"),
+      "id: role-a",
+      "id: sales",
+    );
+
+    await expect(loadRole(root, "role-a")).rejects.toThrow(
+      'Role manifest ID mismatch for agents/role-a/role.md: expected id "role-a" but found "sales".',
+    );
+  });
 });
 
 describe("roles explorer renderers", () => {

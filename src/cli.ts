@@ -315,6 +315,66 @@ async function sleepUntilNextHeartbeat(ms: number, isRunning: () => boolean): Pr
   });
 }
 
+type ChatSessionTarget = Awaited<ReturnType<typeof resolveChatSession>>;
+
+async function buildInteractiveChatSession(
+  target: ChatSessionTarget,
+  gitContext: CommandGitContext,
+  continueRecent: boolean,
+): Promise<InteractiveChatSession> {
+  let pendingRoleSwitch: RoleSwitchRequest | undefined;
+  const onRoleSwitchRequest = (request: RoleSwitchRequest) => {
+    pendingRoleSwitch = request;
+  };
+
+  const sessionContext =
+    target.kind === "hermit"
+      ? await createHermitSession({
+          root: target.root,
+          persist: true,
+          continueRecent,
+          bootstrapMode: target.bootstrapMode,
+          telemetryCommandName: "chat",
+          telemetryContext: gitContext.telemetryContext,
+          promptContext: {
+            workspaceRoot: target.root,
+            roleId: HERMIT_ROLE_ID,
+            roleRoot: ".",
+            ...gitContext.promptContext,
+          },
+          onRoleSwitchRequest,
+        })
+      : await createRoleSession({
+          root: target.root,
+          role: target.role,
+          persist: true,
+          continueRecent,
+          telemetryCommandName: "chat",
+          telemetryContext: gitContext.telemetryContext,
+          promptContext: {
+            workspaceRoot: target.root,
+            roleId: target.role.id,
+            roleRoot: path.relative(target.root, target.role.roleDir) || ".",
+            ...gitContext.promptContext,
+          },
+          onRoleSwitchRequest,
+        });
+
+  return {
+    ...sessionContext,
+    activeRoleLabel: target.kind === "role" ? target.role.id : HERMIT_ROLE_ID,
+    consumeRoleSwitchRequest: () => {
+      const request = pendingRoleSwitch;
+      pendingRoleSwitch = undefined;
+      return request;
+    },
+  };
+}
+
+function getChatSessionKey(target: ChatSessionTarget): string {
+  return target.kind === "role" ? target.role.id : HERMIT_ROLE_ID;
+}
+
 const program = new Command();
 
 program.name("hermit").description("Local file-first runtime for autonomous applications").version("0.1.0");
@@ -356,87 +416,29 @@ program
             await snapshotPreexistingInteractiveSessionKeys(resolved.root),
           );
 
-          const createInteractiveSession = async (
-            target: Awaited<ReturnType<typeof resolveChatSession>>,
-            continueRecent: boolean,
-          ): Promise<InteractiveChatSession> => {
-            let pendingRoleSwitch: RoleSwitchRequest | undefined;
-            const onRoleSwitchRequest = (request: RoleSwitchRequest) => {
-              pendingRoleSwitch = request;
-            };
-            const sessionContext =
-              target.kind === "hermit"
-                ? await createHermitSession({
-                    root: target.root,
-                    persist: true,
-                    continueRecent,
-                    bootstrapMode: target.bootstrapMode,
-                    telemetryCommandName: "chat",
-                    telemetryContext: gitContext.telemetryContext,
-                    promptContext: {
-                      workspaceRoot: target.root,
-                      roleId: HERMIT_ROLE_ID,
-                      roleRoot: ".",
-                      ...gitContext.promptContext,
-                    },
-                    onRoleSwitchRequest,
-                  })
-                : await createRoleSession({
-                    root: target.root,
-                    role: target.role,
-                    persist: true,
-                    continueRecent,
-                    telemetryCommandName: "chat",
-                    telemetryContext: gitContext.telemetryContext,
-                    promptContext: {
-                      workspaceRoot: target.root,
-                      roleId: target.role.id,
-                      roleRoot: path.relative(target.root, target.role.roleDir) || ".",
-                      ...gitContext.promptContext,
-                    },
-                    onRoleSwitchRequest,
-                  });
-
-            return {
-              ...sessionContext,
-              activeRoleLabel: target.kind === "role" ? target.role.id : HERMIT_ROLE_ID,
-              consumeRoleSwitchRequest: () => {
-                const request = pendingRoleSwitch;
-                pendingRoleSwitch = undefined;
-                return request;
-              },
-            };
-          };
-
-          const getSessionKey = (target: Awaited<ReturnType<typeof resolveChatSession>>): string =>
-            target.kind === "role" ? target.role.id : HERMIT_ROLE_ID;
-          const getOrCreateInteractiveSession = async (
-            target: Awaited<ReturnType<typeof resolveChatSession>>,
-          ) => {
-            return sessionCache.getOrCreate(getSessionKey(target), async (continueRecent) => {
-              const sessionContext = await createInteractiveSession(target, continueRecent);
-              telemetry.add(sessionContext.telemetry);
-              return sessionContext;
+          const getOrCreateSession = async (target: ChatSessionTarget) => {
+            return sessionCache.getOrCreate(getChatSessionKey(target), async (continueRecent) => {
+              const session = await buildInteractiveChatSession(target, gitContext, continueRecent);
+              telemetry.add(session.telemetry);
+              return session;
             });
           };
 
-          const initialSessionEntry = await getOrCreateInteractiveSession(resolved);
-          const sessionContext = initialSessionEntry.session;
-
+          const initialEntry = await getOrCreateSession(resolved);
           const initialPrompt = resolveInitialChatPrompt({
-            workspaceState: sessionContext.workspaceState,
+            workspaceState: initialEntry.session.workspaceState,
             ...(options.prompt !== undefined ? { initialPrompt: options.prompt } : {}),
-            ...(initialSessionEntry.continuedFromPersistedSession ? { continueRecent: true } : {}),
+            ...(initialEntry.continuedFromPersistedSession ? { continueRecent: true } : {}),
           });
 
           await runChatLoop({
-            initialSession: sessionContext,
+            initialSession: initialEntry.session,
             ...(initialPrompt !== undefined ? { initialPrompt } : {}),
             initialImages: collectImagePaths(options.image),
             onRoleSwitch: async (request) => {
               const nextTarget = await resolveChatSession(resolved.root, { explicitRoleId: request.roleId });
               await writeLastUsedChatRole(resolved.root, request.roleId);
-              return (await getOrCreateInteractiveSession(nextTarget)).session;
+              return (await getOrCreateSession(nextTarget)).session;
             },
           });
 

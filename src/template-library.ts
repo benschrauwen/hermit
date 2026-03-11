@@ -2,15 +2,13 @@ import { promises as fs } from "node:fs";
 
 export type TemplateContextValue = string | number | boolean | undefined;
 
-export class TemplateLibrary {
-  async render(templatePath: string, context: Record<string, TemplateContextValue>): Promise<string> {
-    const template = await fs.readFile(templatePath, "utf8");
-    return TemplateLibrary.renderString(template, context);
-  }
+export async function renderTemplate(templatePath: string, context: Record<string, TemplateContextValue>): Promise<string> {
+  const template = await fs.readFile(templatePath, "utf8");
+  return renderTemplateString(template, context);
+}
 
-  static renderString(template: string, context: Record<string, TemplateContextValue>): string {
-    return template.replaceAll(/\{\{(\w+)\}\}/g, (_match, key: string) => String(context[key] ?? ""));
-  }
+export function renderTemplateString(template: string, context: Record<string, TemplateContextValue>): string {
+  return template.replaceAll(/\{\{(\w+)\}\}/g, (_match, key: string) => String(context[key] ?? ""));
 }
 
 export function renderYamlList(values: string[]): string {

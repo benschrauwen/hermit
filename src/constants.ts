@@ -1,4 +1,4 @@
-export const DEAL_SEQUENCE_WIDTH = 4;
+export const ENTITY_SEQUENCE_WIDTH = 4;
 export const SHARED_ROOT_DIRECTORIES = ["entities", "agents", "entity-defs", "skills"] as const;
 export const HERMIT_ROLE_ID = "Hermit";
 

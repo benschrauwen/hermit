@@ -2,27 +2,18 @@
 import path from "node:path";
 import BaseLayout from "../../../layouts/BaseLayout.astro";
 import { readMarkdownFiles } from "../../../lib/entity-content.js";
+import { renderDefaultFileSection } from "../../../lib/renderers.js";
 import { getWorkspaceRoot, loadRole } from "../../../lib/workspace.js";
-import { marked } from "marked";
 
 const { roleId } = Astro.params;
 if (!roleId) return Astro.redirect("/");
 
 const root = getWorkspaceRoot();
-let role;
-try {
-  role = await loadRole(root, roleId);
-} catch {
-  return Astro.redirect("/");
-}
+const role = await loadRole(root, roleId);
 
 const agentDir = path.join(role.roleDir, "agent");
-marked.setOptions({ gfm: true });
-const files = await Promise.all(
-  (await readMarkdownFiles(agentDir, ["record.md", "inbox.md"])).map(async (file) => ({
-    ...file,
-    html: file.content ? await marked.parse(file.content) : "",
-  })),
+const sections = await Promise.all(
+  (await readMarkdownFiles(agentDir, ["record.md", "inbox.md"])).map((file) => renderDefaultFileSection(file)),
 );
 ---
 <BaseLayout title={role.name} roleId={roleId} roleName={role.name}>
@@ -36,18 +27,7 @@ const files = await Promise.all(
     <p class="meta">{role.description}</p>
   </div>
 
-  {files.map((file) => (
-    <section class="file-section card">
-      <h3>{file.relativePath}</h3>
-      {Object.keys(file.frontmatter).length > 0 && (
-        <dl class="meta-list">
-          {Object.entries(file.frontmatter).map(([k, v]) => [
-            <dt>{k}</dt>,
-            <dd>{Array.isArray(v) ? v.join(", ") : String(v)}</dd>,
-          ])}
-        </dl>
-      )}
-      <div class="markdown-body" set:html={file.html} />
-    </section>
+  {sections.map((section) => (
+    <div set:html={section} />
   ))}
 </BaseLayout>

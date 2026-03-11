@@ -240,7 +240,24 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
 
   await validateEntityDefsFile(findings, root);
 
-  const role = await loadRole(root, roleId);
+  let role: Awaited<ReturnType<typeof loadRole>> | undefined;
+  try {
+    role = await loadRole(root, roleId);
+  } catch (error) {
+    addGeneralFinding(
+      findings,
+      "error",
+      error instanceof Error ? error.message : `Failed to load role ${roleId}.`,
+    );
+  }
+
+  if (!role) {
+    if (!process.env.OPENAI_API_KEY) {
+      addGeneralFinding(findings, "warning", "OPENAI_API_KEY is not set. Agent prompts will not run.");
+    }
+    printFindings(root, findings);
+    return false;
+  }
 
   try {
     await fs.access(role.agentsFile);

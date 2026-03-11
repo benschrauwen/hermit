@@ -2,7 +2,7 @@
   "meta": {
     "name": "hermit",
     "version": "1.0.0",
-    "description": "Sandbox profile for running Hermit from a Bun workspace"
+    "description": "Sandbox profile for running Hermit from a Node/npm workspace"
   },
   "workdir": {
     "access": "readwrite"
@@ -11,7 +11,7 @@
     "groups": ["node_runtime", "unlink_protection"]
   },
   "filesystem": {
-    "read": ["$HOME/.bun", "$HOME/.config/git"],
+    "read": ["$HOME/.config/git"],
     "read_file": ["$HOME/.gitconfig"]
   },
   "network": {

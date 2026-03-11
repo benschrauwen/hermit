@@ -289,5 +289,5 @@ source_refs:
 ## Validation
 
 - If this is a real repo change, create at least one sample record and inspect the generated path and markdown shape.
-- If the role contract already exists, run `bun cli doctor --role <role-id>`.
+- If the role contract already exists, run `npm run cli -- doctor --role <role-id>`.
 - If the entity is part of first-run bootstrapping, make sure at least one created record proves the schema is usable in practice.

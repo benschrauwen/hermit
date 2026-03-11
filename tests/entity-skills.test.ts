@@ -25,7 +25,6 @@ describe("entity_query skill scripts", () => {
     await ensureWorkspaceScaffold(root, role);
     writeSharedEntityRecord(root);
     await createRoleEntityRecord(
-      root,
       role,
       "item",
       {
@@ -39,16 +38,16 @@ describe("entity_query skill scripts", () => {
     );
 
     const query = spawnSync(
-      "bun",
-      [path.join(repoRoot, "skills", "entity_query", "entities", "scripts", "query-entities.ts"), "--root", root, "--type", "item", "--format", "paths"],
+      process.execPath,
+      ["--import", "tsx", path.join(repoRoot, "skills", "entity_query", "entities", "scripts", "query-entities.ts"), "--root", root, "--type", "item", "--format", "paths"],
       { encoding: "utf8" },
     );
     expect(query.status).toBe(0);
     expect(query.stdout).toContain("items/itm-aura");
 
     const summary = spawnSync(
-      "bun",
-      [path.join(repoRoot, "skills", "entity_query", "entities", "scripts", "summarize-entities.ts"), "--root", root, "--top", "3"],
+      process.execPath,
+      ["--import", "tsx", path.join(repoRoot, "skills", "entity_query", "entities", "scripts", "summarize-entities.ts"), "--root", root, "--top", "3"],
       { encoding: "utf8" },
     );
     expect(summary.status).toBe(0);
@@ -56,8 +55,8 @@ describe("entity_query skill scripts", () => {
     expect(summary.stdout).toContain("item: 1");
 
     const inventory = spawnSync(
-      "bun",
-      [path.join(repoRoot, "skills", "entity_query", "entities", "scripts", "inventory-entities.ts"), "--root", root, "--group-by", "type", "--top", "3"],
+      process.execPath,
+      ["--import", "tsx", path.join(repoRoot, "skills", "entity_query", "entities", "scripts", "inventory-entities.ts"), "--root", root, "--group-by", "type", "--top", "3"],
       { encoding: "utf8" },
     );
     expect(inventory.status).toBe(0);

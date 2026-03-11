@@ -1,11 +1,20 @@
 /**
- * Resolves the leadership workspace root (repo root with agents/, entities/, etc.).
+ * Resolves the Hermit workspace root (repo root with agents/, entities/, etc.).
  * Use WORKSPACE_ROOT env when running explorer from repo root; otherwise
  * defaults to parent of explorer dir when cwd is explorer.
  */
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+
+import type {
+  EntityRecord,
+  RoleDefinition,
+  RoleEntityDefinition,
+  RoleExplorerConfig,
+} from "../../../src/types.js";
+
+export type { EntityRecord, RoleDefinition, RoleEntityDefinition, RoleExplorerConfig };
 
 export function getWorkspaceRoot(): string {
   if (process.env.WORKSPACE_ROOT) {
@@ -19,100 +28,49 @@ export function getWorkspaceRoot(): string {
   return cwd;
 }
 
+type RolesModule = Pick<typeof import("../../../src/roles.js"), "listRoleIds" | "loadRole" | "loadEntityDefs">;
+type WorkspaceModule = Pick<
+  typeof import("../../../src/workspace.js"),
+  "scanEntities" | "findEntityById" | "findEntitiesByType" | "scanEntitiesByDefinition" | "countEntitiesByDefinition"
+>;
 
-export interface EntityRecord {
-  id: string;
-  type: string;
-  name: string;
-  path: string;
-  scope: "shared" | "role";
-  roleId?: string;
-  status?: string;
-  owner?: string;
-}
+const rolesModuleCache = new Map<string, Promise<RolesModule>>();
+const workspaceModuleCache = new Map<string, Promise<WorkspaceModule>>();
 
-export interface RoleEntityDefinition {
-  key: string;
-  label: string;
-  type: string;
-  createDirectory: string;
-  scanDirectories?: string[];
-  excludeDirectoryNames?: string[];
-  idStrategy: "prefixed-slug" | "year-sequence-slug" | "singleton";
-  idPrefix?: string;
-  idSourceFields: string[];
-  nameTemplate: string;
-  statusField?: string;
-  ownerField?: string;
-  includeInInitialization?: boolean;
-  extraDirectories?: string[];
-  fields: Array<{ key: string; label: string; type: string }>;
-  files: Array<{ path: string; template: string }>;
-}
-
-export interface RoleExplorerRendererConfig {
-  detail?: Record<string, string>;
-  files?: Record<string, Record<string, string>>;
-}
-
-export interface RoleExplorerConfig {
-  renderers?: RoleExplorerRendererConfig;
-}
-
-export interface RoleDefinition {
-  id: string;
-  name: string;
-  description: string;
-  roleDir: string;
-  entities: RoleEntityDefinition[];
-  explorer?: RoleExplorerConfig;
-}
-
-type RolesModule = {
-  listRoleIds: (root: string) => Promise<string[]>;
-  loadRole: (root: string, roleId: string) => Promise<RoleDefinition>;
-  loadEntityDefs: (root: string) => Promise<{
-    entities: RoleEntityDefinition[];
-    explorer?: RoleExplorerConfig;
-  }>;
-};
-type WorkspaceModule = {
-  scanEntities: (root: string, role: RoleDefinition) => Promise<EntityRecord[]>;
-  findEntityById: (root: string, role: RoleDefinition, entityId: string) => Promise<EntityRecord | undefined>;
-  findEntitiesByType: (root: string, role: RoleDefinition, entityType: string) => Promise<EntityRecord[]>;
-};
-
-let rolesMod: RolesModule | null = null;
-let workspaceMod: WorkspaceModule | null = null;
-
-function importWithNode(specifier: string): Promise<unknown> {
+export function importWithNode(specifier: string): Promise<unknown> {
   return new Function("moduleSpecifier", "return import(moduleSpecifier);")(specifier) as Promise<unknown>;
 }
 
 async function loadRolesModule(root: string): Promise<RolesModule> {
-  if (rolesMod) return rolesMod;
+  const cached = rolesModuleCache.get(root);
+  if (cached) {
+    return cached;
+  }
   const rolesPath = path.resolve(root, "dist", "roles.js");
   if (!existsSync(rolesPath)) {
     throw new Error(
-      `Workspace dist not found at ${rolesPath}. Run "bun run build" from the workspace root.`
+      `Workspace dist not found at ${rolesPath}. Run "npm run build" from the workspace root.`
     );
   }
-  const mod = await importWithNode(pathToFileURL(rolesPath).href);
-  rolesMod = mod as RolesModule;
-  return rolesMod;
+  const pending = importWithNode(pathToFileURL(rolesPath).href).then((mod) => mod as RolesModule);
+  rolesModuleCache.set(root, pending);
+  return pending;
 }
 
 async function loadWorkspaceModule(root: string): Promise<WorkspaceModule> {
-  if (workspaceMod) return workspaceMod;
+  const cached = workspaceModuleCache.get(root);
+  if (cached) {
+    return cached;
+  }
   const workspacePath = path.resolve(root, "dist", "workspace.js");
   if (!existsSync(workspacePath)) {
     throw new Error(
-      `Workspace dist not found at ${workspacePath}. Run "bun run build" from the workspace root.`
+      `Workspace dist not found at ${workspacePath}. Run "npm run build" from the workspace root.`
     );
   }
-  const mod = await importWithNode(pathToFileURL(workspacePath).href);
-  workspaceMod = mod as WorkspaceModule;
-  return workspaceMod;
+  const pending = importWithNode(pathToFileURL(workspacePath).href).then((mod) => mod as WorkspaceModule);
+  workspaceModuleCache.set(root, pending);
+  return pending;
 }
 
 export async function listRoleIds(root: string): Promise<string[]> {
@@ -154,4 +112,14 @@ export async function findEntitiesByType(
 ): Promise<EntityRecord[]> {
   const mod = await loadWorkspaceModule(root);
   return mod.findEntitiesByType(root, role, entityType);
+}
+
+export async function scanEntitiesByDefinition(root: string, entity: RoleEntityDefinition): Promise<EntityRecord[]> {
+  const mod = await loadWorkspaceModule(root);
+  return mod.scanEntitiesByDefinition(root, entity);
+}
+
+export async function countEntitiesByDefinition(root: string, entity: RoleEntityDefinition): Promise<number> {
+  const mod = await loadWorkspaceModule(root);
+  return mod.countEntitiesByDefinition(root, entity);
 }

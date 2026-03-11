@@ -46,6 +46,7 @@ entities:
         label: Status
         type: string
         description: Current status.
+        defaultValue: active
       - key: nextStep
         label: Next Step
         type: string
@@ -91,6 +92,7 @@ entities:
         label: Status
         type: string
         description: Current state.
+        defaultValue: active
       - key: nextStep
         label: Next Step
         type: string
@@ -125,6 +127,7 @@ entities:
         label: Status
         type: string
         description: Current state.
+        defaultValue: active
       - key: nextStep
         label: Next Step
         type: string

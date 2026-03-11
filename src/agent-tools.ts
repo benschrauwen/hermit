@@ -3,6 +3,7 @@ import { Type, type Static, type TSchema } from "@sinclair/typebox";
 import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
 
 import { HERMIT_ROLE_ID } from "./constants.js";
+import { getArray, getString, isRecord } from "./type-guards.js";
 import { isHermitRoleId, loadRole, normalizeRoleId } from "./roles.js";
 import { createRoleEntityRecord, scanEntities } from "./workspace.js";
 import type { RoleDefinition, RoleEntityDefinition, RoleFieldDefinition } from "./types.js";
@@ -66,17 +67,7 @@ function buildRoleEntityParameters(entity: RoleEntityDefinition): TSchema {
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
-function getString(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
-
-function getArray(value: unknown): unknown[] | undefined {
-  return Array.isArray(value) ? value : undefined;
+  return isRecord(value) ? value : undefined;
 }
 
 function extractWebSearchText(response: unknown): string {
@@ -306,7 +297,7 @@ export function createEntityRecordTool(root: string, role: RoleDefinition, entit
     ],
     parameters,
     async execute(_toolCallId, params) {
-      const result = await createRoleEntityRecord(root, role, entity.key, params as Record<string, unknown>, {
+      const result = await createRoleEntityRecord(role, entity.key, params as Record<string, unknown>, {
         sourceRefs: ["agent onboarding"],
       });
       return {

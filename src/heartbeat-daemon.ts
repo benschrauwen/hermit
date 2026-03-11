@@ -1,12 +1,7 @@
+import { parseDuration } from "./duration.js";
+
 export const DEFAULT_HEARTBEAT_DAEMON_INTERVAL = "1h";
 export const DEFAULT_HEARTBEAT_DAEMON_INTERVAL_MS = 60 * 60 * 1000;
-
-const INTERVAL_UNIT_TO_MS = {
-  ms: 1,
-  s: 1000,
-  m: 60 * 1000,
-  h: 60 * 60 * 1000,
-} as const;
 
 export interface HeartbeatCycleFailure {
   roleId: string;
@@ -21,38 +16,28 @@ export interface HeartbeatCycleResult {
 }
 
 export function parseHeartbeatDaemonInterval(value: string): number {
-  const normalized = value.trim().toLowerCase();
-  const match = normalized.match(/^(\d+)(ms|s|m|h)$/);
-  if (!match) {
-    throw new Error(
-      `Invalid heartbeat interval "${value}". Use a whole number followed by ms, s, m, or h, for example "30m" or "1h".`,
-    );
-  }
-
-  const amount = Number(match[1]);
-  const unit = match[2] as keyof typeof INTERVAL_UNIT_TO_MS;
-  if (!Number.isSafeInteger(amount) || amount <= 0) {
-    throw new Error(`Invalid heartbeat interval "${value}". The numeric value must be a positive whole number.`);
-  }
-
-  return amount * INTERVAL_UNIT_TO_MS[unit];
+  return parseDuration(value);
 }
 
+const MS_PER_SECOND = 1000;
+const MS_PER_MINUTE = 60 * MS_PER_SECOND;
+const MS_PER_HOUR = 60 * MS_PER_MINUTE;
+
 export function formatHeartbeatDaemonDuration(ms: number): string {
-  if (ms < 1000) {
+  if (ms < MS_PER_SECOND) {
     return `${ms}ms`;
   }
-  if (ms % INTERVAL_UNIT_TO_MS.h === 0) {
-    return `${ms / INTERVAL_UNIT_TO_MS.h}h`;
+  if (ms % MS_PER_HOUR === 0) {
+    return `${ms / MS_PER_HOUR}h`;
   }
-  if (ms % INTERVAL_UNIT_TO_MS.m === 0) {
-    return `${ms / INTERVAL_UNIT_TO_MS.m}m`;
+  if (ms % MS_PER_MINUTE === 0) {
+    return `${ms / MS_PER_MINUTE}m`;
   }
-  if (ms % INTERVAL_UNIT_TO_MS.s === 0) {
-    return `${ms / INTERVAL_UNIT_TO_MS.s}s`;
+  if (ms % MS_PER_SECOND === 0) {
+    return `${ms / MS_PER_SECOND}s`;
   }
 
-  return `${(ms / 1000).toFixed(1)}s`;
+  return `${(ms / MS_PER_SECOND).toFixed(1)}s`;
 }
 
 export function resolveHeartbeatDaemonDelay(intervalMs: number, startedAtMs: number, nowMs = Date.now()): number {

@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import { parseDuration } from "./duration.js";
 import type {
   CompactionTelemetryEvent,
   RetryTelemetryEvent,
@@ -50,27 +51,7 @@ function sanitizeWindowLabel(value: string): string {
 }
 
 function parseWindowToMs(value: string): number {
-  const trimmed = value.trim();
-  const match = trimmed.match(/^(\d+)([mhdw])$/i);
-  if (!match) {
-    throw new Error(`Unsupported telemetry window: ${value}. Use formats like 30m, 24h, 7d, or 2w.`);
-  }
-
-  const amount = Number(match[1]);
-  const unit = (match[2] ?? "d").toLowerCase();
-  const multipliers: Record<string, number> = {
-    m: 60 * 1000,
-    h: 60 * 60 * 1000,
-    d: 24 * 60 * 60 * 1000,
-    w: 7 * 24 * 60 * 60 * 1000,
-  };
-
-  const multiplier = multipliers[unit];
-  if (multiplier === undefined) {
-    throw new Error(`Unsupported telemetry window unit: ${unit}`);
-  }
-
-  return amount * multiplier;
+  return parseDuration(value);
 }
 
 function telemetryEventMatchesRole(event: StoredTelemetryEvent, roleId: string | undefined): boolean {

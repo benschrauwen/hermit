@@ -2,15 +2,20 @@
 import path from "node:path";
 import { promises as fs } from "node:fs";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import { countGlobalEntitiesByDefinition } from "../lib/entities.js";
-import { getWorkspaceRoot, listRoleIds, loadEntityDefs } from "../lib/workspace.js";
+import { countEntitiesByDefinition, getWorkspaceRoot, listRoleIds, loadEntityDefs } from "../lib/workspace.js";
 import { marked } from "marked";
 
 const root = getWorkspaceRoot();
 
 marked.setOptions({ gfm: true });
 const readmePath = path.join(root, "README.md");
-const readmeRaw = await fs.readFile(readmePath, "utf8").catch(() => "");
+const readmeRaw = await fs.readFile(readmePath, "utf8").catch((error) => {
+  const code = error && typeof error === "object" && "code" in error ? (error as NodeJS.ErrnoException).code : undefined;
+  if (code === "ENOENT") {
+    return "";
+  }
+  throw error;
+});
 const readmeHtml = readmeRaw
   ? (await marked.parse(readmeRaw))
       .replace('src="public/mascot.png"', 'src="/mascot.png"')
@@ -23,7 +28,7 @@ const { entities: entityDefs } = await loadEntityDefs(root);
 const entityTypes = await Promise.all(
   entityDefs.map(async (entityDef) => ({
     entityDef,
-    count: await countGlobalEntitiesByDefinition(root, entityDef),
+    count: await countEntitiesByDefinition(root, entityDef),
   })),
 );
 const hasAgents = roleIds.length > 0;
@@ -41,7 +46,7 @@ const hasEntities = entityTypes.some(({ count }) => count > 0);
       <div class="entity-type-list mb-8">
         <a href="/entities">
           <strong>All Entities</strong>
-          <span class="meta"> — browse the global entity catalog by type</span>
+          <span class="meta"> — browse the workspace entity catalog by type</span>
         </a>
       </div>
     </>

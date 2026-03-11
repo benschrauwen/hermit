@@ -1,9 +1,9 @@
 import path from "node:path";
-import { pathToFileURL } from "node:url";
 import { marked } from "marked";
 
 import type { EntityFileContent } from "./entity-content.js";
 import type { EntityRecord, RoleEntityDefinition, RoleExplorerConfig } from "./workspace.js";
+import { importWithNode } from "./workspace.js";
 
 marked.setOptions({ gfm: true });
 
@@ -41,7 +41,7 @@ interface BaseEntityRendererContext {
   renderDefaultSections: () => Promise<string[]>;
 }
 
-export interface EntityDetailRendererContext extends BaseEntityRendererContext {}
+export type EntityDetailRendererContext = BaseEntityRendererContext;
 
 export interface EntityFileRendererContext extends BaseEntityRendererContext {
   file: EntityFileContent;
@@ -62,10 +62,6 @@ type FileRendererModule = {
 };
 
 const pluginCache = new Map<string, Promise<unknown>>();
-
-function importWithNode(specifier: string): Promise<unknown> {
-  return new Function("moduleSpecifier", "return import(moduleSpecifier);")(specifier) as Promise<unknown>;
-}
 
 function escapeHtml(value: string): string {
   return value
@@ -134,6 +130,7 @@ function resolveRendererPath(root: string, rendererPath: string): string {
 async function loadPluginModule<TModule>(absolutePath: string): Promise<TModule> {
   let pending = pluginCache.get(absolutePath);
   if (!pending) {
+    const { pathToFileURL } = await import("node:url");
     pending = importWithNode(pathToFileURL(absolutePath).href);
     pluginCache.set(absolutePath, pending);
   }
@@ -142,7 +139,6 @@ async function loadPluginModule<TModule>(absolutePath: string): Promise<TModule>
 
 function getBaseContext(args: {
   root: string;
-  role: RoleDefinition;
   entityType: string;
   entityDef: RoleEntityDefinition;
   entity: EntityRecord;
@@ -192,7 +188,7 @@ export async function renderRoleEntityDetail(args: {
         return {
           kind: "default",
           file,
-          html: await renderMarkdown(file.content),
+          html: await renderDefaultFileSection(file),
         };
       }
 

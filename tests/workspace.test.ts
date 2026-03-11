@@ -73,7 +73,6 @@ describe("workspace", () => {
 
     writeSharedEntityRecord(tmpRoot);
     await createRoleEntityRecord(
-      tmpRoot,
       role,
       "item",
       {
@@ -118,7 +117,6 @@ describe("workspace", () => {
     const role = await loadRole(tmpRoot, "role-a");
     await ensureWorkspaceScaffold(tmpRoot, role);
     const item = await createRoleEntityRecord(
-      tmpRoot,
       role,
       "item",
       {
@@ -131,7 +129,6 @@ describe("workspace", () => {
       { sourceRefs: ["agent onboarding"] },
     );
     const caseEntity = await createRoleEntityRecord(
-      tmpRoot,
       role,
       "case",
       {
@@ -151,6 +148,44 @@ describe("workspace", () => {
     expect(readFileSync(path.join(caseEntity.path, "activity-log.md"), "utf8")).toContain("Add activity");
   });
 
+  it("applies schema defaults when optional fields omit a defaulted value", async () => {
+    const role = await loadRole(tmpRoot, "role-a");
+    await ensureWorkspaceScaffold(tmpRoot, role);
+
+    const item = await createRoleEntityRecord(
+      role,
+      "item",
+      {
+        title: "Widget",
+        summary: "Summary",
+        owner: "Taylor",
+        nextStep: "Review scope",
+      },
+      { sourceRefs: ["test"] },
+    );
+
+    expect(readFileSync(path.join(item.path, "record.md"), "utf8")).toContain("status: active");
+  });
+
+  it("rejects record creation when a required schema field is missing", async () => {
+    const role = await loadRole(tmpRoot, "role-a");
+    await ensureWorkspaceScaffold(tmpRoot, role);
+
+    await expect(
+      createRoleEntityRecord(
+        role,
+        "case",
+        {
+          title: "Expansion",
+          owner: "Taylor",
+          status: "active",
+          nextStep: "Schedule review",
+        },
+        { sourceRefs: ["test"] },
+      ),
+    ).rejects.toThrow('Missing required field "account" for entity case.');
+  });
+
   it("scans shared and role entities together", async () => {
     const role = await loadRole(tmpRoot, "role-a");
     await ensureWorkspaceScaffold(tmpRoot, role);
@@ -161,7 +196,6 @@ describe("workspace", () => {
       name: "Shared Note",
     });
     await createRoleEntityRecord(
-      tmpRoot,
       role,
       "item",
       { title: "Widget", summary: "Summary", owner: "Taylor", status: "active", nextStep: "Review" },
@@ -175,7 +209,6 @@ describe("workspace", () => {
     const role = await loadRole(tmpRoot, "role-a");
     await ensureWorkspaceScaffold(tmpRoot, role);
     const caseEntity = await createRoleEntityRecord(
-      tmpRoot,
       role,
       "case",
       {
@@ -197,7 +230,6 @@ describe("workspace", () => {
     const role = await loadRole(tmpRoot, "role-a");
     await ensureWorkspaceScaffold(tmpRoot, role);
     await createRoleEntityRecord(
-      tmpRoot,
       role,
       "case",
       {
@@ -210,7 +242,6 @@ describe("workspace", () => {
       { sourceRefs: ["test"] },
     );
     await createRoleEntityRecord(
-      tmpRoot,
       role,
       "case",
       {
@@ -235,7 +266,6 @@ describe("workspace", () => {
     const role = await loadRole(tmpRoot, "role-a");
     await ensureWorkspaceScaffold(tmpRoot, role);
     const caseEntity = await createRoleEntityRecord(
-      tmpRoot,
       role,
       "case",
       {
@@ -263,7 +293,6 @@ describe("workspace", () => {
     const role = await loadRole(tmpRoot, "role-b");
     await ensureWorkspaceScaffold(tmpRoot, role);
     const issue = await createRoleEntityRecord(
-      tmpRoot,
       role,
       "issue",
       {

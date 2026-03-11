@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env -S node --import tsx
 import matter from "gray-matter";
 import { promises as fs } from "node:fs";
 import path from "node:path";

@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env -S node --import tsx
 import {
   getBooleanFlag,
   getNumberFlag,

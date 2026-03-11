@@ -1,9 +1,9 @@
 {
-  "name": "leadership-explorer",
+  "name": "hermit-explorer",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "packageManager": "bun@1.3.8",
+  "packageManager": "npm@11.6.2",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",

@@ -33,7 +33,7 @@ All commands assume the current working directory is the Hermit workspace root. 
 Use when you need a candidate list.
 
 ```bash
-bun skills/entity_query/entities/scripts/query-entities.ts --type deal --status qualification --sort updated --desc --limit 20
+node --import tsx skills/entity_query/entities/scripts/query-entities.ts --type deal --status qualification --sort updated --desc --limit 20
 ```
 
 Useful flags:
@@ -54,7 +54,7 @@ Useful flags:
 Use when you need counts and rollups before going deeper.
 
 ```bash
-bun skills/entity_query/entities/scripts/summarize-entities.ts --top 10
+node --import tsx skills/entity_query/entities/scripts/summarize-entities.ts --top 10
 ```
 
 Useful flags:
@@ -70,7 +70,7 @@ Useful flags:
 Use when you need to know what usually exists beside `record.md` for a given entity type or directory.
 
 ```bash
-bun skills/entity_query/entities/scripts/inventory-entities.ts --group-by type --top 8
+node --import tsx skills/entity_query/entities/scripts/inventory-entities.ts --group-by type --top 8
 ```
 
 Useful flags:

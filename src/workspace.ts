@@ -3,9 +3,15 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import slugifyImport from "slugify";
 
-import { DEAL_SEQUENCE_WIDTH, SHARED_ROOT_DIRECTORIES } from "./constants.js";
+const slugify = slugifyImport as unknown as (
+  value: string,
+  options?: { lower?: boolean; strict?: boolean; trim?: boolean },
+) => string;
+
+import { ENTITY_SEQUENCE_WIDTH, SHARED_ROOT_DIRECTORIES } from "./constants.js";
+import { fileExists, formatErrorMessage, isMissingPathError } from "./fs-utils.js";
 import { getRootPaths, getRolePaths, listRoleIds } from "./roles.js";
-import { renderBulletList, renderYamlList, TemplateLibrary } from "./template-library.js";
+import { renderBulletList, renderTemplate, renderTemplateString, renderYamlList } from "./template-library.js";
 import type {
   EntityRecord,
   RoleDefinition,
@@ -13,13 +19,6 @@ import type {
   TranscriptIngestCapability,
   WorkspaceInitializationState,
 } from "./types.js";
-
-const slugify = slugifyImport as unknown as (
-  value: string,
-  options?: { lower?: boolean; strict?: boolean; trim?: boolean },
-) => string;
-
-const templateLibrary = new TemplateLibrary();
 
 export interface WorkspacePaths {
   root: string;
@@ -65,15 +64,6 @@ export function getWorkspacePaths(root: string, role?: RoleDefinition): Workspac
   };
 }
 
-async function fileExists(filePath: string): Promise<boolean> {
-  try {
-    await fs.access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export function makeSlug(value: string): string {
   return slugify(value, {
     lower: true,
@@ -98,7 +88,7 @@ async function renderSharedPromptTemplate(
   relativeTemplatePath: string,
   values: Record<string, string>,
 ): Promise<string> {
-  return templateLibrary.render(getSharedPromptTemplatePath(root, relativeTemplatePath), values);
+  return renderTemplate(getSharedPromptTemplatePath(root, relativeTemplatePath), values);
 }
 
 function buildFieldContext(input: Record<string, unknown>): Record<string, string> {
@@ -123,7 +113,7 @@ async function ensureDirectory(relativeTo: string, relativePaths: string[]): Pro
 }
 
 function renderNameTemplate(entity: RoleEntityDefinition, input: Record<string, unknown>): string {
-  return TemplateLibrary.renderString(
+  return renderTemplateString(
     entity.nameTemplate,
     Object.fromEntries(Object.entries(input).map(([key, value]) => [key, String(value ?? "")])),
   );
@@ -133,9 +123,65 @@ async function listDirectoryNames(directory: string): Promise<string[]> {
   try {
     const entries = await fs.readdir(directory, { withFileTypes: true });
     return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
-  } catch {
-    return [];
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return [];
+    }
+    throw new Error(`Failed to list entity directories in ${directory}: ${formatErrorMessage(error)}`);
   }
+}
+
+function cloneFieldDefaultValue(value: string | string[]): string | string[] {
+  return Array.isArray(value) ? [...value] : value;
+}
+
+function isMissingFieldValue(value: unknown, fieldType: RoleEntityDefinition["fields"][number]["type"]): boolean {
+  if (value === undefined || value === null) {
+    return true;
+  }
+  if (fieldType === "string-array") {
+    return !Array.isArray(value) || value.length === 0;
+  }
+  return typeof value !== "string" || value.trim().length === 0;
+}
+
+function normalizeEntityFieldValue(
+  entityKey: string,
+  field: RoleEntityDefinition["fields"][number],
+  value: unknown,
+): string | string[] | undefined {
+  if (isMissingFieldValue(value, field.type)) {
+    if (field.defaultValue !== undefined) {
+      return cloneFieldDefaultValue(field.defaultValue);
+    }
+    if (field.required) {
+      throw new Error(`Missing required field "${field.key}" for entity ${entityKey}.`);
+    }
+    return undefined;
+  }
+
+  if (field.type === "string-array") {
+    if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
+      throw new Error(`Field "${field.key}" for entity ${entityKey} must be a string array.`);
+    }
+    return [...value];
+  }
+
+  if (typeof value !== "string") {
+    throw new Error(`Field "${field.key}" for entity ${entityKey} must be a string.`);
+  }
+  return value;
+}
+
+function resolveEntityInput(entity: RoleEntityDefinition, input: Record<string, unknown>): Record<string, string | string[]> {
+  const resolved: Record<string, string | string[]> = {};
+  for (const field of entity.fields) {
+    const normalizedValue = normalizeEntityFieldValue(entity.key, field, input[field.key]);
+    if (normalizedValue !== undefined) {
+      resolved[field.key] = normalizedValue;
+    }
+  }
+  return resolved;
 }
 
 async function getNextSequencedEntityNumber(role: RoleDefinition, entity: RoleEntityDefinition): Promise<number> {
@@ -163,6 +209,9 @@ async function makeRoleEntityId(role: RoleDefinition, entity: RoleEntityDefiniti
 
   const sourceValue = joinFieldValues(input, entity.idSourceFields);
   const slug = makeSlug(sourceValue);
+  if (!slug) {
+    throw new Error(`Entity ${entity.key} could not generate an ID because its source fields are empty.`);
+  }
   const prefix = entity.idPrefix ?? entity.key;
 
   if (entity.idStrategy === "prefixed-slug") {
@@ -171,7 +220,7 @@ async function makeRoleEntityId(role: RoleDefinition, entity: RoleEntityDefiniti
 
   const year = new Date().getFullYear();
   const sequence = await getNextSequencedEntityNumber(role, entity);
-  return `${prefix}-${year}-${String(sequence).padStart(DEAL_SEQUENCE_WIDTH, "0")}-${slug}`;
+  return `${prefix}-${year}-${String(sequence).padStart(ENTITY_SEQUENCE_WIDTH, "0")}-${slug}`;
 }
 
 async function renderEntityTemplate(
@@ -179,7 +228,7 @@ async function renderEntityTemplate(
   relativeTemplatePath: string,
   values: Record<string, string>,
 ): Promise<string> {
-  return templateLibrary.render(path.join(role.entityDefsDir, relativeTemplatePath), values);
+  return renderTemplate(path.join(role.entityDefsDir, relativeTemplatePath), values);
 }
 
 export async function writeFileSafely(filePath: string, content: string, force = false): Promise<void> {
@@ -261,7 +310,7 @@ export async function ensureWorkspaceScaffold(root: string, role?: RoleDefinitio
 }
 
 export async function getWorkspaceInitializationState(root: string, role: RoleDefinition): Promise<WorkspaceInitializationState> {
-  const [sharedEntities, roleEntities] = await Promise.all([scanSharedEntities(root, role), scanRoleEntities(root, role)]);
+  const [sharedEntities, roleEntities] = await Promise.all([scanSharedEntities(root, role), scanRoleEntities(role)]);
   const roleEntityCounts = Object.fromEntries(
     role.entities.map((entity) => [entity.key, roleEntities.filter((record) => record.type === entity.type).length]),
   );
@@ -323,18 +372,8 @@ async function readEntityRecord(
         ...(data.owner ? { owner: String(data.owner) } : {}),
       } satisfies EntityRecord,
     ];
-  } catch {
-    const entityPath = path.dirname(recordPath);
-    return [
-      {
-        id: path.basename(entityPath),
-        type: "unknown",
-        name: path.basename(entityPath),
-        path: entityPath,
-        scope,
-        ...(roleId ? { roleId } : {}),
-      } satisfies EntityRecord,
-    ];
+  } catch (error) {
+    throw new Error(`Failed to read entity record ${recordPath}: ${formatErrorMessage(error)}`);
   }
 }
 
@@ -363,9 +402,16 @@ async function scanDirectoryForEntities(
     );
 
     return entityGroups.flat();
-  } catch {
-    return [];
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return [];
+    }
+    throw new Error(`Failed to scan entities in ${directory}: ${formatErrorMessage(error)}`);
   }
+}
+
+function dedupeEntitiesByPath(entities: EntityRecord[]): EntityRecord[] {
+  return [...new Map(entities.map((entity) => [entity.path, entity])).values()];
 }
 
 function getRoleEntityRootNames(role: RoleDefinition): Set<string> {
@@ -386,8 +432,11 @@ async function getSharedEntityDirectories(root: string, role: RoleDefinition): P
     return entries
       .filter((entry) => entry.isDirectory() && !excludedRootNames.has(entry.name))
       .map((entry) => path.join(entitiesDir, entry.name));
-  } catch {
-    return [];
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return [];
+    }
+    throw new Error(`Failed to list shared entity directories in ${entitiesDir}: ${formatErrorMessage(error)}`);
   }
 }
 
@@ -397,7 +446,7 @@ async function scanSharedEntities(root: string, role: RoleDefinition): Promise<E
   return entities.flat();
 }
 
-async function scanRoleEntities(_root: string, role: RoleDefinition): Promise<EntityRecord[]> {
+async function scanRoleEntities(role: RoleDefinition): Promise<EntityRecord[]> {
   const entities = await Promise.all(
     role.entities.flatMap((entity) =>
       (entity.scanDirectories ?? [entity.createDirectory]).map((directory) =>
@@ -411,7 +460,7 @@ async function scanRoleEntities(_root: string, role: RoleDefinition): Promise<En
     ),
   );
 
-  return [...new Map(entities.flat().map((entity) => [entity.path, entity])).values()];
+  return dedupeEntitiesByPath(entities.flat());
 }
 
 function filterEntitiesByType(entities: EntityRecord[], entityType: string): EntityRecord[] {
@@ -432,8 +481,39 @@ function filterCreatableEntities(
 }
 
 export async function scanEntities(root: string, role: RoleDefinition): Promise<EntityRecord[]> {
-  const entities = [...(await scanSharedEntities(root, role)), ...(await scanRoleEntities(root, role))];
+  const entities = [...(await scanSharedEntities(root, role)), ...(await scanRoleEntities(role))];
   return entities.sort((left, right) => left.name.localeCompare(right.name));
+}
+
+export async function scanEntitiesByDefinition(root: string, entity: RoleEntityDefinition): Promise<EntityRecord[]> {
+  const entitiesDir = getWorkspacePaths(root).entitiesDir;
+  if (entity.idStrategy === "singleton") {
+    const recordPath = path.join(entitiesDir, entity.createDirectory, "record.md");
+    if (!(await fileExists(recordPath))) {
+      return [];
+    }
+    return readEntityRecord(recordPath, "shared");
+  }
+
+  const directories = entity.scanDirectories ?? [entity.createDirectory];
+  const entityGroups = await Promise.all(
+    directories.map((directory) =>
+      scanDirectoryForEntities(
+        path.join(entitiesDir, directory),
+        "shared",
+        undefined,
+        entity.excludeDirectoryNames ? { excludeDirectoryNames: entity.excludeDirectoryNames } : {},
+      ),
+    ),
+  );
+
+  return dedupeEntitiesByPath(entityGroups.flat()).sort((left, right) =>
+    left.name.localeCompare(right.name, undefined, { sensitivity: "base" }),
+  );
+}
+
+export async function countEntitiesByDefinition(root: string, entity: RoleEntityDefinition): Promise<number> {
+  return (await scanEntitiesByDefinition(root, entity)).length;
 }
 
 export async function findEntityById(root: string, role: RoleDefinition, entityId: string): Promise<EntityRecord | undefined> {
@@ -578,7 +658,6 @@ function buildRoleEntityPath(role: RoleDefinition, entity: RoleEntityDefinition,
 }
 
 export async function createRoleEntityRecord(
-  root: string,
   role: RoleDefinition,
   entityKey: string,
   input: Record<string, unknown>,
@@ -589,18 +668,19 @@ export async function createRoleEntityRecord(
     throw new Error(`Unknown role entity key: ${entityKey}`);
   }
 
-  const entityId = await makeRoleEntityId(role, entity, input);
+  const normalizedInput = resolveEntityInput(entity, input);
+  const entityId = await makeRoleEntityId(role, entity, normalizedInput);
   const entityPath = buildRoleEntityPath(role, entity, entityId);
   const sourceRefs = options.sourceRefs ?? ["bootstrap questionnaire"];
-  const entityName = renderNameTemplate(entity, input);
-  const status = entity.statusField ? String(input[entity.statusField] ?? "") : "active";
-  const owner = entity.ownerField ? String(input[entity.ownerField] ?? "") : role.name;
+  const entityName = renderNameTemplate(entity, normalizedInput);
+  const status = entity.statusField ? String(normalizedInput[entity.statusField] ?? "") : "active";
+  const owner = entity.ownerField ? String(normalizedInput[entity.ownerField] ?? "") : role.name;
   const values = {
-    ...buildFieldContext(input),
+    ...buildFieldContext(normalizedInput),
     id: entityId,
     type: entity.type,
     name: entityName,
-    status: status || "active",
+    status: status || (entity.statusField ? "" : "active"),
     owner,
     updatedAt: new Date().toISOString(),
     sourceRefsYaml: renderYamlList(sourceRefs),
