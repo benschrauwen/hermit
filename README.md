@@ -186,7 +186,7 @@ The bootstrap prompt establishes `entities/user/record.md` as the shared user-co
 
 | Variable | Description |
 |---|---|
-| `OPENAI_API_KEY` | Required for raw unsandboxed CLI sessions. Default sandboxed commands prefer storing the key in the system keychain and letting `nono` inject it. |
+| `OPENAI_API_KEY` | Used for raw unsandboxed CLI sessions. On macOS, the `:unsafe` commands also fall back to the same Keychain entry that `nono` uses before failing. |
 | `ROLE_AGENT_MODEL` | Model override (default: `openai/gpt-5.4`) |
 | `ROLE_AGENT_THINKING_LEVEL` | Thinking level (default: `medium`) |
 
@@ -215,7 +215,7 @@ npm run start:unsafe
 npm run heartbeat-daemon:unsafe
 ```
 
-Those unsandboxed commands expect `OPENAI_API_KEY` in your environment instead of pulling it from the keychain through `nono`.
+Those unsandboxed commands still accept `OPENAI_API_KEY` from your environment, but on macOS they also fall back to the same Keychain item used by `nono` (`service: nono`, `account: openai_api_key`).
 
 ### Opening up network access
 

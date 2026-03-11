@@ -8,6 +8,12 @@ import type { TelemetryRecorder } from "./telemetry-recorder.js";
 const STATUS_SPINNER_FRAMES = ["|", "/", "-", "\\"] as const;
 const STATUS_SPINNER_INTERVAL_MS = 80;
 const MAX_STATUS_TEXT_LENGTH = 96;
+const STATUS_PREFIX_LENGTH = 2; // spinner char + space
+
+function getMaxStatusTextLength(): number {
+  const columns = typeof process.stdout.columns === "number" ? process.stdout.columns : 80;
+  return Math.max(10, Math.min(MAX_STATUS_TEXT_LENGTH, columns - STATUS_PREFIX_LENGTH));
+}
 const ANSI_BOLD = "\x1b[1m";
 const ANSI_DIM = "\x1b[90m";
 const ANSI_ITALIC = "\x1b[3m";
@@ -311,7 +317,8 @@ export function attachConsoleStreaming(session: AgentSession, telemetry?: Teleme
   }
 
   function showStatus(nextStatus = "Thinking"): void {
-    statusText = truncateInlineText(normalizeInlineText(nextStatus || "Thinking")) || "Thinking";
+    const maxLen = getMaxStatusTextLength();
+    statusText = truncateInlineText(normalizeInlineText(nextStatus || "Thinking"), maxLen) || "Thinking";
     renderStatus();
 
     if (!spinnerTimer) {
@@ -345,7 +352,9 @@ export function attachConsoleStreaming(session: AgentSession, telemetry?: Teleme
       writeToConsole("\n");
     }
 
-    writeToConsole(`${ANSI_DIM}${text}${ANSI_RESET}\n`);
+    const maxLen = getMaxStatusTextLength();
+    const oneLine = truncateInlineText(text, maxLen);
+    writeToConsole(`${ANSI_DIM}${oneLine}${ANSI_RESET}\n`);
   }
 
   function resetAssistantRenderState(): void {
