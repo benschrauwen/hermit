@@ -6,18 +6,18 @@
   "packageManager": "npm@11.6.2",
   "scripts": {
     "check": "tsc -p tsconfig.json --noEmit",
-    "postinstall": "npm --prefix explorer install",
-    "start": "nono run --profile ./examples/nono/hermit.json --allow-cwd -- npm run start:unsafe --",
+    "postinstall": "./scripts/with-local-npm.sh npm --prefix explorer install",
+    "start": "./scripts/with-local-npm.sh nono run --profile ./examples/nono/hermit.json --allow-cwd -- npm run start:unsafe --",
     "start:unsafe": "npm run cli -- chat",
     "cli": "node --import tsx src/cli.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "heartbeat-daemon": "nono run --profile ./examples/nono/hermit.json --allow-cwd -- npm run heartbeat-daemon:unsafe --",
+    "heartbeat-daemon": "./scripts/with-local-npm.sh nono run --profile ./examples/nono/hermit.json --allow-cwd -- npm run heartbeat-daemon:unsafe --",
     "heartbeat-daemon:unsafe": "npm run cli -- heartbeat-daemon",
-    "explorer": "NODE_OPTIONS='--import tsx' WORKSPACE_ROOT=\"$(pwd)\" npm --prefix explorer run dev",
-    "explorer:build": "NODE_OPTIONS='--import tsx' WORKSPACE_ROOT=\"$(pwd)\" npm --prefix explorer run build",
-    "explorer:preview": "NODE_OPTIONS='--import tsx' WORKSPACE_ROOT=\"$(pwd)\" npm --prefix explorer run preview"
+    "explorer": "./scripts/with-local-npm.sh env NODE_OPTIONS='--import tsx' WORKSPACE_ROOT=\"$(pwd)\" npm --prefix explorer run dev",
+    "explorer:build": "./scripts/with-local-npm.sh env NODE_OPTIONS='--import tsx' WORKSPACE_ROOT=\"$(pwd)\" npm --prefix explorer run build",
+    "explorer:preview": "./scripts/with-local-npm.sh env NODE_OPTIONS='--import tsx' WORKSPACE_ROOT=\"$(pwd)\" npm --prefix explorer run preview"
   },
   "keywords": [
     "hermit",

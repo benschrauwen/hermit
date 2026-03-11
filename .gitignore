@@ -16,6 +16,15 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Local npm/skills sandbox state
+.npm-cache/
+.home/
+.local/
+.agent/
+.agents/
+.pi/
+.claude/
+
 # OS
 .DS_Store
 Thumbs.db

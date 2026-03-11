@@ -95,10 +95,6 @@ brew install node git
 ```
 
 ```bash
-brew tap always-further/nono
-```
-
-```bash
 brew install nono
 ```
 
@@ -156,7 +152,8 @@ Hermit needs an OpenAI API key so it can use the AI.
 2. Sign in, or create an account if you do not have one yet.
 3. If OpenAI asks for billing setup, finish that first.
 4. Click `Create new secret key`.
-5. Copy the key immediately and keep that browser tab open.
+5. Give it a name and choose a project, and click `Create secret key`.
+5. Keep that browser tab open.
 
 Important:
 

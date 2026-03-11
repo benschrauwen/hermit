@@ -51,10 +51,12 @@ Result shape usually includes an install target like:
 Install with npx skills add <owner/repo@skill>
 ```
 
-Install for the user only after confirmation:
+Install for the user only after confirmation.
+Default to a project-local install in the current workspace.
+Use global install only if the user explicitly asks for it and the environment allows home-directory writes.
 
 ```bash
-npx skills add <owner/repo@skill> -g -y
+npx skills add <owner/repo@skill> -y
 ```
 
 ### 2. ClawHub
@@ -79,7 +81,8 @@ npm i -g clawhub
 
 Important behavior:
 - `clawhub install <slug>` installs into `./skills` under the current working directory by default.
-- If you are not in the workspace root, use the global `--workdir <path>` option so the skill lands in the intended workspace.
+- In sandboxed environments, prefer workspace-local installation and avoid assumptions about home-directory access.
+- If you are not in the workspace root, use `--workdir <path>` so the skill lands in the intended workspace.
 - ClawHub is public and open. Prefer showing the user the skill info or page before installing unfamiliar skills.
 
 Browse: https://clawhub.ai/
@@ -119,16 +122,30 @@ If both registries have good options, say which ecosystem each result belongs to
 
 Only install after the user says yes.
 
+Default to project-local install because many agent environments are sandboxed and only allow writes inside the workspace.
+
 Use:
+
+```bash
+npx skills add <owner/repo@skill> -y
+```
+
+If the user explicitly wants a global install and the environment allows it:
 
 ```bash
 npx skills add <owner/repo@skill> -g -y
 ```
 
-Or:
+Or for ClawHub in the workspace root:
 
 ```bash
 clawhub install <slug>
+```
+
+If not already in the workspace root:
+
+```bash
+clawhub install <slug> --workdir <path>
 ```
 
 After install:
