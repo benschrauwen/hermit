@@ -15,7 +15,8 @@
     "read_file": ["$HOME/.gitconfig"]
   },
   "network": {
-    "network_profile": "developer"
+    "network_profile": "developer",
+    "proxy_allow": ["skills.sh", "clawhub.ai"]
   },
   "secrets": {
     "openai_api_key": "OPENAI_API_KEY"

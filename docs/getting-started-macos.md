@@ -327,6 +327,19 @@ npm run heartbeat-daemon
 npm run explorer
 ```
 
+## 16. Read This Next
+
+Once Hermit is running, read [`docs/beginner-onboarding.md`](beginner-onboarding.md).
+
+That guide explains:
+
+- what Hermit becomes after install
+- what you can ask it to do
+- how entities and agents differ
+- what you are seeing in the explorer
+- how web lookup and skills fit into the system
+- how heartbeat keeps the agent going
+
 ## Troubleshooting
 
 ### `brew: command not found`
