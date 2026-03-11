@@ -1,139 +1,69 @@
 # Observability
 
-Hermit now records local-first runtime telemetry for CLI sessions and can aggregate those logs into workspace reports.
+Hermit has two observability layers: local runtime telemetry for sessions, and `doctor` for structural workspace validation. They do not share data or code paths.
 
-This is the canonical observability document for the runtime telemetry approach.
+## Telemetry Coverage
 
-## Scope
+Telemetry is recorded for `chat`, `ask`, `heartbeat`, and `ingest:transcript`. Git session metadata (branch, HEAD SHAs, checkpoint SHAs) is attached only for `chat`, `ask`, and `heartbeat`, which run through the git checkpoint wrapper.
 
-Telemetry is currently captured automatically for `chat`, `ask`, `heartbeat`, and transcript-ingest sessions.
-
-Current telemetry covers:
-
-- session start and end
-- turn start and end
-- time to first assistant token
-- tool start and end
-- tool durations
-- tool execution errors
-- assistant message errors
-- retry events
-- compaction events
-- session-level git linkage for command-boundary checkpoints when available
-
-This is intentionally local-first and append-only.
+Telemetry is local-first and append-only. Reports are generated explicitly via `hermit telemetry report`. Telemetry does not trigger rollback, checkpointing, or background mutations.
 
 ## Storage
 
-Raw event logs are written under:
+Raw events: `.hermit/telemetry/events/YYYY/MM/DD/<session-id>.jsonl`, partitioned by UTC day.
 
-- `.hermit/telemetry/events/YYYY/MM/DD/<session-id>.jsonl`
+Reports: `.hermit/telemetry/reports/report-<window>-<date>-<timestamp>.md` and `.json`.
 
-Aggregated reports are written under:
-
-- `.hermit/telemetry/reports/report-<window>-<date>-<timestamp>.md`
-- `.hermit/telemetry/reports/report-<window>-<date>-<timestamp>.json`
+`.hermit/` is gitignored. Telemetry and reports are runtime artifacts, not canonical records.
 
 ## Event Model
 
-The recorder writes structured telemetry events rather than dumping every raw SDK event verbatim. Current event types are:
+Event types: `session_start`, `session_end`, `turn_start`, `first_token`, `tool_start`, `tool_end`, `assistant_message_end`, `retry_start`, `retry_end`, `compaction_start`, `compaction_end`, `turn_end`.
 
-- `session_start`
-- `session_end`
-- `turn_start`
-- `first_token`
-- `tool_start`
-- `tool_end`
-- `assistant_message_end`
-- `retry_start`
-- `retry_end`
-- `compaction_start`
-- `compaction_end`
-- `turn_end`
+Every event carries: `timestamp`, `sessionId`, `commandName`, `model`, and optional `roleId`.
 
-Each event includes at least:
+### Session events
 
-- `timestamp`
-- `sessionId`
-- `commandName`
-- `model`
-- `roleId` when available
+`session_start` fields: `persist`, `continueRecent`, `workspaceRoot`, optional `gitBranch`, `gitHeadAtStart`, `checkpointBeforeSha`.
 
-For `session_start` and `session_end`, git-aware session commands may also include:
+`session_end` fields: `durationMs`, `turnCount`, `toolCallCount`, `toolErrorCount`, `assistantErrorTurnCount`, `silentTurnCount`, `retryCount`, `compactionCount`, optional `gitBranch`, `gitHeadAtStart`, `gitHeadAtEnd`, `checkpointBeforeSha`, `checkpointAfterSha`.
 
-- `gitBranch`
-- `gitHeadAtStart`
-- `gitHeadAtEnd`
-- `checkpointBeforeSha`
-- `checkpointAfterSha`
+### Turn and tool events
 
-This lets session logs be correlated with normal git history without writing commit SHAs into canonical records.
+Turn events: turn timing, time to first token, tool call and error counts, assistant text presence and size, error flag, retry and compaction counts.
 
-## Commands
+Tool events: tool name, tool call ID, optional turn ID, duration, success/error, error message when available.
 
-Generate a report for the last 7 days:
+Assistant message text is not stored.
 
-```bash
-hermit telemetry report
+## Reports
+
+`hermit telemetry report` reads raw event files, filters to the requested window and optional role, and aggregates only completed sessions (those with `session_end`).
+
+```
+hermit telemetry report [--window 24h|7d|2w] [--role <role-id>]
 ```
 
-Generate a report for a custom window:
+Default window: `7d`.
 
-```bash
-hermit telemetry report --window 24h
-hermit telemetry report --window 7d
-hermit telemetry report --window 2w
-```
+Summary metrics: session count, turn count, tool call count, tool error count and rate, assistant error turn count and rate, silent turn count and rate, retry count, compaction count, turn duration p50/p95, time-to-first-token p50/p95, tool duration p50/p95.
 
-Filter by role:
+Breakdown sections: top 5 failing tools, top 5 slowest turns, per-tool breakdown.
 
-```bash
-hermit telemetry report --role <role-id>
-```
+Source metadata: total event count, completed session file count.
 
-## Current Metrics
+## Privacy Boundaries
 
-Telemetry reports only aggregate completed sessions. In-flight sessions without a `session_end` event are ignored so partial data does not skew reported counts and rates.
+**Not stored:** full prompts, assistant message text, raw tool arguments, the underlying SDK event stream.
 
-The report currently summarizes:
+**Stored:** absolute `workspaceRoot`, command name, model identifier, optional role ID, optional git branch and SHAs, optional checkpoint SHAs, tool and assistant error strings (truncated to 500 characters).
 
-- session count
-- turn count
-- tool error rate
-- assistant error rate
-- silent turn rate
-- retry count
-- compaction count
-- turn duration p50/p95
-- time-to-first-token p50/p95
-- tool duration p50/p95
-- top failing tools
-- slowest turns
-- per-tool breakdown
+No general redaction or universal truncation layer. Local telemetry files should be treated as operational data.
 
-Git linkage is stored on the raw session events today. It is primarily intended for correlation, debugging, and future history-aware reporting such as `what changed today?`
+## `doctor`
 
-## How To Use It
+`doctor` validates structural workspace correctness. It does not read telemetry files or compute rates. See [Architecture: Validation](architecture.md#validation) for the full check list.
 
-Telemetry is one input to Hermit's self-improvement loop and strategic reflection.
+## Strategic Review and Telemetry
 
-- Use reports to spot repeated failure modes, retries, slow turns, or fragile tools before changing prompts or runtime behavior.
-- Treat telemetry as supporting evidence, then confirm the right fix in prompts, code, templates, renderers, docs, or tests.
-- Do not treat a single anomalous session as enough evidence for a broad workflow rewrite.
-- The daily strategic review (see `docs/architecture.md` and `prompts/35-strategic-reflection.md`) reads telemetry reports as part of its health check. Systemic issues found during the review are recorded in `agent/record.md` and surfaced at the next interactive session.
-
-## Documentation References
-
-Telemetry is also referenced from:
-
-- `README.md` for feature discovery and CLI usage
-- `docs/architecture.md` for runtime module responsibilities, storage model, and strategic reflection
-- `prompts/35-strategic-reflection.md` for the daily strategic review that consumes telemetry reports
-
-## Guardrails
-
-- telemetry stays local by default
-- logs are append-only
-- reports are derived artifacts, not the source log
-- raw tool arguments and full prompts are not stored in telemetry events today
-- git linkage is observational metadata only; it does not trigger automatic rollback or background git mutation
+The strategic review prompt can read reports under `.hermit/telemetry/reports/`, but heartbeat does not generate a fresh report before review runs. Strategic review trigger conditions are documented in [Architecture: Command Surface](architecture.md#command-surface).

@@ -1,400 +1,215 @@
-# Architecture Design
+# Architecture
 
 ## Purpose
 
-Hermit implements a local, file-first runtime for autonomous applications. The workspace stays the system of record while the runtime remains a thin, deterministic orchestration layer around markdown files and a reusable agent session runtime.
+Hermit is a local, file-first runtime where agents are the application. Agents own domain state, make decisions, and evolve the workspace and code. The workspace on disk is canonical — there is no separate database or service layer.
 
-## Core Idea
+Code handles the deterministic infrastructure that should not depend on model improvisation: command routing, role resolution, session construction, entity scaffolding, transcript placement, validation, git checkpointing, and local telemetry. Everything else — strategy, judgment, record-keeping, entity updates — is agent work driven by prompts and skills.
 
-Separate the workspace into:
+## Invariants
 
-- entity instance data in `entities/`
-- entity type definitions, templates, and renderers in `entity-defs/`
-- agent-local workspaces in `agents/<role-id>/`
+- Canonical state lives in files. Agents are the writers; code provides structure and plumbing.
+- Roles, prompts, skills, templates, and entity definitions are loaded from the workspace at runtime.
+- Domain structure stays in markdown and frontmatter; deterministic mechanics stay in code.
+- The explorer is intentionally read-only. Agents manage application state; the explorer renders it.
+- Telemetry is local and append-only.
 
-The `entities/` directory contains entity data only. Exact directory names and file requirements come from the workspace's entity definitions and setup skills.
-
-The `entity-defs/` directory contains entity type definitions and explorer config:
-
-- `entity-defs/entities.md` for entity schema and explorer configuration
-- scaffold templates organized by type
-- custom explorer renderers under `entity-defs/renderers/`
-- shared skills live under `skills/`
-
-Each agent directory contains its own:
-
-- `role.md` manifest
-- `AGENTS.md` prompt index
-- `agent/` operating system
-- `prompts/` role-specific reusable instructions
-- `skills/` role-specific pi skills
-
-Shared prompts live at the workspace root in `prompts/`. Role-specific prompts live in `agents/<role-id>/prompts/`.
-
-This keeps the shared organization context canonical while separating app state and schema (`entities/`, `entity-defs/`) from role behavior and operating overlays (`agents/<role-id>/`).
-
-## Design Principles
-
-### 1. File-first system of record
-
-Business state lives in markdown files and directories, not in a database. Shared truth and entity data are both inspectable, portable, and versionable.
-
-### 2. File-defined role contracts
-
-Roles are defined primarily by markdown and frontmatter:
-
-- `role.md` defines the role behavior contract
-- shared prompts live under `prompts/`
-- shared skills live under `skills/`
-- role-specific prompts live under `agents/<role-id>/prompts/`
-- role-specific skills live under `agents/<role-id>/skills/`
-- entity schema and explorer config live in `entity-defs/entities.md`
-- scaffold templates live under `entity-defs/`
-
-This makes new roles mostly a file-creation exercise instead of a TypeScript refactor.
-
-### 3. Deterministic orchestration stays in code
-
-TypeScript still owns:
-
-- CLI routing
-- role resolution
-- safe writes
-- ID generation
-- initialization checks
-- validation
-- transcript evidence placement
-- tool wiring
-- local telemetry capture and report generation
-
-Markdown defines structure and starter content. Code defines behavior that must stay predictable.
-
-### 4. Shared core, role extension
-
-The runtime should not know what any domain-specific entity type means. It should know how to load a role manifest, render templates, scan entities, and run a session for the selected role.
-
-### 5. Read-only explorer on top of the same workspace
-
-The local explorer is a separate Astro app under `explorer/`, but it is intentionally not a second source of truth and not a second domain model. It is a read-only browser for the same file-first workspace.
-
-The explorer should:
-
-- read shared and role-managed entities from the same workspace tree the CLI uses
-- read role manifests, entity definitions, and scanned entities from the same root TypeScript runtime used by the CLI
-- render markdown files directly instead of copying data into a database or API layer
-- stay thin enough that adding a new role or entity type is still primarily a manifest-and-files exercise
-
-## High-Level Flow
-
-```mermaid
-flowchart TD
-  cli[CLI] --> roleResolver[RoleResolver]
-  explorer[Explorer] --> explorerLoader[Explorer Loader]
-  explorerLoader --> workspaceDist[dist roles_workspace]
-  roleResolver --> roleManifest[role.md]
-  entityDefs[entity-defs/entities.md] --> templateLibrary[TemplateLibrary]
-  entityDefs --> workspaceRules[WorkspaceRules]
-  roleManifest --> promptLibrary[PromptLibrary]
-  workspaceRules --> entitiesData[entities/]
-  workspaceRules --> agentData[agents/roleId]
-  sharedPrompts[prompts/] --> promptLibrary[PromptLibrary]
-  agentsMd[AGENTS.md] --> promptLibrary
-  promptLibrary --> sessionFactory[SessionFactory]
-  templateLibrary --> workspaceCore[WorkspaceCore]
-  workspaceDist --> workspaceRules
-  workspaceRules --> doctor[Doctor]
-```
-
-## Module Responsibilities
-
-### `src/cli.ts`
-
-Parses commands, resolves the workspace root, resolves or infers `--role`, and starts the right flow. The published CLI name is `hermit`.
-
-`chat` has one bootstrap exception: when no roles exist yet and no role can be inferred from the current directory, it starts a workspace-level bootstrap session so the first role can be created. Once roles exist, root-level `chat` requires `--role <id>`; running from inside `agents/<role-id>/` still infers that role from the current directory. `ask` sessions take the role and the user prompt. The user points the agent at the right entity inside the conversation, and the agent resolves that target from the workspace files or `entity_lookup` when needed. `heartbeat` runs a single unattended upkeep turn for a selected role. `heartbeat-daemon` is the long-running replacement for an external cron job: it discovers all configured roles, runs one heartbeat turn per role immediately, then repeats on a fixed interval (default `1h`). When `--strategic-review` is passed, or when `last_strategic_review` in the role's `agent/record.md` frontmatter is more than 24 hours old, the heartbeat automatically runs a full strategic review instead of normal task advancement. `ingest transcript` accepts `--entity` because evidence placement benefits from an explicit deterministic target.
-
-`chat`, `ask`, and `heartbeat` are wrapped once at the command boundary with git-aware checkpoint logic. That wrapper can create a `before` checkpoint when relevant workspace paths are already dirty, run the unchanged session body, then create an `after` checkpoint when the session leaves relevant workspace changes behind. `heartbeat-daemon` does not checkpoint as one giant process; instead, each delegated per-role heartbeat run keeps the normal command-boundary checkpoint behavior.
-
-### `src/git.ts`
-
-A deliberately small wrapper around the git CLI.
-
-It is responsible for:
-
-- inspecting branch and HEAD summary for prompt and telemetry context
-- listing changed files for checkpoint decisions
-- creating ordinary checkpoint commits with Hermit trailers
-
-Checkpoints commit all tracked changes. Runtime artifacts such as `.hermit/` are excluded via `.gitignore`.
-
-### `src/roles.ts`
-
-Loads and validates `agents/<role-id>/role.md`, loads `entity-defs/entities.md`, lists available roles, and infers the current role from the working directory when possible.
-
-### `src/prompt-library.ts`
-
-Auto-discovers all shared prompts from `prompts/`, loads the role's `AGENTS.md` when a role-backed session exists, and renders them into a single system prompt with lightweight placeholders such as `{{workspaceRoot}}`, `{{roleRoot}}`, `{{entityId}}`, `{{transcriptPath}}`, and git facts like `{{gitBranch}}` and `{{gitHeadSha}}`.
-
-Those entity placeholders are optional context, not a requirement for normal chat. Most interactive sessions start unanchored, with `entityId` and `entityPath` left as `not-selected` until the agent resolves the target from the request and the files.
-
-The system prompt is always all shared prompts (sorted by filename), plus role `AGENTS.md` for role-backed sessions. Role-specific on-demand prompts are read by the agent during the session when the task requires them. For transcript ingest sessions, additional role prompts listed in `transcript_ingest.system_prompts` are appended to the system prompt.
-
-### `src/template-library.ts`
-
-Loads markdown starter templates from disk and performs simple placeholder substitution. It intentionally avoids becoming a full templating engine.
-
-### `src/workspace.ts`
-
-Owns path resolution, scaffold creation, generic entity creation, entity scanning, transcript matching, and evidence placement.
-
-### `explorer/`
-
-A local Astro SSR app that provides a read-only browser for the workspace.
-
-It is intentionally thin:
-
-- routes live under `explorer/src/pages/`
-- shared markdown parsing helpers live under `explorer/src/lib/entity-content.ts`
-- root workspace and role loading adapters live under `explorer/src/lib/workspace.ts`
-
-Instead of duplicating business logic, the explorer dynamically imports the built root modules from `dist/roles.js` and `dist/workspace.js`, then reuses:
-
-- role listing
-- role manifest loading
-- generic entity scanning
-- entity lookup by type
-
-This means the CLI and explorer read the same role and entity model, while the explorer stays read-only.
-
-Current route model:
-
-- `/` shows the explorer home page with links to shared and agent areas
-- `/entities` shows the global entity catalog
-- `/entities/:entityType` renders a generic list view for that entity type using entity definition metadata
-- `/entities/:entityType/:entityId` renders the entity detail view from the markdown files declared in `entity-defs/entities.md`
-- `/agents/:roleId` shows an agent overview
-- `/agents/:roleId/agent` renders `agent/record.md` and `agent/inbox.md` for that agent, scaffolded from `prompts/templates/agent/`
-- `/agents/:roleId/:entityType` renders a generic list view for that entity type using entity definition metadata
-- `/agents/:roleId/:entityType/:entityId` renders the entity detail view from the markdown files declared in `entity-defs/entities.md`
-
-The explorer has no write path. Any canonical update still happens through normal file edits or the CLI runtime.
-
-### `src/session.ts`
-
-Builds configured agent sessions for the selected role, chooses the base prompt set for startup, wires standard tools plus role-aware custom tools, and handles persisted sessions per role.
-
-Session prompt assembly works like this:
-
-1. Resolve the role and load its manifest.
-2. Auto-discover and load the always-on shared prompts from the top level of `prompts/`.
-3. Load the role's `AGENTS.md`.
-4. If the session specifies additional role prompts (e.g., transcript ingest system prompts), load those too.
-5. For workspace bootstrap chat, append all shared bootstrap overlays from `prompts/bootstrap/`.
-6. Render all loaded prompts into one concatenated system prompt string using the current prompt context.
-7. Append that rendered prompt string to the base system prompt for the agent runtime.
-
-In addition to prompts, the session enables pi skill discovery from:
-
-- shared workspace `skills/`
-- role-local `agents/<role-id>/skills/`
-
-Those skills stay on-demand. They are not concatenated into the Hermit prompt stack; pi advertises them to the model so the model can read the relevant `SKILL.md` only when the task matches.
-
-For normal `chat` and `ask`, prompt context usually includes the workspace and role but not a preselected entity. The startup prompt explicitly tells the agent to resolve the relevant entity during the session before going deep, then read additional role prompt files on demand when they are relevant. Transcript ingest is the main path that still commonly starts with an explicit entity target.
-
-Session prompt context also carries session-start git facts injected by the CLI wrapper:
-
-- active branch
-- HEAD SHA, short SHA, and subject
-- whether relevant workspace paths were dirty at session start
-- any `before` checkpoint SHA already created for the command
-
-Heartbeat runs use the same role system prompt stack but send a deterministic one-shot upkeep prompt focused on small GTD-style backlog advancement. Their persisted transcripts live in a separate role-local history directory so unattended background sessions do not mix with interactive chat history.
-
-The heartbeat also handles the daily strategic review. At runtime, the CLI reads `last_strategic_review` from the role's `agent/record.md` frontmatter. If the value is missing or older than 24 hours, or if `--strategic-review` was passed explicitly, the heartbeat uses `STRATEGIC_REVIEW_HEARTBEAT_PROMPT` instead of the default GTD prompt. This review covers goal clarity, effort alignment, organizational fitness, process and prompt quality, telemetry health, and research for missing skills or better approaches. Observations are written to the `## Strategic Observations` section of `agent/record.md`. The next interactive session surfaces these observations and any follow-up items that need user input. See `prompts/35-strategic-reflection.md` for the full prompt guidance.
-
-### `src/agent-tools.ts`
-
-Defines generic tools such as:
-
-- `entity_lookup`
-- generic entity record creation tools derived from `entity-defs/entities.md`
-
-### `src/ingest.ts`
-
-Runs transcript ingest only for roles that declare a transcript-ingest capability in their manifest.
-
-### `src/telemetry.ts`
-
-Owns local-first runtime telemetry capture and aggregation.
-
-It records append-only structured events for session starts and ends, turn starts and ends, first-token latency, tool execution, assistant errors, retries, and compaction. It also generates rollup reports for recent windows such as `24h` or `7d`.
-
-For git-aware session commands, telemetry also records session-level git linkage such as:
-
-- branch name
-- HEAD SHA at session start
-- HEAD SHA at session end
-- `before` checkpoint SHA
-- `after` checkpoint SHA
-
-Raw telemetry stays local under `.hermit/telemetry/events/`. Aggregated reports are written under `.hermit/telemetry/reports/`. Report aggregation only includes completed sessions so in-flight activity does not skew counts and rates.
-
-### `src/doctor.ts`
-
-Validates the shared workspace plus the selected role contract, including prompt links, required files, duplicate IDs, and placeholder drift.
-
-For prompts specifically, doctor verifies:
-
-- shared prompts directory exists
-- `AGENTS.md` exists and linked files resolve
-- transcript ingest prompt files exist when configured
-
-## Workspace Contract
+## Workspace Model
 
 ### Shared root
 
-- `entities/`
-- `entities/`
-- `entity-defs/`
-- `skills/`
-- `prompts/`
-- `agents/`
-- `explorer/`
+- `entities/` holds canonical entity records, including role-managed entities.
+- `entity-defs/entities.md` defines entity types and optional explorer renderer config.
+- `entity-defs/` also holds entity templates and optional renderer modules.
+- `skills/` holds shared pi skills.
+- `prompts/` holds shared prompt files and shared templates.
+- `agents/` holds one directory per role.
 
-### Per agent
+### Per role
 
-- `agents/<role-id>/role.md`
-- `agents/<role-id>/AGENTS.md`
-- `agents/<role-id>/agent/`
-- `agents/<role-id>/prompts/` for role-only overlays
-- `agents/<role-id>/skills/` for role-only pi skills
+Each `agents/<role-id>/` directory contains:
 
-## Prompt Contract
+- `role.md` for the role manifest
+- `AGENTS.md` for the role-level prompt and prompt index
+- `agent/record.md` and `agent/inbox.md`
+- `prompts/` for role-local prompt files
+- `skills/` for role-local skills
+- `.role-agent/sessions/` for persisted interactive sessions
+- `.role-agent/heartbeat-sessions/` for persisted heartbeat sessions
 
-The prompt system uses two layers:
+Role-owned entities live under `entities/`, not under `agents/<role-id>/`. The runtime distinguishes shared versus role-managed entities by the directory roots declared in `entity-defs/entities.md`.
 
-### 1. Shared prompts (`prompts/`)
+Runtime scaffolding and `doctor` hard-require `entities/`, `agents/`, `entity-defs/`, and `skills/`. Role sessions also require `prompts/`, `AGENTS.md`, shared agent templates, and any prompt or renderer files referenced by the role.
 
-All `.md` files in the root `prompts/` directory are auto-discovered, sorted by filename, and included in every session's system prompt. These define the agent's core identity, file-first behavior, routing guidance, agent operating system, strategic reflection, and maintenance rules.
+## Runtime Flow
 
-Subdirectories under `prompts/` are reserved for explicit shared overlays that are loaded only in the modes that need them. For example, all `.md` files under `prompts/bootstrap/` are appended only for workspace bootstrap chat.
-
-### 2. Role `AGENTS.md`
-
-This is both the role-level system prompt and the on-demand prompt index. It is appended to the system prompt after shared prompts.
-
-`AGENTS.md` should contain:
-
-- the role's operating standard (leadership lens, core standard, operating expectations)
-- startup context (which files to read first at session start)
-- entity context (which entities in `entities/` this role manages)
-- an on-demand prompt index linking to role prompt files in `prompts/`
-
-On-demand role prompts live in `agents/<role-id>/prompts/` and are read by the agent during the session when the task requires them. The runtime does not inject them automatically.
-
-For transcript ingest sessions, `transcript_ingest.system_prompts` in `role.md` lists additional role prompt files to append to the system prompt alongside the shared prompts and `AGENTS.md`.
-
-## Self-Improvement Loop
-
-Hermit's self-improvement model is workspace-wide rather than prompt-only.
-
-Improvement work should usually follow this path:
-
-1. Observe a reusable gap from explicit user feedback, repeated manual fixes, `doctor` findings, failing tests, or telemetry patterns.
-2. Choose the smallest correct change surface:
-   - `prompts/` or role prompts for reusable operating guidance
-   - `src/` for deterministic runtime behavior
-   - `entity-defs/` for scaffold and canonical file defaults
-   - `entity-defs/` for entity schema, scaffold defaults, and explorer rendering
-   - docs and tests for explicit contract hardening
-3. Make the smallest cohesive change that fixes the root cause.
-4. Validate the change with the nearest checks available, such as tests, `doctor`, renderer loading, or telemetry review.
-
-This loop is intentionally local, explicit, and reviewable. Telemetry and validation inform changes, but Hermit does not silently auto-apply repo mutations from runtime observations alone.
-
-Git checkpoints follow the same principle: they happen only at explicit command boundaries, only over allowlisted workspace paths, and never perform rollback automatically.
-
-## Strategic Reflection
-
-Beyond task-level self-improvement, Hermit includes a strategic reflection layer that periodically steps back from execution to evaluate the big picture. This is governed by `prompts/35-strategic-reflection.md` and operates at three levels:
-
-### In-session orientation check
-
-At the start of every interactive session, the agent briefly considers whether the user's request connects to the most important active goal. If something looks misaligned or a stale pattern is visible, it surfaces a brief observation before proceeding. If nothing looks off, it proceeds without comment.
-
-### Background change surfacing
-
-Interactive sessions check whether heartbeat or other background sessions have made workspace changes since the last interaction. Changes, strategic observations, and follow-up items requiring user input are summarized at the start of the session.
-
-### Daily strategic review
-
-Once per day (around midnight, or on demand via `--strategic-review`), the heartbeat runs a full strategic review covering:
-
-- **Goal clarity** — are projects well-defined, tracked on disk, and still relevant?
-- **Effort alignment** — is work going to the highest-leverage items? Are projects stale?
-- **Organizational fitness** — do roles, entities, and directory structures match how the work actually flows?
-- **Process and prompt quality** — are there friction patterns that indicate a prompt, skill, or process gap?
-- **Telemetry and health** — tool errors, retries, slow turns, or other systemic issues
-- **Research and skill gaps** — better methods, missing skills, or relevant external developments
-
-Observations are written to the `## Strategic Observations` section of `agent/record.md` with the review date. Actionable findings are promoted to inbox items or next actions. The `last_strategic_review` frontmatter field is updated so the cadence timer resets.
-
-### Change boundaries
-
-The strategic review may apply small, clearly correct code fixes autonomously, but records them for surfacing at the next interactive session. Prompt, process, entity definition, and role manifest changes are never applied directly — they are captured as follow-up items for user review. This preserves trust by distinguishing what the agent can safely fix on its own from what requires explicit approval.
-
-## Why The Template Mechanism Is Generic
-
-Templates are defined generically rather than hardcoded in TypeScript for each entity type. Instead:
-
-- `entity-defs/entities.md` declares which files each entity needs
-- markdown templates in `entity-defs/` provide starter content
-- TypeScript computes dynamic values such as IDs, timestamps, ownership, and source references
-
-That keeps the mechanism generic while keeping behavior deterministic.
-
-## Extension Model
-
-To add a new role:
-
-1. Create `agents/<role-id>/role.md` with role behavior and capabilities
-2. Create `AGENTS.md` with the role operating standard, startup context, and on-demand prompt index
-3. Add role-specific prompts under `agents/<role-id>/prompts/`
-4. Update `entity-defs/entities.md` if the workspace needs new entity types or explorer config
-5. Add entity templates under `entity-defs/`
-6. Optionally declare transcript ingest if that role needs it
-
-No orchestration changes should be required for a standard role.
-
-## Explorer Design Notes
-
-The explorer deliberately sits one level above the canonical files rather than in front of a custom API.
-
-Why:
-
-- the workspace is already the system of record
-- the root runtime already knows how to load roles and scan entities generically
-- markdown files are the display payload, so adding a persistence or serialization layer would add complexity without changing the source of truth
-
-In practice, this means:
-
-- shared pages read markdown from `entities/` directly
-- role pages reuse the root `dist/` modules for entity-definition-aware scanning
-- role entity lists are driven by entity metadata, not hardcoded per entity type
-- role detail pages render the markdown files declared by each entity definition
-- `entity-defs/entities.md` may declare explorer renderers for entity detail pages or specific entity files, with fallback to the default markdown renderer
-
-Optional explorer renderers live under `entity-defs/renderers/` and are referenced from `entity-defs/entities.md`, for example:
-
-```yaml
-explorer:
-  renderers:
-    detail:
-      work-item: renderers/work-item-detail.mjs
-    files:
-      work-item:
-        notes.md: renderers/work-item-notes.mjs
+```mermaid
+flowchart TD
+  cli[CLI commands] --> resolve[Resolve workspace and chat or role target]
+  resolve --> checkpoint[Optional git checkpoint wrapper]
+  checkpoint --> load[Load role manifest and entity definitions]
+  load --> scaffold[Ensure workspace and role scaffold]
+  load --> prompt[Render system prompt]
+  prompt --> session[Create pi agent session]
+  session --> tools[Coding tools plus Hermit custom tools]
+  session --> telemetry[Append local telemetry events]
+  ingest[Transcript ingest] --> load
+  ingest --> files[Copy transcript and update files]
+  files --> session
+  explorer[Astro explorer] --> dist[Import dist/roles.js and dist/workspace.js]
+  dist --> load
 ```
 
-Each renderer module is loaded dynamically by the explorer at runtime. Detail renderers can replace the full entity detail body for a given entity type. File renderers can replace the default rendering for a specific file like `notes.md`. If no matching renderer is declared, the explorer uses the built-in generic markdown view.
+## Command Surface
+
+- `chat` starts an interactive session. Resolution order: `--role`, inferred role from the current directory under `agents/`, last used chat role from `.hermit/state/last-role.txt`, then `Hermit`. The Hermit fallback applies even when roles exist. Bootstrap mode is enabled only when the resolved target is `Hermit` and no roles are configured. Interactive chat supports runtime role switching through the `switch_role` tool.
+- `ask` runs a one-shot prompt in a role-backed session. Resolution: `--role`, inferred role from cwd, then single-role auto-selection. No last-role fallback, no Hermit fallback. Errors when no role can be resolved.
+- `heartbeat` runs one persisted role-backed upkeep turn. Uses the same resolution as `ask`. Strategic review is selected when `--strategic-review` is passed or when `last_strategic_review` in `agent/record.md` is missing or older than 24 hours. The review behavior itself is prompt-driven; the runtime only selects which prompt to use.
+- `heartbeat-daemon` loops over all configured roles on a fixed interval, delegating a normal `heartbeat` run per role.
+- `ingest transcript` places a transcript into the matched entity's evidence directory (or the role's unmatched directory), then runs the role's ingest session. When the transcript is stored as unmatched, the ingest session does not run.
+- `telemetry report` aggregates local telemetry into Markdown and JSON reports.
+- `doctor` validates shared workspace structure plus the selected role contract.
+
+## Prompt Assembly
+
+System prompt construction:
+
+1. Load `prompts/*.md`, sorted by filename. Subdirectories are not loaded recursively.
+2. For role-backed sessions, append `agents/<role-id>/AGENTS.md`.
+3. Append any explicitly requested role prompt files (e.g. `transcript_ingest.system_prompts`).
+4. For Hermit bootstrap chat only, append all `.md` files under `prompts/bootstrap/`.
+
+Role-local prompts are on-demand; they are loaded only when a session explicitly requests them.
+
+### Template placeholders
+
+| Placeholder | Fallback |
+|---|---|
+| `{{workspaceRoot}}` | — |
+| `{{roleId}}` | `Hermit` |
+| `{{roleRoot}}` | `.` |
+| `{{entityId}}` | `not-selected` |
+| `{{entityPath}}` | `not-selected` |
+| `{{transcriptPath}}` | `not-selected` |
+| `{{currentDateTimeIso}}` | `unknown` |
+| `{{currentLocalDateTime}}` | `unknown` |
+| `{{currentTimeZone}}` | `unknown` |
+| `{{gitBranch}}` | `unknown` |
+| `{{gitHeadSha}}` | `unknown` |
+| `{{gitHeadShortSha}}` | `unknown` |
+| `{{gitHeadSubject}}` | `unknown` |
+| `{{gitDirty}}` | `unknown` |
+| `{{gitCheckpointBeforeSha}}` | `not-created` |
+| `{{gitCheckpointAfterSha}}` | `not-created` |
+
+## Sessions, Skills, and Tools
+
+Session creation lives in `src/session-runtime.ts` and uses `@mariozechner/pi-coding-agent`.
+
+Skills:
+
+- Hermit sessions load from `skills/`.
+- Role sessions load from `skills/` and `agents/<role-id>/skills/`.
+- Skills stay on-demand through pi skill discovery; they are not concatenated into the system prompt.
+
+Session history:
+
+- Hermit interactive: `.hermit/sessions/hermit`
+- Role interactive: `agents/<role-id>/.role-agent/sessions`
+- Role heartbeat: `agents/<role-id>/.role-agent/heartbeat-sessions`
+
+Every session gets standard coding tools. Custom tools by session type:
+
+- **Role sessions**: `entity_lookup`, `web_search`, one `create_<entity>_record` per entity definition
+- **Role interactive** (with role switching enabled): adds `switch_role`
+- **Hermit sessions**: `web_search`, plus `switch_role` when role switching is enabled
+
+Model: `ROLE_AGENT_MODEL` env var, fallback in `src/constants.ts`. Thinking level: `ROLE_AGENT_THINKING_LEVEL` env var, default `medium`.
+
+## Entity and Workspace Mechanics
+
+`entity-defs/entities.md` is the runtime contract for entity structure. Each definition specifies:
+
+- `key`, `label`, `type`
+- `create_directory`, optional `scan_directories`, optional `exclude_directory_names`
+- `id_strategy`: `prefixed-slug`, `year-sequence-slug`, or `singleton`
+- `id_source_fields`, optional `id_prefix`, `name_template`
+- `fields` with per-field `key`, `label`, `type` (`string` or `string-array`), `description`, optional `required` and `defaultValue`
+- `files` with per-file `path` and `template`
+- Optional `status_field`, `owner_field`, `include_in_initialization`, `extra_directories`
+- Optional `explorer.renderers` for detail-level and file-level custom rendering
+
+`ensureWorkspaceScaffold()` creates shared root directories and role-local directories. For existing roles, it backfills `agent/record.md` and `agent/inbox.md` from `prompts/templates/agent/*.md` when missing.
+
+`createRoleEntityRecord()` renders declared entity files, computes a deterministic ID, and writes without overwriting unless forced.
+
+Entity scanning is filesystem-based. A directory containing `record.md` is an entity leaf. Shared entity scanning excludes directory roots claimed by role entity definitions. Role entity scanning uses each definition's `scan_directories` or `create_directory`.
+
+### Transcript ingest
+
+Pipeline:
+
+1. Resolve the target role and verify `transcript_ingest` is declared.
+2. Match the target entity explicitly or infer from the transcript filename.
+3. If ambiguous, prompt the user to choose or store as unmatched.
+4. Copy the transcript into the entity evidence directory or the role's unmatched directory.
+5. Append a line to the configured activity log.
+6. Run a role-backed ingest session using the command prompt and any configured extra system prompts. Skipped when the transcript is stored as unmatched.
+
+## Git Checkpoints
+
+`chat`, `ask`, and `heartbeat` run inside `withGitCheckpoint()`. `heartbeat-daemon` does not checkpoint as one process; each delegated heartbeat has its own checkpoint wrapper.
+
+- Before the command: checkpoint if the repo is dirty.
+- After the command: checkpoint if the repo is dirty.
+- Dirty detection: `git status --porcelain=v1 --untracked-files=all`.
+- Checkpoints stage and commit the full changed file set, including untracked files.
+- No path allowlist. No automatic rollback.
+
+## Validation
+
+`doctor` is a structural validator. Checks:
+
+- Required shared root directories (`entities`, `agents`, `entity-defs`, `skills`)
+- Role manifest loading and directory identity
+- `AGENTS.md` presence and linked markdown files
+- Required shared agent templates and transcript ingest prompts
+- Explorer renderer modules
+- Duplicate entity IDs
+- Missing frontmatter fields in entity records
+- Unresolved template placeholders and generic placeholder lines
+- Missing entity files declared by entity definitions
+- `OPENAI_API_KEY` presence (warning, not error)
+
+Exits non-zero only when at least one `error`-level finding exists.
+
+## Explorer
+
+Astro SSR app under `explorer/`. Read-only by design — agents own and mutate workspace state through sessions; the explorer is a viewer, not an editor. It imports `dist/roles.js` and `dist/workspace.js` from the repo root (fails until `npm run build` is run) and uses the same entity definitions and scanning logic as the CLI.
+
+| Route | Content |
+|---|---|
+| `/` | Home |
+| `/architecture` | Architecture |
+| `/license` | License |
+| `/entities` | Entity type list |
+| `/entities/:entityType` | Entity list |
+| `/entities/:entityType/:entityId` | Entity detail |
+| `/agents` | Agent list |
+| `/agents/:roleId` | Agent detail |
+
+No per-role entity routes.
+
+### Renderers
+
+`entity-defs/entities.md` may declare detail-level or file-level renderers under `explorer.renderers`. Modules are loaded dynamically from `entity-defs/` and can replace the full detail body or a specific file section. Without a declared renderer, the explorer uses the default markdown renderer.
+
+## Extension Surface
+
+Extensions are file-driven:
+
+- Add a role: create `agents/<role-id>/role.md`, `AGENTS.md`, role prompts, and role skills.
+- Add an entity type: update `entity-defs/entities.md` and add templates.
+- Add explorer customization: place renderer modules under `entity-defs/` and reference them.
+
+No code changes required for standard role and entity additions.

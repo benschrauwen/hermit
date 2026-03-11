@@ -149,6 +149,8 @@ interface TelemetryHandle {
   close(): Promise<void>;
 }
 
+const DISABLE_GIT_CHECKPOINTS_OPTION_DESCRIPTION = "Disable automatic git checkpoint commits before and after the command.";
+
 class TelemetryCollection implements TelemetryHandle {
   private readonly recorders: TelemetryHandle[] = [];
 
@@ -173,9 +175,11 @@ async function withGitCheckpoint(options: {
   root: string;
   commandName: SessionCommandName;
   roleId?: string;
+  gitCheckpointsEnabled?: boolean;
   run: (context: CommandGitContext) => Promise<TelemetryHandle | undefined>;
 }): Promise<void> {
   const sessionId = randomUUID();
+  const gitCheckpointsEnabled = options.gitCheckpointsEnabled !== false;
   const checkpointMeta = {
     commandName: options.commandName,
     sessionId,
@@ -183,7 +187,7 @@ async function withGitCheckpoint(options: {
   };
 
   const beforeState = await getRepoState(options.root);
-  const checkpointBefore = shouldCheckpoint(beforeState)
+  const checkpointBefore = shouldCheckpoint(beforeState, gitCheckpointsEnabled)
     ? await createCheckpoint(options.root, { ...checkpointMeta, phase: "before" })
     : undefined;
 
@@ -211,7 +215,7 @@ async function withGitCheckpoint(options: {
     telemetry = await options.run(context);
   } finally {
     const afterState = await getRepoState(options.root);
-    const checkpointAfter = shouldCheckpoint(afterState)
+    const checkpointAfter = shouldCheckpoint(afterState, gitCheckpointsEnabled)
       ? await createCheckpoint(options.root, { ...checkpointMeta, phase: "after" })
       : undefined;
     const endHead = checkpointAfter ?? afterState;
@@ -251,11 +255,13 @@ async function runHeartbeatForRole(options: {
   continueRecent?: boolean;
   prompt?: string;
   strategicReview?: boolean;
+  gitCheckpointsEnabled?: boolean;
 }): Promise<void> {
   await withGitCheckpoint({
     root: options.root,
     commandName: "heartbeat",
     roleId: options.role.id,
+    ...(options.gitCheckpointsEnabled !== undefined ? { gitCheckpointsEnabled: options.gitCheckpointsEnabled } : {}),
     run: async (gitContext) => {
       const { session, telemetry } = await createRoleSession({
         root: options.root,
@@ -383,6 +389,7 @@ program.name("hermit").description("Local file-first runtime for autonomous appl
 program
   .command("chat")
   .description("Open an interactive chat session.")
+  .option("--no-git-checkpoints", DISABLE_GIT_CHECKPOINTS_OPTION_DESCRIPTION)
   .option("--role <id>", "Role ID to run.")
   .option("--continue", "Continue the most recent persisted session for this workspace.")
   .option("--image <path>", "Attach image(s) to the initial prompt.", (value, previous: string[] = []) => [...previous, value], [])
@@ -393,6 +400,7 @@ program
       continue?: boolean;
       image?: string[];
       prompt?: string;
+      gitCheckpoints?: boolean;
     }) => {
       assertOpenAiApiKeyConfigured();
       const inferred = inferRootAndRoleFromCwd(process.cwd());
@@ -411,6 +419,7 @@ program
         root: resolved.root,
         commandName: "chat",
         roleId: initialRoleId,
+        ...(options.gitCheckpoints !== undefined ? { gitCheckpointsEnabled: options.gitCheckpoints } : {}),
         run: async (gitContext) => {
           const telemetry = new TelemetryCollection();
           const sessionCache = new InteractiveSessionCache(
@@ -453,6 +462,7 @@ program
 program
   .command("ask")
   .description("Run a one-shot prompt in the selected role session.")
+  .option("--no-git-checkpoints", DISABLE_GIT_CHECKPOINTS_OPTION_DESCRIPTION)
   .option("--role <id>", "Role ID to run.")
   .option("--image <path>", "Attach image(s) to the prompt.", (value, previous: string[] = []) => [...previous, value], [])
   .argument("<prompt...>", "Prompt text to send to the agent.")
@@ -462,6 +472,7 @@ program
       options: {
         role?: string;
         image?: string[];
+        gitCheckpoints?: boolean;
       },
     ) => {
       assertOpenAiApiKeyConfigured();
@@ -470,6 +481,7 @@ program
         root,
         commandName: "ask",
         roleId: role.id,
+        ...(options.gitCheckpoints !== undefined ? { gitCheckpointsEnabled: options.gitCheckpoints } : {}),
         run: async (gitContext) => {
           const { session, telemetry } = await createRoleSession({
             root,
@@ -493,6 +505,7 @@ program
 program
   .command("heartbeat")
   .description("Run one autonomous background upkeep turn for the selected role.")
+  .option("--no-git-checkpoints", DISABLE_GIT_CHECKPOINTS_OPTION_DESCRIPTION)
   .option("--role <id>", "Role ID to run.")
   .option("--continue", "Continue the most recent persisted heartbeat session for this role.")
   .option("--prompt <text>", "Optional heartbeat prompt override.")
@@ -503,6 +516,7 @@ program
       continue?: boolean;
       prompt?: string;
       strategicReview?: boolean;
+      gitCheckpoints?: boolean;
     }) => {
       assertOpenAiApiKeyConfigured();
       const { root, role } = await resolveSessionContext(options);
@@ -513,6 +527,7 @@ program
         ...(options.continue !== undefined ? { continueRecent: options.continue } : {}),
         ...(options.prompt !== undefined ? { prompt: options.prompt } : {}),
         ...(options.strategicReview !== undefined ? { strategicReview: options.strategicReview } : {}),
+        ...(options.gitCheckpoints !== undefined ? { gitCheckpointsEnabled: options.gitCheckpoints } : {}),
       });
     },
   );
@@ -520,13 +535,14 @@ program
 program
   .command("heartbeat-daemon")
   .description("Run heartbeat turns for all roles on a repeating interval until stopped.")
+  .option("--no-git-checkpoints", DISABLE_GIT_CHECKPOINTS_OPTION_DESCRIPTION)
   .option(
     "--interval <duration>",
     'Delay between heartbeat cycles. Use a whole number followed by ms, s, m, or h (for example "30m" or "1h").',
     DEFAULT_HEARTBEAT_DAEMON_INTERVAL,
   )
   .option("--continue", "Continue the most recent persisted heartbeat session for each role.")
-  .action(async (options: { interval: string; continue?: boolean }) => {
+  .action(async (options: { interval: string; continue?: boolean; gitCheckpoints?: boolean }) => {
     assertOpenAiApiKeyConfigured();
     const root = resolveWorkspaceRoot();
     const intervalMs = parseHeartbeatDaemonInterval(options.interval);
@@ -581,6 +597,7 @@ program
               role,
               promptContext: buildRolePromptContext(root, role),
               ...(options.continue !== undefined ? { continueRecent: options.continue } : {}),
+              ...(options.gitCheckpoints !== undefined ? { gitCheckpointsEnabled: options.gitCheckpoints } : {}),
             });
             console.log(`[${formatDaemonTimestamp()}] Finished heartbeat for ${roleId}.`);
           },

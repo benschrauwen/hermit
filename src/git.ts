@@ -168,8 +168,8 @@ export async function getRepoState(root: string): Promise<RepoState | undefined>
   };
 }
 
-export function shouldCheckpoint(state: Pick<RepoState, "dirty"> | undefined): boolean {
-  return Boolean(state?.dirty);
+export function shouldCheckpoint(state: Pick<RepoState, "dirty"> | undefined, enabled = true): boolean {
+  return enabled && Boolean(state?.dirty);
 }
 
 export async function createCheckpoint(

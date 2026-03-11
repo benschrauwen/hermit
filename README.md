@@ -12,15 +12,28 @@
 
 [Architecture](docs/architecture.md) · [Observability](docs/observability.md) · [License](LICENSE)
 
-## Quick Start
+## Get Started
+
+Fork this repo and start Hermit:
 
 ```bash
+gh repo fork benschrauwen/hermit --clone
+cd hermit
 npm install
 export OPENAI_API_KEY=your_key_here
 npm start
 ```
 
-Use `npm start` to open the interactive chat. By default it resumes the last active chat role. In an empty workspace, that first session bootstraps the initial role and starts shaping the application around the responsibility you describe.
+<details>
+<summary>Without GitHub CLI</summary>
+
+1. Fork [benschrauwen/hermit](https://github.com/benschrauwen/hermit) on GitHub
+2. `git clone https://github.com/<your-username>/hermit.git`
+3. `cd hermit`
+
+</details>
+
+By default it resumes the last active chat role. In an empty workspace, that first session bootstraps the initial role and starts shaping the application around the responsibility you describe.
 
 If you want Hermit isolated to this repository and its runtime paths, see `Optional: Sandbox Hermit with nono` below.
 
@@ -70,7 +83,7 @@ npm run cli -- telemetry report --window 7d       # aggregate local runtime tele
 npm run explorer                                  # launch the workspace UI
 ```
 
-`heartbeat` runs a single background turn for a role. `heartbeat-daemon` is the built-in replacement for an external cron job: it discovers all configured roles, runs one heartbeat turn for each role immediately, then repeats on a fixed interval (default `1h`). Heartbeat runs use a separate persisted session history under each role so automated sessions stay distinct from normal interactive chat history. When `--strategic-review` is passed, or when the last strategic review is more than 24 hours old, the heartbeat runs a full strategic review instead of normal task advancement (see below).
+`heartbeat` runs a single background turn for a role. `heartbeat-daemon` is the built-in replacement for an external cron job: it discovers all configured roles, runs one heartbeat turn for each role immediately, then repeats on a fixed interval (default `1h`). Heartbeat runs use a separate persisted session history under each role so automated sessions stay distinct from normal interactive chat history. When `--strategic-review` is passed, or when the last strategic review is more than 24 hours old, the heartbeat runs a full strategic review instead of normal task advancement.
 
 ## Why It Feels Different
 
@@ -110,10 +123,12 @@ explorer/          # read-only Astro workspace UI
 
 Roles are how Hermit turns a broad job into an operator inside the app. Each role is defined by `agents/<role-id>/role.md`. The manifest declares:
 
-- **Prompt catalog** — maps stable IDs to shared or role-local prompt files
-- **Prompt bundles** — ordered sets injected at session startup (`default`, `onboarding`, `transcript-ingest`)
-- **Skill directories** — optional shared `skills/` and role-local `agents/<role-id>/skills/` instructions loaded by pi on demand
-- **Capabilities** — optional features like transcript ingestion
+- **Identity** — `id`, `name`, `description`
+- **Extra directories** — optional `role_directories` for role-specific workspace paths
+- **Capabilities** — optional features like `transcript_ingest`
+- **Skills** — shared `skills/` and role-local `agents/<role-id>/skills/` are discovered by pi on demand
+
+Prompts are loaded from directories, not declared in the manifest. The runtime loads shared prompts from `prompts/`, appends the role's `AGENTS.md`, and appends any session-specific role prompt files (e.g. transcript ingest prompts). Role-local prompts live under `agents/<role-id>/prompts/` and are loaded on demand.
 
 Entity schema lives in `entity-defs/entities.md`, and entity starter templates and explorer renderers live under `entity-defs/`. The `agents/` directory is for behavior and agent state, while `entities/` and `entity-defs/` define app state and schema.
 
@@ -127,7 +142,7 @@ The runtime stays generic. Roles define behavior through files, not code changes
 
 A role can own many responsibilities. Create another role when the work needs a different operating lens: a different operating model, personality, approach, or broad responsibility set that should be judged by a distinct operator. Do not create a new role for every task cluster; split when a new lens would make decisions clearer.
 
-Hermit also treats `entities/user/record.md` as the default shared user-context record. Bootstrap should create it early, and normal sessions should read it at startup so durable user preferences and constraints accumulate over time without relying on chat memory.
+The bootstrap prompt establishes `entities/user/record.md` as the shared user-context record. Sessions read it at startup so durable user preferences and constraints accumulate over time without relying on chat memory.
 
 ## Environment
 
