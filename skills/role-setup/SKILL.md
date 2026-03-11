@@ -1,5 +1,5 @@
 ---
-name: role_setup
+name: role-setup
 description: Design and scaffold Hermit roles, including `role.md`, `AGENTS.md`, startup files, and a sharp operating persona. Use when creating the first role in a blank Hermit workspace, adding a new role, or refining a role's operating standard.
 ---
 
@@ -10,7 +10,7 @@ Use this skill when the task is about creating or redesigning `agents/<role-id>/
 This skill is intentionally self-contained. Do not assume the workspace already contains any example roles.
 
 Do not use this skill when:
-- The main work is adding or reshaping entity types. Use `entity_setup`.
+- The main work is adding or reshaping entity types. Use `entity-setup`.
 - The task is a one-off edit to an existing prompt file with no role contract change.
 
 ## Core Model
@@ -44,7 +44,7 @@ If the workspace has no agents yet:
 - Make sure shared agent templates exist at `prompts/templates/agent/record.md` and `prompts/templates/agent/inbox.md`. Role validation depends on them.
 - Pair the role with a real entity landscape. A role with no managed entities and no startup context becomes generic quickly.
 - It is allowed, and often necessary, to create the supporting entity types, templates, and starter records in the same workflow as the role.
-- If the workspace also has no entity definitions yet, use `entity_setup` in the same pass so the role can point at real shared and owned data.
+- If the workspace also has no entity definitions yet, use `entity-setup` in the same pass so the role can point at real shared and owned data.
 - Let the runtime scaffold `agents/<role-id>/agent/` and `.role-agent/` when possible. If you are only doing file setup by hand, create `agent/record.md` and `agent/inbox.md` from the shared templates.
 - Keep the first pass focused, but not hollow. Create the smallest complete role that can actually operate in its domain.
 - If the role already has clear recurring work modes, create the matching `prompts/*.md` files in the first pass instead of leaving the prompt index empty.

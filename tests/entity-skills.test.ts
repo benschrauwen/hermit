@@ -8,7 +8,7 @@ import { loadRole } from "../src/roles.js";
 import { createRoleEntityRecord, ensureWorkspaceScaffold } from "../src/workspace.js";
 import { repoRoot, seedRoleWorkspace, writeSharedEntityRecord } from "./test-helpers.js";
 
-describe("entity_query skill scripts", () => {
+describe("entity-query skill scripts", () => {
   let root: string;
 
   beforeEach(() => {
@@ -39,7 +39,7 @@ describe("entity_query skill scripts", () => {
 
     const query = spawnSync(
       process.execPath,
-      ["--import", "tsx", path.join(repoRoot, "skills", "entity_query", "entities", "scripts", "query-entities.ts"), "--root", root, "--type", "item", "--format", "paths"],
+      ["--import", "tsx", path.join(repoRoot, "skills", "entity-query", "scripts", "query-entities.ts"), "--root", root, "--type", "item", "--format", "paths"],
       { encoding: "utf8" },
     );
     expect(query.status).toBe(0);
@@ -47,7 +47,7 @@ describe("entity_query skill scripts", () => {
 
     const summary = spawnSync(
       process.execPath,
-      ["--import", "tsx", path.join(repoRoot, "skills", "entity_query", "entities", "scripts", "summarize-entities.ts"), "--root", root, "--top", "3"],
+      ["--import", "tsx", path.join(repoRoot, "skills", "entity-query", "scripts", "summarize-entities.ts"), "--root", root, "--top", "3"],
       { encoding: "utf8" },
     );
     expect(summary.status).toBe(0);
@@ -56,7 +56,7 @@ describe("entity_query skill scripts", () => {
 
     const inventory = spawnSync(
       process.execPath,
-      ["--import", "tsx", path.join(repoRoot, "skills", "entity_query", "entities", "scripts", "inventory-entities.ts"), "--root", root, "--group-by", "type", "--top", "3"],
+      ["--import", "tsx", path.join(repoRoot, "skills", "entity-query", "scripts", "inventory-entities.ts"), "--root", root, "--group-by", "type", "--top", "3"],
       { encoding: "utf8" },
     );
     expect(inventory.status).toBe(0);

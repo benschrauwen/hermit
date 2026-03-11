@@ -1,5 +1,5 @@
 ---
-name: entity_setup
+name: entity-setup
 description: Design and scaffold Hermit entity types, starter templates, and first records. Use when defining entity schema for a blank Hermit workspace, adding a new entity type, or deciding how records, IDs, directories, and templates should work.
 ---
 
@@ -11,7 +11,7 @@ This skill is intentionally self-contained. Do not assume the workspace already 
 
 Do not use this skill when:
 - You are editing one known record in an existing entity directory.
-- The main problem is role identity or persona design. Use `role_setup` for that.
+- The main problem is role identity or persona design. Use `role-setup` for that.
 
 ## Framework Contract
 
@@ -101,7 +101,7 @@ If the workspace is empty:
   - one or two operating entities owned by the first role
 - Do not create many entity types up front. Start from the first real workflow.
 - Choose at least one entity type with `include_in_initialization: true` if the runtime or onboarding flow expects bootstrap data.
-- Coordinate with `role_setup` so the first role points at real entities instead of empty directories.
+- Coordinate with `role-setup` so the first role points at real entities instead of empty directories.
 - During first-role bootstrap, role-scoped `create_<entity>_record` tools may not exist yet because they are derived from the role and entity schema. In that phase, create `entity-defs/entities.md`, the templates, and the starter files directly with normal file writes, then switch to the deterministic create tools once the role loads successfully.
 
 ## Interview Checklist

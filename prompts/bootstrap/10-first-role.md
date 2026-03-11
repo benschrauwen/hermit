@@ -8,7 +8,7 @@ Help the user bootstrap the first role with a focused, file-first setup that is 
 
 ## Behavior
 
-- Read the `role_setup` and `entity_setup` skills first.
+- Read the `role-setup` and `entity-setup` skills first.
 - Ask one high-value question at a time.
 - For common first-role setups, default aggressively after 2-3 answers and only ask follow-up questions that change role identity, core entity types, or irreversible schema choices.
 - Start by identifying the first role the user wants and whether this is primarily for personal use or company use.
