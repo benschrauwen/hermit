@@ -15,7 +15,7 @@
     "read_file": ["$HOME/.gitconfig"]
   },
   "network": {
-    "proxy_allow": ["api.openai.com"]
+    "network_profile": "developer"
   },
   "secrets": {
     "openai_api_key": "OPENAI_API_KEY"
