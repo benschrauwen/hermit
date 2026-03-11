@@ -4,20 +4,20 @@
   "description": "Local file-first runtime for autonomous applications, powered by pi-mono.",
   "type": "module",
   "packageManager": "npm@11.6.2",
-  "bin": {
-    "hermit": "./dist/cli.js"
-  },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit",
-    "start": "npm run cli -- chat",
+    "postinstall": "npm --prefix explorer install",
+    "start": "nono run --profile ./examples/nono/hermit.json --allow-cwd -- npm run start:unsafe --",
+    "start:unsafe": "npm run cli -- chat",
     "cli": "node --import tsx src/cli.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "explorer": "npm run build && WORKSPACE_ROOT=\"$(pwd)\" npm --prefix explorer run dev",
-    "explorer:build": "npm run build && WORKSPACE_ROOT=\"$(pwd)\" npm --prefix explorer run build",
-    "explorer:preview": "WORKSPACE_ROOT=\"$(pwd)\" npm --prefix explorer run preview"
+    "heartbeat-daemon": "nono run --profile ./examples/nono/hermit.json --allow-cwd -- npm run heartbeat-daemon:unsafe --",
+    "heartbeat-daemon:unsafe": "npm run cli -- heartbeat-daemon",
+    "explorer": "NODE_OPTIONS='--import tsx' WORKSPACE_ROOT=\"$(pwd)\" npm --prefix explorer run dev",
+    "explorer:build": "NODE_OPTIONS='--import tsx' WORKSPACE_ROOT=\"$(pwd)\" npm --prefix explorer run build",
+    "explorer:preview": "NODE_OPTIONS='--import tsx' WORKSPACE_ROOT=\"$(pwd)\" npm --prefix explorer run preview"
   },
   "keywords": [
     "hermit",

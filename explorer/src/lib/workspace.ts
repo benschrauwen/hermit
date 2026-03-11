@@ -46,10 +46,10 @@ async function loadRolesModule(root: string): Promise<RolesModule> {
   if (cached) {
     return cached;
   }
-  const rolesPath = path.resolve(root, "dist", "roles.js");
+  const rolesPath = path.resolve(root, "src", "roles.ts");
   if (!existsSync(rolesPath)) {
     throw new Error(
-      `Workspace dist not found at ${rolesPath}. Run "npm run build" from the workspace root.`
+      `Workspace source not found at ${rolesPath}. Run the explorer from the workspace root so it can load TypeScript sources via tsx.`
     );
   }
   const pending = importWithNode(pathToFileURL(rolesPath).href).then((mod) => mod as RolesModule);
@@ -62,10 +62,10 @@ async function loadWorkspaceModule(root: string): Promise<WorkspaceModule> {
   if (cached) {
     return cached;
   }
-  const workspacePath = path.resolve(root, "dist", "workspace.js");
+  const workspacePath = path.resolve(root, "src", "workspace.ts");
   if (!existsSync(workspacePath)) {
     throw new Error(
-      `Workspace dist not found at ${workspacePath}. Run "npm run build" from the workspace root.`
+      `Workspace source not found at ${workspacePath}. Run the explorer from the workspace root so it can load TypeScript sources via tsx.`
     );
   }
   const pending = importWithNode(pathToFileURL(workspacePath).href).then((mod) => mod as WorkspaceModule);

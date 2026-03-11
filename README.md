@@ -14,14 +14,24 @@
 
 ## Get Started
 
-Fork this repo and start Hermit:
+If you want a very beginner-friendly, Mac-only walkthrough, start with [`docs/getting-started-macos.md`](docs/getting-started-macos.md).
+
+Short version on macOS:
+
+Install the tools Hermit needs:
+
+```bash
+brew install node git
+brew tap always-further/nono
+brew install nono
+```
+
+Clone Hermit and install its packages:
 
 ```bash
 gh repo fork benschrauwen/hermit --clone
 cd hermit
 npm install
-export OPENAI_API_KEY=your_key_here
-npm start
 ```
 
 <details>
@@ -33,9 +43,26 @@ npm start
 
 </details>
 
-By default it resumes the last active chat role. In an empty workspace, that first session bootstraps the initial role and starts shaping the application around the responsibility you describe.
+Save your OpenAI key into macOS Keychain so the sandbox can inject it:
 
-If you want Hermit isolated to this repository and its runtime paths, see `Optional: Sandbox Hermit with nono` below.
+```bash
+printf 'Paste your OpenAI key, then press Return: '; read -s OPENAI_KEY; echo; security add-generic-password -s "nono" -a "openai_api_key" -w "$OPENAI_KEY" -U; unset OPENAI_KEY
+```
+
+Start Hermit in a safe, sandboxed environment:
+
+```bash
+npm start
+```
+
+In separate Terminal tabs, you will usually also want:
+
+```bash
+npm run heartbeat-daemon
+npm run explorer
+```
+
+By default `npm start` and `npm run heartbeat-daemon` run inside the included `nono` sandbox profile. In an empty workspace, that first session bootstraps the initial role and starts shaping the application around the responsibility you describe.
 
 ## How The App Gets Built
 
@@ -70,20 +97,31 @@ git rebase main
 
 ## Commands
 
+### Safe Defaults
+
 ```bash
-npm run cli -- chat                                # open the last active role, or Hermit if none is stored yet
-npm run cli -- chat --role <role-id>              # interactive session
+npm start                                         # open the last active role in the sandbox
+npm run heartbeat-daemon                          # run heartbeats for all roles every hour in the sandbox
+npm run explorer                                  # launch the workspace UI as a normal local server
+```
+
+`heartbeat` runs a single background turn for a role. `heartbeat-daemon` is the built-in replacement for an external cron job: it discovers all configured roles, runs one heartbeat turn for each role immediately, then repeats on a fixed interval (default `1h`). Heartbeat runs use a separate persisted session history under each role so automated sessions stay distinct from normal interactive chat history. When `--strategic-review` is passed, or when the last strategic review is more than 24 hours old, the heartbeat runs a full strategic review instead of normal task advancement.
+
+### Advanced Raw Commands
+
+Use these when you explicitly want to bypass the sandbox or call the raw CLI directly.
+
+```bash
+npm run start:unsafe                              # open the last active role without the sandbox
+npm run heartbeat-daemon:unsafe                   # run the daemon without the sandbox
+npm run cli -- chat --role <role-id>              # raw interactive CLI
 npm run cli -- ask --role <role-id> "Review the top open deals"
 npm run cli -- heartbeat --role <role-id>         # one autonomous GTD upkeep turn
-npm run cli -- heartbeat-daemon                   # run heartbeats for all roles every hour until stopped
 npm run cli -- heartbeat --role <role-id> --strategic-review  # force a full strategic review
 npm run cli -- ingest transcript ./notes/acme-call.md --role <role-id> --entity d-2026-0001-acme-expansion
 npm run cli -- doctor --role <role-id>            # validate workspace integrity
 npm run cli -- telemetry report --window 7d       # aggregate local runtime telemetry
-npm run explorer                                  # launch the workspace UI
 ```
-
-`heartbeat` runs a single background turn for a role. `heartbeat-daemon` is the built-in replacement for an external cron job: it discovers all configured roles, runs one heartbeat turn for each role immediately, then repeats on a fixed interval (default `1h`). Heartbeat runs use a separate persisted session history under each role so automated sessions stay distinct from normal interactive chat history. When `--strategic-review` is passed, or when the last strategic review is more than 24 hours old, the heartbeat runs a full strategic review instead of normal task advancement.
 
 ## Why It Feels Different
 
@@ -148,26 +186,13 @@ The bootstrap prompt establishes `entities/user/record.md` as the shared user-co
 
 | Variable | Description |
 |---|---|
-| `OPENAI_API_KEY` | Required for agent sessions. If you use `nono`, prefer storing it in the system keychain and injecting it into the sandbox from there. |
+| `OPENAI_API_KEY` | Required for raw unsandboxed CLI sessions. Default sandboxed commands prefer storing the key in the system keychain and letting `nono` inject it. |
 | `ROLE_AGENT_MODEL` | Model override (default: `openai/gpt-5.4`) |
 | `ROLE_AGENT_THINKING_LEVEL` | Thinking level (default: `medium`) |
 
-## Optional (but highly advised): Sandbox Hermit with `nono`
+## Sandboxing With `nono`
 
-Hermit runs local agents with read/write access to your workspace, so sandboxing it is optional but strongly advised. [`nono`](https://github.com/always-further/nono) adds kernel-enforced filesystem boundaries on macOS and Linux, can inject secrets from the system keychain, and lets you keep Hermit confined to this repo plus the runtime paths it needs.
-
-Install `nono`:
-
-```bash
-brew tap always-further/nono
-brew install nono
-```
-
-Store your OpenAI key in the system keychain once:
-
-```bash
-security add-generic-password -s "nono" -a "openai_api_key" -w "sk-..." -U
-```
+Hermit runs local agents with read/write access to your workspace, so sandboxing is the default and recommended mode for the agent processes. [`nono`](https://github.com/always-further/nono) adds kernel-enforced filesystem boundaries on macOS and Linux, can inject secrets from the system keychain, and lets you keep Hermit confined to this repo plus the runtime paths it needs. The explorer intentionally runs outside `nono` as a normal local web server.
 
 This repo includes an example profile at `examples/nono/hermit.json`. It grants:
 
@@ -176,11 +201,21 @@ This repo includes an example profile at `examples/nono/hermit.json`. It grants:
 - OpenAI API access only (`api.openai.com`) - allows websearch through OpenAI API
 - `OPENAI_API_KEY` injection from the keychain into the sandboxed process
 
-Start Hermit with:
+The default short commands already use this profile:
 
 ```bash
-nono run --profile ./examples/nono/hermit.json --allow-cwd -- npm start
+npm start
+npm run heartbeat-daemon
 ```
+
+If you want to bypass the sandbox entirely, use the `:unsafe` commands instead:
+
+```bash
+npm run start:unsafe
+npm run heartbeat-daemon:unsafe
+```
+
+Those unsandboxed commands expect `OPENAI_API_KEY` in your environment instead of pulling it from the keychain through `nono`.
 
 ### Opening up network access
 
@@ -195,10 +230,10 @@ The default profile only allows traffic to `api.openai.com`. To permit additiona
 To go unhinged and allow all outbound traffic for a single run without editing the profile, pass `--network-profile open`:
 
 ```bash
-nono run --profile ./examples/nono/hermit.json --network-profile open --allow-cwd -- npm start
+nono run --profile ./examples/nono/hermit.json --network-profile open --allow-cwd -- npm run start:unsafe
 ```
 
-Use `--network-profile developer` as a middle ground that permits package-registry and common dev-tool traffic while still blocking arbitrary hosts.
+Use `--network-profile developer` as a middle ground that permits package-registry and common dev-tool traffic while still blocking arbitrary hosts. Replace `npm run start:unsafe` with another `:unsafe` command when needed.
 
 For more detail, see the [`nono` installation docs](https://nono.sh/docs/cli/getting_started/installation.md), [profiles docs](https://nono.sh/docs/cli/features/profiles-groups.md), and [credential injection docs](https://nono.sh/docs/cli/features/credential-injection.md).
 

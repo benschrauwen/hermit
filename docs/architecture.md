@@ -56,8 +56,8 @@ flowchart TD
   ingest[Transcript ingest] --> load
   ingest --> files[Copy transcript and update files]
   files --> session
-  explorer[Astro explorer] --> dist[Import dist/roles.js and dist/workspace.js]
-  dist --> load
+  explorer[Astro explorer] --> source[Import src/roles.ts and src/workspace.ts via tsx]
+  source --> load
 ```
 
 ## Command Surface
@@ -185,7 +185,7 @@ Exits non-zero only when at least one `error`-level finding exists.
 
 ## Explorer
 
-Astro SSR app under `explorer/`. Read-only by design — agents own and mutate workspace state through sessions; the explorer is a viewer, not an editor. It imports `dist/roles.js` and `dist/workspace.js` from the repo root (fails until `npm run build` is run) and uses the same entity definitions and scanning logic as the CLI.
+Astro SSR app under `explorer/`. Read-only by design — agents own and mutate workspace state through sessions; the explorer is a viewer, not an editor. It imports `src/roles.ts` and `src/workspace.ts` from the repo root through `tsx`, so it uses the same entity definitions and scanning logic as the CLI without a separate build step.
 
 | Route | Content |
 |---|---|
