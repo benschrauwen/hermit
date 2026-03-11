@@ -11,6 +11,7 @@ import {
 
 import { createCustomTools, createHermitTools } from "./agent-tools.js";
 import { DEFAULT_MODEL, DEFAULT_THINKING_LEVEL, HERMIT_ROLE_ID } from "./constants.js";
+import { assertOpenAiApiKeyConfigured } from "./openai-api-key.js";
 import { PromptLibrary } from "./prompt-library.js";
 import { resolveBootstrapSessionDirectory, resolvePersistedSessionDirectory, resolveRoleSkillPaths, resolveSharedSkillPaths } from "./session-paths.js";
 import type { RoleSwitchRequest, SessionHistoryType } from "./session-types.js";
@@ -96,6 +97,8 @@ async function createSessionCore(options: SessionCoreOptions): Promise<{
   session: AgentSession;
   telemetry: TelemetryRecorder;
 }> {
+  assertOpenAiApiKeyConfigured();
+
   const loader = new DefaultResourceLoader({
     cwd: options.root,
     noExtensions: true,

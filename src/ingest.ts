@@ -4,6 +4,7 @@ import readline from "node:readline/promises";
 import process from "node:process";
 
 import { PromptLibrary } from "./prompt-library.js";
+import { assertOpenAiApiKeyConfigured } from "./openai-api-key.js";
 import { loadRole } from "./roles.js";
 import { createRoleSession, runOneShotPrompt } from "./session.js";
 import type { EntityRecord } from "./types.js";
@@ -102,6 +103,8 @@ export async function runTranscriptIngest(options: {
     transcriptPath: transcriptCopyPath,
   };
   const commandPrompt = await promptLibrary.renderRolePrompt(role.transcriptIngest.commandPrompt, promptContext);
+
+  assertOpenAiApiKeyConfigured();
 
   const { session, telemetry } = await createRoleSession({
     root: options.root,

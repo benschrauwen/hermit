@@ -40,6 +40,7 @@ import {
   runChatLoop,
   runOneShotPrompt,
 } from "./session.js";
+import { assertOpenAiApiKeyConfigured } from "./openai-api-key.js";
 import { generateTelemetryReport, renderTelemetryReportSummary, writeTelemetryReport } from "./telemetry.js";
 import type { RoleDefinition } from "./types.js";
 
@@ -393,6 +394,7 @@ program
       image?: string[];
       prompt?: string;
     }) => {
+      assertOpenAiApiKeyConfigured();
       const inferred = inferRootAndRoleFromCwd(process.cwd());
       const lastRoleId =
         options.role === undefined && inferred.roleId === undefined
@@ -462,6 +464,7 @@ program
         image?: string[];
       },
     ) => {
+      assertOpenAiApiKeyConfigured();
       const { root, role, promptContext } = await resolveSessionContext(options);
       await withGitCheckpoint({
         root,
@@ -501,6 +504,7 @@ program
       prompt?: string;
       strategicReview?: boolean;
     }) => {
+      assertOpenAiApiKeyConfigured();
       const { root, role } = await resolveSessionContext(options);
       await runHeartbeatForRole({
         root,
@@ -523,6 +527,7 @@ program
   )
   .option("--continue", "Continue the most recent persisted heartbeat session for each role.")
   .action(async (options: { interval: string; continue?: boolean }) => {
+    assertOpenAiApiKeyConfigured();
     const root = resolveWorkspaceRoot();
     const intervalMs = parseHeartbeatDaemonInterval(options.interval);
 
