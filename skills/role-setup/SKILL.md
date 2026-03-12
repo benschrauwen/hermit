@@ -13,6 +13,8 @@ Do not use this skill when:
 - The main work is adding or reshaping entity types. Use `entity-setup`.
 - The task is a one-off edit to an existing prompt file with no role contract change.
 
+A full example role (Sales Leader) lives at `skills/role-setup/example/sales/`; see the "Example: Sales Leader" section below.
+
 ## Core Model
 
 - `agents/<role-id>/role.md` is the short manifest. Keep it compact and factual.
@@ -197,6 +199,22 @@ Use this outline:
 ```
 
 Keep `AGENTS.md` concise, but make the first screenful specific enough that the role already sounds like a real operator instead of a generic assistant with domain nouns.
+
+## Example: Sales Leader
+
+A complete, minimal role example lives under this skill at `skills/role-setup/example/sales/`. You can copy it into `agents/sales/` (and adjust entity paths to match your `entity-defs/entities.md`) to get a working sales role.
+
+What it contains:
+
+- **role.md** — `id: sales`, `name: Sales Leader`, `role_directories: [supporting-files]`. No `transcript_ingest`; manifest stays minimal.
+- **AGENTS.md** — Operating standard (pipeline truth, next steps, evidence), leadership lens, core standard with explicit "We do not..." lines, startup context, entity context (deals, companies, people, products), and four on-demand prompts.
+- **prompts/pipeline-review.md** — Recurring subdomain: how to run a pipeline review from file evidence.
+- **prompts/deal-update.md** — Recurring subdomain: how to capture and write deal updates into records.
+- **prompts/people.md** — People/contacts mode: stakeholders, roles, engagement at accounts.
+- **prompts/product.md** — Product-in-sales mode: what’s in play for a deal, positioning, objections (not product strategy).
+- **supporting-files/** — Extra working directory declared in `role.md`.
+
+The example is correct for the runtime: `npm run cli -- doctor --role sales` will pass once the workspace has the shared agent templates and entity definitions that define `deals`, `companies`, `people`, and `products`—e.g. the entity-setup example at `skills/entity-setup/example-sales/` (or you point the role’s entity context at your actual entity directories). Use it as a reference for structure and tone, then tailor to your domain.
 
 ## Good On-Demand Prompt Candidates
 

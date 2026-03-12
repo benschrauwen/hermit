@@ -153,6 +153,15 @@ Most good Hermit entities fall into one of these buckets:
 - Use `scan_directories` plus `exclude_directory_names` when instances live inside lifecycle folders.
 - Keep IDs stable and predictable. Avoid IDs based on volatile fields.
 
+## Example: sales (company, deal, person, product)
+
+A full reference example lives in this skill’s directory: `skills/entity-setup/example-sales/`. It includes:
+
+- **entities.md** – schema for four types: company (shared account), person (shared contact, optional company link), product (shared catalog), deal (operating entity with owner, stage, value).
+- **company/record.md**, **person/record.md**, **product/record.md**, **deal/record.md** – starter templates for each type.
+
+Use it as a concrete reference when bootstrapping a sales workspace or when explaining how shared vs operating entities, prefixed-slug IDs, `status_field`/`owner_field`, and `extra_directories` fit together. It pairs with the Sales Leader role example at `skills/role-setup/example/sales/` (deals, companies, people, products). Copy or adapt into the workspace `entity-defs/`; the example directory is not live data.
+
 ## ID Strategy Guide
 
 Use `singleton` when there should only ever be one record of that type.
