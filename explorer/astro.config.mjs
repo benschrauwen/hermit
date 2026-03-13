@@ -54,6 +54,7 @@ export default defineConfig({
     resolve: {
       alias: {
         'gray-matter': path.resolve(process.cwd(), 'node_modules/gray-matter'),
+        'js-yaml': path.resolve(process.cwd(), 'node_modules/gray-matter/node_modules/js-yaml'),
         slugify: path.resolve(process.cwd(), 'node_modules/slugify'),
       },
     },
