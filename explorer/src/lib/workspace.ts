@@ -32,19 +32,35 @@ export function importWithNode(specifier: string): Promise<unknown> {
   return new Function("moduleSpecifier", "return import(moduleSpecifier);")(specifier) as Promise<unknown>;
 }
 
-function isWorkspaceRoot(candidate: string): boolean {
-  return ["agents", "entities", "entity-defs", "src"].every((entry) => existsSync(path.join(candidate, entry)));
+function getWorkspaceRootScore(candidate: string): number {
+  let score = 0;
+
+  if (existsSync(path.join(candidate, "agents"))) score += 1;
+  if (existsSync(path.join(candidate, "entities"))) score += 1;
+  if (existsSync(path.join(candidate, "entity-defs"))) score += 1;
+  if (existsSync(path.join(candidate, "src"))) score += 1;
+
+  if (existsSync(path.join(candidate, "entity-defs", "entities.md"))) score += 4;
+  if (existsSync(path.join(candidate, "src", "roles.ts"))) score += 3;
+  if (existsSync(path.join(candidate, "src", "workspace.ts"))) score += 3;
+  if (existsSync(path.join(candidate, "entities", "site", "record.md"))) score += 2;
+  if (existsSync(path.join(candidate, "agents", "website", "role.md"))) score += 2;
+
+  return score;
 }
 
-function searchUpForWorkspaceRoot(startDir: string): string | undefined {
+function searchUpForWorkspaceRoot(startDir: string): { root?: string; score: number } {
   let current = path.resolve(startDir);
+  let best: { root?: string; score: number } = { score: -1 };
+
   while (true) {
-    if (isWorkspaceRoot(current)) {
-      return current;
+    const score = getWorkspaceRootScore(current);
+    if (score > best.score) {
+      best = { root: current, score };
     }
     const parent = path.dirname(current);
     if (parent === current) {
-      return undefined;
+      return best;
     }
     current = parent;
   }
@@ -67,11 +83,17 @@ export function getWorkspaceRoot(): string {
     path.resolve(moduleDir, "../../../../.."),
   ];
 
+  let best: { root?: string; score: number } = { score: -1 };
+
   for (const candidate of candidates) {
     const found = searchUpForWorkspaceRoot(candidate);
-    if (found) {
-      return found;
+    if (found.score > best.score) {
+      best = found;
     }
+  }
+
+  if (best.root && best.score >= 8) {
+    return best.root;
   }
 
   return process.cwd();
