@@ -46,7 +46,15 @@
 
 @layer components {
   .nav-link {
-    @apply rounded-full px-3 py-1.5 text-sm font-medium text-slate-300 no-underline transition hover:bg-white/10 hover:text-white;
+    @apply shrink-0 rounded-full px-3 py-1.5 text-sm font-medium text-slate-300 no-underline transition hover:bg-white/10 hover:text-white;
+  }
+
+  .mobile-nav {
+    scrollbar-width: none;
+  }
+
+  .mobile-nav::-webkit-scrollbar {
+    display: none;
   }
 
   .page-shell {
@@ -69,12 +77,184 @@
     @apply text-sm text-slate-500;
   }
 
+  .meta-copy {
+    @apply text-base leading-7 text-slate-700;
+  }
+
   .section-title {
     @apply mb-3 text-lg font-semibold tracking-tight text-slate-950;
   }
 
+  .section-title-large {
+    @apply text-2xl font-semibold tracking-tight text-slate-950;
+  }
+
+  .section-kicker {
+    @apply mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700;
+  }
+
+  .section-header {
+    @apply mb-4 flex flex-wrap items-end justify-between gap-3;
+  }
+
+  .section-link {
+    @apply text-sm font-medium no-underline;
+  }
+
   .card {
     @apply overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-panel;
+  }
+
+  .hero {
+    @apply mb-8 grid gap-8 rounded-[2rem] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(248,250,252,0.96))] p-8 shadow-panel lg:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)] lg:p-10;
+  }
+
+  .hero-copy {
+    @apply space-y-5 self-center;
+  }
+
+  .hero-visual-shell {
+    @apply flex items-center justify-center rounded-[1.5rem] border border-slate-200 bg-white p-5 lg:min-h-[320px];
+  }
+
+  .hero-mascot {
+    @apply mx-auto block w-full max-w-[260px] lg:max-w-[320px];
+  }
+
+  .hero-proof-note {
+    @apply max-w-2xl text-sm leading-6 text-slate-600;
+  }
+
+  .hero-kicker {
+    @apply text-xs font-semibold uppercase tracking-[0.2em] text-sky-700;
+  }
+
+  .hero-lead {
+    @apply max-w-3xl text-lg leading-8 text-slate-700;
+  }
+
+  .cta-row {
+    @apply flex flex-wrap gap-3;
+  }
+
+  .resource-row {
+    @apply flex flex-wrap items-center gap-3;
+  }
+
+  .github-badge {
+    @apply inline-flex items-center overflow-hidden rounded-full border border-slate-900 bg-slate-950 text-white no-underline transition hover:-translate-y-0.5 hover:bg-slate-900 hover:text-white;
+  }
+
+  .github-badge-label {
+    @apply border-r border-white/15 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200;
+  }
+
+  .github-badge-value {
+    @apply px-3 py-2 text-sm font-medium text-white;
+  }
+
+  .resource-link {
+    @apply text-sm font-medium text-slate-700 no-underline hover:text-slate-950;
+  }
+
+  .button-primary {
+    @apply inline-flex items-center justify-center rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white no-underline transition hover:-translate-y-0.5 hover:bg-slate-800 hover:text-white;
+  }
+
+  .button-secondary {
+    @apply inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 no-underline transition hover:-translate-y-0.5 hover:border-slate-400 hover:text-slate-950;
+  }
+
+  .stat-grid {
+    @apply grid gap-3 sm:grid-cols-3 lg:grid-cols-1;
+  }
+
+  .hero-stat-grid {
+    @apply col-span-full grid gap-3 border-t border-slate-200/80 pt-2 sm:grid-cols-3;
+  }
+
+  .stat-card {
+    @apply rounded-2xl border border-slate-200 bg-slate-50/80 p-4;
+  }
+
+  .stat-label {
+    @apply block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500;
+  }
+
+  .stat-value {
+    @apply mt-2 block text-3xl font-semibold tracking-tight text-slate-950;
+  }
+
+  .hero-stat-grid .stat-card {
+    @apply bg-white/80;
+  }
+
+  .hero-stat-grid .stat-value {
+    @apply text-[2rem];
+  }
+
+  .card-grid {
+    @apply grid gap-4 md:grid-cols-2;
+  }
+
+  .compact-grid {
+    @apply lg:grid-cols-3;
+  }
+
+  .feature-card {
+    @apply block rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 no-underline shadow-sm transition duration-150 hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-md;
+  }
+
+  .feature-card:hover h3 {
+    @apply text-slate-950;
+  }
+
+  .compact-card {
+    @apply p-5;
+  }
+
+  .feature-tag {
+    @apply mb-3 inline-flex rounded-full bg-sky-50 px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-sky-700;
+  }
+
+  .feature-card h3 {
+    @apply text-lg;
+  }
+
+  .feature-card p {
+    @apply mt-3 text-sm leading-6 text-slate-700;
+  }
+
+  .feature-summary {
+    @apply text-slate-600;
+  }
+
+  .feature-meta {
+    @apply text-xs font-medium uppercase tracking-[0.08em] text-slate-500;
+  }
+
+  .detail-hero {
+    @apply mb-6 p-8;
+  }
+
+  .detail-grid {
+    @apply mb-6 grid gap-4 lg:grid-cols-2;
+  }
+
+  .detail-panel {
+    @apply p-6;
+  }
+
+  .detail-panel .markdown-body > :first-child {
+    @apply mt-0;
+  }
+
+  .detail-panel > h2 {
+    @apply mb-4;
+  }
+
+  .detail-list {
+    @apply space-y-3 pl-5 text-sm leading-6 text-slate-700;
   }
 
   .file-section {
@@ -236,5 +416,47 @@
 
   .plain-pre {
     @apply m-0 whitespace-pre-wrap rounded-md border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700;
+  }
+}
+
+@media (max-width: 639px) {
+  .hero {
+    @apply gap-5 p-6;
+  }
+
+  .hero-visual-shell {
+    @apply min-h-0 p-4;
+  }
+
+  .hero-mascot {
+    @apply max-w-[180px];
+  }
+
+  .hero-proof-note {
+    @apply text-sm;
+  }
+
+  .github-badge-label {
+    @apply px-2.5;
+  }
+
+  .github-badge-value {
+    @apply px-2.5 text-[0.8rem];
+  }
+
+  .hero-stat-grid {
+    @apply gap-2;
+  }
+
+  .hero-stat-grid .stat-card {
+    @apply p-3;
+  }
+
+  .hero-stat-grid .stat-label {
+    @apply text-[0.65rem];
+  }
+
+  .hero-stat-grid .stat-value {
+    @apply text-2xl;
   }
 }

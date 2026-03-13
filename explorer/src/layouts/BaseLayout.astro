@@ -3,30 +3,49 @@ import "../styles/global.css";
 
 interface Props {
   title: string;
+  description?: string;
   roleId?: string;
   roleName?: string;
 }
 
-const { title, roleId, roleName } = Astro.props;
+const { title, description = "Hermit is a file-first runtime for autonomous applications.", roleId, roleName } = Astro.props;
+const siteName = "Hermit";
+const documentTitle = title === siteName ? siteName : `${title} · ${siteName}`;
+const socialImage = "/mascot.png";
+const currentYear = new Date().getFullYear();
 ---
 <!doctype html>
 <html lang="en" class="h-full">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{title} · Hermit</title>
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#020617" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={siteName} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={socialImage} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={socialImage} />
+    <link rel="icon" type="image/png" href="/mascot.png" />
+    <link rel="apple-touch-icon" href="/mascot.png" />
+    <title>{documentTitle}</title>
   </head>
   <body>
-    <div class="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.10),_transparent_34%),linear-gradient(to_bottom,_#f8fafc,_#f1f5f9)]">
-      <header class="sticky top-0 z-20 border-b border-white/10 bg-slate-950/90 backdrop-blur">
+    <div class="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.10),_transparent_34%),linear-gradient(to_bottom,_#f8fafc,_#eef2ff_45%,_#f8fafc)]">
+      <header class="sticky top-0 z-20 border-b border-white/10 bg-slate-950/88 backdrop-blur">
         <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
-          <a href="/" class="text-sm font-semibold tracking-[0.12em] text-white no-underline">
+          <a href="/" class="text-sm font-semibold tracking-[0.16em] text-white no-underline">
             HERMIT
           </a>
-          <nav class="flex flex-wrap items-center gap-2">
+          <nav class="mobile-nav flex w-full items-center gap-2 overflow-x-auto sm:w-auto sm:flex-wrap">
             <a class="nav-link" href="/">Home</a>
-            <a class="nav-link" href="/entities">Entities</a>
-            <a class="nav-link" href="/agents">Agents</a>
+            <a class="nav-link" href="/getting-started">Get started</a>
+            <a class="nav-link" href="/entities/capability">Capabilities</a>
+            <a class="nav-link" href="/inside">Inside Hermit</a>
             <a class="nav-link" href="/architecture">Architecture</a>
             <a class="nav-link" href="/license">License</a>
             {roleId && (<a class="nav-link" href={`/agents/${roleId}`}>{roleName ?? roleId}</a>)}
@@ -36,6 +55,14 @@ const { title, roleId, roleName } = Astro.props;
       <main class="page-shell">
         <slot />
       </main>
+      <footer class="mx-auto max-w-6xl px-4 pb-10 pt-2 text-sm text-slate-500 sm:px-6 lg:px-8">
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <span>© {currentYear} Hermit.</span>
+          <span>Public website and internal workspace state live in the same repo.</span>
+          <a href="https://github.com/benschrauwen/hermit" target="_blank" rel="noreferrer">Project repo</a>
+          <a href="https://benschrauwen.substack.com/p/the-advent-of-autonomous-applications" target="_blank" rel="noreferrer">Ben's announcement post</a>
+        </div>
+      </footer>
     </div>
   </body>
 </html>

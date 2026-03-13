@@ -4,6 +4,9 @@
   "description": "Local file-first runtime for autonomous applications, powered by pi-mono.",
   "type": "module",
   "packageManager": "npm@11.6.2",
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "check": "tsc -p tsconfig.json --noEmit",
     "postinstall": "./scripts/with-local-npm.sh npm --prefix explorer install",

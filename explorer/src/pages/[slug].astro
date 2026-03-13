@@ -1,0 +1,127 @@
+---
+import path from "node:path";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { readMarkdownFiles } from "../lib/entity-content.js";
+import { getPublicPageBySlug } from "../lib/public-pages.js";
+import { renderDefaultFileSection } from "../lib/renderers.js";
+import { countEntitiesByDefinition, getWorkspaceRoot, listRoleIds, loadEntityDefs, loadRole } from "../lib/workspace.js";
+
+const { slug } = Astro.params;
+if (!slug) return Astro.redirect("/");
+if (slug === "home") return Astro.redirect("/");
+
+const root = getWorkspaceRoot();
+const page = await getPublicPageBySlug(slug, root);
+if (!page) return Astro.redirect("/");
+
+const isInsidePage = page.presentationMode === "internal-state";
+const { entities: entityDefs } = await loadEntityDefs(root);
+
+const entityCounts = isInsidePage
+  ? await Promise.all(
+      entityDefs.map(async (entityDef) => ({
+        type: entityDef.type,
+        label: entityDef.label,
+        count: await countEntitiesByDefinition(root, entityDef),
+      })),
+    )
+  : [];
+
+const roles = isInsidePage
+  ? await Promise.all(
+      (await listRoleIds(root)).map(async (roleId) => {
+        const role = await loadRole(root, roleId);
+        return {
+          id: roleId,
+          name: role.name,
+          description: role.description,
+        };
+      }),
+    )
+  : [];
+
+const websiteSections = isInsidePage
+  ? await Promise.all(
+      (await readMarkdownFiles(path.join(root, "agents", "website", "agent"), ["record.md", "inbox.md"])).map((file) =>
+        renderDefaultFileSection(file),
+      ),
+    )
+  : [];
+---
+<BaseLayout title={page.name} description={page.summary || page.goal}>
+  <div class="breadcrumb">
+    <a href="/">Hermit</a> → {page.name}
+  </div>
+
+  <section class="detail-hero card">
+    <p class="hero-kicker">Public page</p>
+    <h1>{page.name}</h1>
+    {page.summary && <p class="hero-lead">{page.summary}</p>}
+  </section>
+
+  {page.publicHtml && (
+    <section class="card detail-panel mb-6">
+      <div class="markdown-body" set:html={page.publicHtml} />
+    </section>
+  )}
+
+  {page.blocks.map((block) => (
+    <section class="card detail-panel mb-6">
+      <div class="markdown-body" set:html={block.html} />
+    </section>
+  ))}
+
+  {isInsidePage && (
+    <>
+      <section class="mb-10">
+        <div class="section-header">
+          <div>
+            <p class="section-kicker">Workspace records</p>
+            <h2 class="section-title-large">Inspect the current system of record</h2>
+          </div>
+        </div>
+        <div class="card-grid compact-grid">
+          {entityCounts.map((entry) => (
+            <a class="feature-card compact-card" href={`/entities/${entry.type}`}>
+              <span class="feature-tag">Entity type</span>
+              <h3>{entry.label}</h3>
+              <p>{entry.count} record{entry.count !== 1 ? "s" : ""} in the workspace.</p>
+            </a>
+          ))}
+        </div>
+      </section>
+
+      <section class="mb-10">
+        <div class="section-header">
+          <div>
+            <p class="section-kicker">Operators</p>
+            <h2 class="section-title-large">See who is doing the work</h2>
+          </div>
+          <a class="section-link" href="/agents">Browse all agents</a>
+        </div>
+        <div class="card-grid compact-grid">
+          {roles.map((role) => (
+            <a class="feature-card compact-card" href={`/agents/${role.id}`}>
+              <span class="feature-tag">Agent</span>
+              <h3>{role.name}</h3>
+              <p>{role.description}</p>
+            </a>
+          ))}
+        </div>
+      </section>
+
+      <section class="mb-10">
+        <div class="section-header">
+          <div>
+            <p class="section-kicker">Current website work</p>
+            <h2 class="section-title-large">Live next actions and planning files</h2>
+          </div>
+          <a class="section-link" href="/agents/website">Open the website agent page</a>
+        </div>
+        {websiteSections.map((section) => (
+          <div class="mb-6" set:html={section} />
+        ))}
+      </section>
+    </>
+  )}
+</BaseLayout>

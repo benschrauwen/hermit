@@ -3,9 +3,7 @@
  * Use WORKSPACE_ROOT env when running explorer from repo root; otherwise
  * defaults to parent of explorer dir when cwd is explorer.
  */
-import { existsSync } from "node:fs";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
 
 import type {
   EntityRecord,
@@ -13,8 +11,24 @@ import type {
   RoleEntityDefinition,
   RoleExplorerConfig,
 } from "../../../src/types.js";
+import {
+  listRoleIds as listRoleIdsFromWorkspace,
+  loadRole as loadRoleFromWorkspace,
+  loadEntityDefs as loadEntityDefsFromWorkspace,
+} from "../../../src/roles.ts";
+import {
+  scanEntities as scanEntitiesFromWorkspace,
+  findEntityById as findEntityByIdFromWorkspace,
+  findEntitiesByType as findEntitiesByTypeFromWorkspace,
+  scanEntitiesByDefinition as scanEntitiesByDefinitionFromWorkspace,
+  countEntitiesByDefinition as countEntitiesByDefinitionFromWorkspace,
+} from "../../../src/workspace.ts";
 
 export type { EntityRecord, RoleDefinition, RoleEntityDefinition, RoleExplorerConfig };
+
+export function importWithNode(specifier: string): Promise<unknown> {
+  return new Function("moduleSpecifier", "return import(moduleSpecifier);")(specifier) as Promise<unknown>;
+}
 
 export function getWorkspaceRoot(): string {
   if (process.env.WORKSPACE_ROOT) {
@@ -28,72 +42,23 @@ export function getWorkspaceRoot(): string {
   return cwd;
 }
 
-type RolesModule = Pick<typeof import("../../../src/roles.js"), "listRoleIds" | "loadRole" | "loadEntityDefs">;
-type WorkspaceModule = Pick<
-  typeof import("../../../src/workspace.js"),
-  "scanEntities" | "findEntityById" | "findEntitiesByType" | "scanEntitiesByDefinition" | "countEntitiesByDefinition"
->;
-
-const rolesModuleCache = new Map<string, Promise<RolesModule>>();
-const workspaceModuleCache = new Map<string, Promise<WorkspaceModule>>();
-
-export function importWithNode(specifier: string): Promise<unknown> {
-  return new Function("moduleSpecifier", "return import(moduleSpecifier);")(specifier) as Promise<unknown>;
-}
-
-async function loadRolesModule(root: string): Promise<RolesModule> {
-  const cached = rolesModuleCache.get(root);
-  if (cached) {
-    return cached;
-  }
-  const rolesPath = path.resolve(root, "src", "roles.ts");
-  if (!existsSync(rolesPath)) {
-    throw new Error(
-      `Workspace source not found at ${rolesPath}. Run the explorer from the workspace root so it can load TypeScript sources via tsx.`
-    );
-  }
-  const pending = importWithNode(pathToFileURL(rolesPath).href).then((mod) => mod as RolesModule);
-  rolesModuleCache.set(root, pending);
-  return pending;
-}
-
-async function loadWorkspaceModule(root: string): Promise<WorkspaceModule> {
-  const cached = workspaceModuleCache.get(root);
-  if (cached) {
-    return cached;
-  }
-  const workspacePath = path.resolve(root, "src", "workspace.ts");
-  if (!existsSync(workspacePath)) {
-    throw new Error(
-      `Workspace source not found at ${workspacePath}. Run the explorer from the workspace root so it can load TypeScript sources via tsx.`
-    );
-  }
-  const pending = importWithNode(pathToFileURL(workspacePath).href).then((mod) => mod as WorkspaceModule);
-  workspaceModuleCache.set(root, pending);
-  return pending;
-}
-
 export async function listRoleIds(root: string): Promise<string[]> {
-  const mod = await loadRolesModule(root);
-  return mod.listRoleIds(root);
+  return listRoleIdsFromWorkspace(root);
 }
 
 export async function loadRole(root: string, roleId: string): Promise<RoleDefinition> {
-  const mod = await loadRolesModule(root);
-  return mod.loadRole(root, roleId);
+  return loadRoleFromWorkspace(root, roleId);
 }
 
 export async function loadEntityDefs(root: string): Promise<{
   entities: RoleEntityDefinition[];
   explorer?: RoleExplorerConfig;
 }> {
-  const mod = await loadRolesModule(root);
-  return mod.loadEntityDefs(root);
+  return loadEntityDefsFromWorkspace(root);
 }
 
 export async function scanEntities(root: string, role: RoleDefinition): Promise<EntityRecord[]> {
-  const mod = await loadWorkspaceModule(root);
-  return mod.scanEntities(root, role);
+  return scanEntitiesFromWorkspace(root, role);
 }
 
 export async function findEntityById(
@@ -101,8 +66,7 @@ export async function findEntityById(
   role: RoleDefinition,
   entityId: string
 ): Promise<EntityRecord | undefined> {
-  const mod = await loadWorkspaceModule(root);
-  return mod.findEntityById(root, role, entityId);
+  return findEntityByIdFromWorkspace(root, role, entityId);
 }
 
 export async function findEntitiesByType(
@@ -110,16 +74,13 @@ export async function findEntitiesByType(
   role: RoleDefinition,
   entityType: string
 ): Promise<EntityRecord[]> {
-  const mod = await loadWorkspaceModule(root);
-  return mod.findEntitiesByType(root, role, entityType);
+  return findEntitiesByTypeFromWorkspace(root, role, entityType);
 }
 
 export async function scanEntitiesByDefinition(root: string, entity: RoleEntityDefinition): Promise<EntityRecord[]> {
-  const mod = await loadWorkspaceModule(root);
-  return mod.scanEntitiesByDefinition(root, entity);
+  return scanEntitiesByDefinitionFromWorkspace(root, entity);
 }
 
 export async function countEntitiesByDefinition(root: string, entity: RoleEntityDefinition): Promise<number> {
-  const mod = await loadWorkspaceModule(root);
-  return mod.countEntitiesByDefinition(root, entity);
+  return countEntitiesByDefinitionFromWorkspace(root, entity);
 }
