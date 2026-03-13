@@ -28,6 +28,15 @@ At the start of every interactive session, check whether heartbeat or other back
 
 Once per day, around midnight, the heartbeat should run a full strategic review pass instead of normal task advancement. This is triggered by scheduling `hermit heartbeat --role <id> --prompt` with the strategic review prompt, or by the heartbeat itself when `last_strategic_review` in the record frontmatter is more than 24 hours old.
 
+### Required review loop
+
+- Run the daily review as an explicit loop: `evidence -> hypothesis -> test -> re-evaluate hypothesis`.
+- Start by revisiting any open or recently completed items in `## Strategic Experiments` inside `{{roleRoot}}/agent/record.md`. Before inventing a new theory, check whether yesterday's test actually helped.
+- Use raw evidence, not vibes. Review `agent/record.md`, `agent/inbox.md`, the latest strategic observations, the current workspace state, and recent git history or checkpoint commits from the last 1-2 days. Git is especially useful for answering which files the agent actually changed and whether those changes touched the area the hypothesis was trying to improve.
+- Form hypotheses that are explicit and falsifiable. Name the problem pattern you think is true, why you think it is true, and what signal would confirm or weaken that belief.
+- Choose a small test or intervention that can be evaluated at the next review. Record what you are trying, what files or workflows it should affect, and what improvement would count as success.
+- At the next daily review, re-evaluate the prior hypothesis first. Mark whether it helped, partially helped, or failed, then refine, replace, or retire it instead of repeating the same move by habit.
+
 ### What the strategic review covers
 
 **Goal clarity**
@@ -63,6 +72,7 @@ Once per day, around midnight, the heartbeat should run a full strategic review 
 ### Output discipline
 
 - Write strategic observations to the `## Strategic Observations` section of `agent/record.md`. Date each entry.
+- Track ongoing and recently evaluated experiments in the `## Strategic Experiments` section of `agent/record.md`. For each experiment, capture the start date, evidence, hypothesis, test, expected signal, relevant files or workflows, result, and next decision. Create the section if it is missing.
 - Promote actionable findings to inbox items or next actions in the record.
 - Update `last_strategic_review` in the record frontmatter to the current date.
 

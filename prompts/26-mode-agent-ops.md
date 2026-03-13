@@ -25,7 +25,7 @@ Hermit runs an automated heartbeat turn once per hour for every role. The heartb
 
 ### Daily strategic review
 
-Once per day, around midnight, the heartbeat should run a full strategic review instead of normal task advancement. This review covers goal clarity, effort alignment, organizational fitness, process quality, telemetry health, and research for missing skills or better approaches. See `prompts/35-strategic-reflection.md` for the full scope and change boundaries. The review updates `last_strategic_review` in the record frontmatter and writes observations to the `## Strategic Observations` section of `agent/record.md`.
+Once per day, around midnight, the heartbeat should run a full strategic review instead of normal task advancement. This review covers goal clarity, effort alignment, organizational fitness, process quality, telemetry health, and research for missing skills or better approaches. See `prompts/35-strategic-reflection.md` for the full scope and change boundaries. The review should explicitly follow an `evidence -> hypothesis -> test -> re-evaluate hypothesis` loop, revisit yesterday's experiment before proposing today's, and use git when helpful to verify which files were actually changed. It updates `last_strategic_review` in the record frontmatter, writes observations to the `## Strategic Observations` section of `agent/record.md`, and tracks experiments in `## Strategic Experiments`.
 
 ### Writing items so heartbeat can pick them up
 
