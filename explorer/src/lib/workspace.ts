@@ -1,9 +1,11 @@
 /**
  * Resolves the Hermit workspace root (repo root with agents/, entities/, etc.).
- * Use WORKSPACE_ROOT env when running explorer from repo root; otherwise
- * defaults to parent of explorer dir when cwd is explorer.
+ * Prefer WORKSPACE_ROOT when provided. Otherwise search upward from likely runtime
+ * locations until a directory containing the Hermit workspace markers is found.
  */
+import { existsSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import type {
   EntityRecord,
@@ -30,16 +32,49 @@ export function importWithNode(specifier: string): Promise<unknown> {
   return new Function("moduleSpecifier", "return import(moduleSpecifier);")(specifier) as Promise<unknown>;
 }
 
+function isWorkspaceRoot(candidate: string): boolean {
+  return ["agents", "entities", "entity-defs", "src"].every((entry) => existsSync(path.join(candidate, entry)));
+}
+
+function searchUpForWorkspaceRoot(startDir: string): string | undefined {
+  let current = path.resolve(startDir);
+  while (true) {
+    if (isWorkspaceRoot(current)) {
+      return current;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return undefined;
+    }
+    current = parent;
+  }
+}
+
 export function getWorkspaceRoot(): string {
   if (process.env.WORKSPACE_ROOT) {
     return path.resolve(process.env.WORKSPACE_ROOT);
   }
-  const cwd = process.cwd();
-  const dir = path.basename(cwd);
-  if (dir === "explorer") {
-    return path.resolve(cwd, "..");
+
+  const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    process.cwd(),
+    path.resolve(process.cwd(), ".."),
+    moduleDir,
+    path.resolve(moduleDir, ".."),
+    path.resolve(moduleDir, "../.."),
+    path.resolve(moduleDir, "../../.."),
+    path.resolve(moduleDir, "../../../.."),
+    path.resolve(moduleDir, "../../../../.."),
+  ];
+
+  for (const candidate of candidates) {
+    const found = searchUpForWorkspaceRoot(candidate);
+    if (found) {
+      return found;
+    }
   }
-  return cwd;
+
+  return process.cwd();
 }
 
 export async function listRoleIds(root: string): Promise<string[]> {
