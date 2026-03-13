@@ -15,5 +15,6 @@ export interface InteractiveChatSession {
   telemetry: TelemetryRecorder;
   workspaceState: WorkspaceInitializationState;
   activeRoleLabel: string;
+  modelLabel: string;
   consumeRoleSwitchRequest: () => RoleSwitchRequest | undefined;
 }

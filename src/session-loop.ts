@@ -13,16 +13,24 @@ import type { TelemetryRecorder } from "./telemetry-recorder.js";
 const ANSI_DIM = "\x1b[90m";
 const ANSI_RESET = "\x1b[0m";
 
+function formatModelNotice(modelLabel: string): string {
+  return `${ANSI_DIM}Using model ${modelLabel}.${ANSI_RESET}\n`;
+}
+
 export async function runOneShotPrompt(
   session: AgentSession,
   prompt: string,
   imagePaths: string[] = [],
   telemetry?: TelemetryRecorder,
   activeRoleLabel = HERMIT_ROLE_ID,
+  modelLabel?: string,
 ): Promise<void> {
   const stopStreaming = attachConsoleStreaming(session, telemetry);
 
   try {
+    if (modelLabel) {
+      process.stdout.write(formatModelNotice(modelLabel));
+    }
     process.stdout.write(formatUserPromptEcho(prompt, activeRoleLabel));
     await session.prompt(prompt, {
       images: await loadImageAttachments(imagePaths),
@@ -67,6 +75,7 @@ async function runReadlineChatLoop(
 ): Promise<void> {
   let activeSession = options.initialSession;
   let stopStreaming = attachConsoleStreaming(activeSession.session, activeSession.telemetry);
+  process.stdout.write(formatModelNotice(activeSession.modelLabel));
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -96,7 +105,9 @@ async function runReadlineChatLoop(
       stopStreaming();
       activeSession = await options.onRoleSwitch(request, previousRoleLabel);
       stopStreaming = attachConsoleStreaming(activeSession.session, activeSession.telemetry);
-      process.stdout.write(`${ANSI_DIM}Switched active role to ${activeSession.activeRoleLabel}.${ANSI_RESET}\n`);
+      process.stdout.write(
+        `${ANSI_DIM}Switched active role to ${activeSession.activeRoleLabel} using ${activeSession.modelLabel}.${ANSI_RESET}\n`,
+      );
       return;
     }
   }
@@ -142,6 +153,7 @@ async function runTuiChatLoop(
 ): Promise<void> {
   let activeSession = options.initialSession;
   const chatUi = new ChatTui(activeSession.activeRoleLabel);
+  chatUi.appendSystemNotice(`Using model ${activeSession.modelLabel}.`);
   let stopStreaming = attachChatTuiStreaming(activeSession.session, chatUi, activeSession.telemetry);
   chatUi.setInterruptHandler(async () => {
     await activeSession.session.abort();
@@ -175,7 +187,7 @@ async function runTuiChatLoop(
         await activeSession.session.abort();
       });
       stopStreaming = attachChatTuiStreaming(activeSession.session, chatUi, activeSession.telemetry);
-      chatUi.appendSystemNotice(`Switched active role to ${activeSession.activeRoleLabel}.`);
+      chatUi.appendSystemNotice(`Switched active role to ${activeSession.activeRoleLabel} using ${activeSession.modelLabel}.`);
       return;
     }
   }

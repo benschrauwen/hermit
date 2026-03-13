@@ -8,8 +8,8 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
-import { runDoctor } from "./doctor.js";
-import { createCheckpoint, getRepoState, shouldCheckpoint } from "./git.js";
+import { printDoctorContext, runDoctor } from "./doctor.js";
+import { createCheckpoint, getRepoState, shouldCheckpoint, shouldCheckpointForOutcome, type CheckpointOutcome } from "./git.js";
 import {
   DEFAULT_HEARTBEAT_DAEMON_INTERVAL,
   formatHeartbeatDaemonDuration,
@@ -40,7 +40,7 @@ import {
   runChatLoop,
   runOneShotPrompt,
 } from "./session.js";
-import { assertOpenAiApiKeyConfigured } from "./openai-api-key.js";
+import { assertProviderAwareModelConfigured } from "./model-auth.js";
 import { generateTelemetryReport, renderTelemetryReportSummary, writeTelemetryReport } from "./telemetry.js";
 import type { RoleDefinition } from "./types.js";
 
@@ -145,6 +145,7 @@ interface TelemetryHandle {
   setGitSessionEndContext(context: {
     gitHeadAtEnd?: string;
     checkpointAfterSha?: string;
+    commandOutcome?: CheckpointOutcome;
   }): void;
   close(): Promise<void>;
 }
@@ -158,7 +159,7 @@ class TelemetryCollection implements TelemetryHandle {
     this.recorders.push(recorder);
   }
 
-  setGitSessionEndContext(context: { gitHeadAtEnd?: string; checkpointAfterSha?: string }): void {
+  setGitSessionEndContext(context: { gitHeadAtEnd?: string; checkpointAfterSha?: string; commandOutcome?: CheckpointOutcome }): void {
     for (const recorder of this.recorders) {
       recorder.setGitSessionEndContext(context);
     }
@@ -169,6 +170,15 @@ class TelemetryCollection implements TelemetryHandle {
       await recorder.close();
     }
   }
+}
+
+function isAbortError(error: unknown): boolean {
+  if (error instanceof Error && error.name === "AbortError") {
+    return true;
+  }
+
+  const message = error instanceof Error ? error.message : String(error);
+  return /\babort(?:ed|ing)?\b/i.test(message);
 }
 
 async function withGitCheckpoint(options: {
@@ -211,18 +221,23 @@ async function withGitCheckpoint(options: {
   };
 
   let telemetry: TelemetryHandle | undefined;
+  let commandOutcome: CheckpointOutcome = "success";
   try {
     telemetry = await options.run(context);
+  } catch (error) {
+    commandOutcome = isAbortError(error) ? "aborted" : "failed";
+    throw error;
   } finally {
     const afterState = await getRepoState(options.root);
-    const checkpointAfter = shouldCheckpoint(afterState, gitCheckpointsEnabled)
-      ? await createCheckpoint(options.root, { ...checkpointMeta, phase: "after" })
+    const checkpointAfter = shouldCheckpointForOutcome(afterState, commandOutcome, gitCheckpointsEnabled)
+      ? await createCheckpoint(options.root, { ...checkpointMeta, phase: "after", outcome: commandOutcome })
       : undefined;
     const endHead = checkpointAfter ?? afterState;
 
     telemetry?.setGitSessionEndContext({
       ...(endHead?.headSha !== undefined ? { gitHeadAtEnd: endHead.headSha } : {}),
       ...(checkpointAfter?.checkpointSha !== undefined ? { checkpointAfterSha: checkpointAfter.checkpointSha } : {}),
+      commandOutcome,
     });
     await telemetry?.close();
   }
@@ -263,7 +278,7 @@ async function runHeartbeatForRole(options: {
     roleId: options.role.id,
     ...(options.gitCheckpointsEnabled !== undefined ? { gitCheckpointsEnabled: options.gitCheckpointsEnabled } : {}),
     run: async (gitContext) => {
-      const { session, telemetry } = await createRoleSession({
+      const { session, telemetry, modelLabel } = await createRoleSession({
         root: options.root,
         role: options.role,
         persist: true,
@@ -281,7 +296,7 @@ async function runHeartbeatForRole(options: {
         ...(options.prompt !== undefined ? { prompt: options.prompt } : {}),
         ...(options.strategicReview !== undefined ? { strategicReview: options.strategicReview } : {}),
       });
-      await runOneShotPrompt(session, heartbeatPrompt, [], telemetry, options.role.id);
+      await runOneShotPrompt(session, heartbeatPrompt, [], telemetry, options.role.id, modelLabel);
       return telemetry;
     },
   });
@@ -402,7 +417,7 @@ program
       prompt?: string;
       gitCheckpoints?: boolean;
     }) => {
-      assertOpenAiApiKeyConfigured();
+      assertProviderAwareModelConfigured();
       const inferred = inferRootAndRoleFromCwd(process.cwd());
       const lastRoleId =
         options.role === undefined && inferred.roleId === undefined
@@ -475,7 +490,7 @@ program
         gitCheckpoints?: boolean;
       },
     ) => {
-      assertOpenAiApiKeyConfigured();
+      assertProviderAwareModelConfigured();
       const { root, role, promptContext } = await resolveSessionContext(options);
       await withGitCheckpoint({
         root,
@@ -483,7 +498,7 @@ program
         roleId: role.id,
         ...(options.gitCheckpoints !== undefined ? { gitCheckpointsEnabled: options.gitCheckpoints } : {}),
         run: async (gitContext) => {
-          const { session, telemetry } = await createRoleSession({
+          const { session, telemetry, modelLabel } = await createRoleSession({
             root,
             role,
             persist: false,
@@ -495,7 +510,14 @@ program
             },
           });
 
-          await runOneShotPrompt(session, promptParts.join(" "), collectImagePaths(options.image), telemetry, role.id);
+          await runOneShotPrompt(
+            session,
+            promptParts.join(" "),
+            collectImagePaths(options.image),
+            telemetry,
+            role.id,
+            modelLabel,
+          );
           return telemetry;
         },
       });
@@ -518,7 +540,7 @@ program
       strategicReview?: boolean;
       gitCheckpoints?: boolean;
     }) => {
-      assertOpenAiApiKeyConfigured();
+      assertProviderAwareModelConfigured();
       const { root, role } = await resolveSessionContext(options);
       await runHeartbeatForRole({
         root,
@@ -543,7 +565,7 @@ program
   )
   .option("--continue", "Continue the most recent persisted heartbeat session for each role.")
   .action(async (options: { interval: string; continue?: boolean; gitCheckpoints?: boolean }) => {
-    assertOpenAiApiKeyConfigured();
+    assertProviderAwareModelConfigured();
     const root = resolveWorkspaceRoot();
     const intervalMs = parseHeartbeatDaemonInterval(options.interval);
 
@@ -681,9 +703,13 @@ program
   .command("doctor")
   .description("Validate shared workspace structure plus the selected role contract.")
   .option("--role <id>", "Role ID to validate.")
-  .action(async (options: { role?: string }) => {
+  .option("--context", "Print the rendered system-prompt source breakdown for the selected role.")
+  .action(async (options: { role?: string; context?: boolean }) => {
     const { root, roleId } = await resolveRoleContext(options.role);
     const healthy = await runDoctor(root, roleId);
+    if (options.context) {
+      await printDoctorContext(root, roleId);
+    }
     process.exitCode = healthy ? 0 : 1;
   });
 

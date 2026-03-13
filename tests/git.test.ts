@@ -10,6 +10,7 @@ import {
   getRepoState,
   listChangedFiles,
   shouldCheckpoint,
+  shouldCheckpointForOutcome,
 } from "../src/git.js";
 
 const testsDir = path.dirname(fileURLToPath(import.meta.url));
@@ -93,6 +94,7 @@ describe("git runtime helpers", () => {
       roleId: "role-a",
       phase: "after",
       sessionId: "session-123",
+      outcome: "success",
     });
 
     expect(checkpoint?.checkpointSha).toMatch(/^[a-f0-9]{40}$/);
@@ -103,6 +105,7 @@ describe("git runtime helpers", () => {
     expect(latestCommit).toContain("Hermit-Command: heartbeat");
     expect(latestCommit).toContain("Hermit-Role: role-a");
     expect(latestCommit).toContain("Hermit-Phase: after");
+    expect(latestCommit).toContain("Hermit-Outcome: success");
     expect(latestCommit).toContain("Hermit-Session: session-123");
 
     const status = runGit(root, ["status", "--porcelain"]);
@@ -114,5 +117,8 @@ describe("git runtime helpers", () => {
     expect(shouldCheckpoint({ dirty: false })).toBe(false);
     expect(shouldCheckpoint({ dirty: true })).toBe(true);
     expect(shouldCheckpoint({ dirty: true }, false)).toBe(false);
+    expect(shouldCheckpointForOutcome({ dirty: true }, "success")).toBe(true);
+    expect(shouldCheckpointForOutcome({ dirty: true }, "failed")).toBe(true);
+    expect(shouldCheckpointForOutcome({ dirty: true }, "aborted")).toBe(false);
   });
 });

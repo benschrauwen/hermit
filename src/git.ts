@@ -4,6 +4,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 type CheckpointPhase = "before" | "after";
+export type CheckpointOutcome = "success" | "aborted" | "failed";
 
 export interface GitHeadSummary {
   branch?: string;
@@ -22,6 +23,7 @@ export interface CheckpointMetadata {
   roleId?: string;
   phase: CheckpointPhase;
   sessionId: string;
+  outcome?: CheckpointOutcome;
 }
 
 export interface CheckpointResult extends GitHeadSummary {
@@ -64,11 +66,13 @@ function parseStatusOutput(output: string): string[] {
 
 function buildCheckpointMessage(metadata: CheckpointMetadata): [string, string] {
   const roleScope = metadata.roleId ?? "workspace";
-  const subject = `chore(checkpoint): ${metadata.phase} ${metadata.commandName} ${roleScope}`;
+  const subjectSuffix = metadata.phase === "after" && metadata.outcome ? ` ${metadata.outcome}` : "";
+  const subject = `chore(checkpoint): ${metadata.phase} ${metadata.commandName} ${roleScope}${subjectSuffix}`;
   const trailers = [
     `Hermit-Command: ${metadata.commandName}`,
     ...(metadata.roleId ? [`Hermit-Role: ${metadata.roleId}`] : []),
     `Hermit-Phase: ${metadata.phase}`,
+    ...(metadata.phase === "after" && metadata.outcome ? [`Hermit-Outcome: ${metadata.outcome}`] : []),
     `Hermit-Session: ${metadata.sessionId}`,
   ].join("\n");
 
@@ -170,6 +174,18 @@ export async function getRepoState(root: string): Promise<RepoState | undefined>
 
 export function shouldCheckpoint(state: Pick<RepoState, "dirty"> | undefined, enabled = true): boolean {
   return enabled && Boolean(state?.dirty);
+}
+
+export function shouldCheckpointForOutcome(
+  state: Pick<RepoState, "dirty"> | undefined,
+  outcome: CheckpointOutcome,
+  enabled = true,
+): boolean {
+  if (outcome === "aborted") {
+    return false;
+  }
+
+  return shouldCheckpoint(state, enabled);
 }
 
 export async function createCheckpoint(

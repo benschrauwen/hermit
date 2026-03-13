@@ -12,6 +12,20 @@ const STATUS_PREFIX_LENGTH = 2; // spinner char + space
 
 type AgentSessionEvent = Parameters<Parameters<AgentSession["subscribe"]>[0]>[0];
 
+function formatRetryStatus(event: Record<string, unknown>): string {
+  const attempt = typeof event.attempt === "number" ? event.attempt : 1;
+  const maxAttempts = typeof event.maxAttempts === "number" ? event.maxAttempts : undefined;
+  const delayMs = typeof event.delayMs === "number" ? event.delayMs : undefined;
+  const attemptText = maxAttempts && maxAttempts >= attempt ? ` ${attempt}/${maxAttempts}` : ` ${attempt}`;
+  const delayText = delayMs !== undefined && delayMs > 0 ? ` in ${delayMs}ms` : "";
+  return `Retrying${attemptText}${delayText}`;
+}
+
+function formatCompactionStatus(event: Record<string, unknown>): string {
+  const reason = typeof event.reason === "string" && event.reason.trim().length > 0 ? event.reason.trim() : undefined;
+  return reason ? `Compacting context: ${reason}` : "Compacting context";
+}
+
 function getMaxStatusTextLength(): number {
   const columns = typeof process.stdout.columns === "number" ? process.stdout.columns : 80;
   return Math.max(10, Math.min(MAX_STATUS_TEXT_LENGTH, columns - STATUS_PREFIX_LENGTH));
@@ -345,6 +359,44 @@ export function createSessionStreamHandler(
 
     if (event.type === "message_update" && event.assistantMessageEvent.type === "thinking_delta") {
       sink.showStatus("Thinking");
+      return;
+    }
+
+    if (event.type === "auto_retry_start") {
+      const retryStatus = formatRetryStatus(event);
+      sink.appendToolStatus(retryStatus);
+      sink.showStatus(retryStatus);
+      return;
+    }
+
+    if (event.type === "auto_retry_end") {
+      if (event.success) {
+        sink.showStatus("Thinking");
+        return;
+      }
+
+      const retryStatus = "Retry failed";
+      sink.appendToolStatus(retryStatus);
+      sink.showStatus(retryStatus);
+      return;
+    }
+
+    if (event.type === "auto_compaction_start") {
+      const compactionStatus = formatCompactionStatus(event);
+      sink.appendToolStatus(compactionStatus);
+      sink.showStatus(compactionStatus);
+      return;
+    }
+
+    if (event.type === "auto_compaction_end") {
+      if (event.aborted) {
+        const abortedStatus = "Compaction aborted";
+        sink.appendToolStatus(abortedStatus);
+        sink.showStatus(abortedStatus);
+        return;
+      }
+
+      sink.showStatus(event.willRetry ? "Retrying after compaction" : "Thinking");
       return;
     }
 

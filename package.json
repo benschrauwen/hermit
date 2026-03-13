@@ -7,14 +7,14 @@
   "scripts": {
     "check": "tsc -p tsconfig.json --noEmit",
     "postinstall": "./scripts/with-local-npm.sh npm --prefix explorer install",
-    "start": "./scripts/with-local-npm.sh nono run --profile ./examples/nono/hermit.json --allow-cwd -- npm run start:unsafe --",
-    "start:unsafe": "OPENAI_API_KEY=\"${OPENAI_API_KEY:-$(security find-generic-password -s 'nono' -a 'openai_api_key' -w 2>/dev/null || printf '')}\" npm run cli -- chat",
+    "start": "./scripts/with-local-npm.sh ./scripts/with-provider-env.sh nono run --profile ./examples/nono/hermit.json --allow-cwd -- npm run cli -- chat --",
+    "start:unsafe": "./scripts/with-provider-env.sh npm run cli -- chat",
     "cli": "node --import tsx src/cli.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "heartbeat-daemon": "./scripts/with-local-npm.sh nono run --profile ./examples/nono/hermit.json --allow-cwd -- npm run heartbeat-daemon:unsafe --",
-    "heartbeat-daemon:unsafe": "OPENAI_API_KEY=\"${OPENAI_API_KEY:-$(security find-generic-password -s 'nono' -a 'openai_api_key' -w 2>/dev/null || printf '')}\" npm run cli -- heartbeat-daemon",
+    "heartbeat-daemon": "./scripts/with-local-npm.sh ./scripts/with-provider-env.sh nono run --profile ./examples/nono/hermit.json --allow-cwd -- npm run cli -- heartbeat-daemon --",
+    "heartbeat-daemon:unsafe": "./scripts/with-provider-env.sh npm run cli -- heartbeat-daemon",
     "explorer": "./scripts/with-local-npm.sh env NODE_OPTIONS='--import tsx' WORKSPACE_ROOT=\"$(pwd)\" npm --prefix explorer run dev",
     "explorer:build": "./scripts/with-local-npm.sh env NODE_OPTIONS='--import tsx' WORKSPACE_ROOT=\"$(pwd)\" npm --prefix explorer run build",
     "explorer:preview": "./scripts/with-local-npm.sh env NODE_OPTIONS='--import tsx' WORKSPACE_ROOT=\"$(pwd)\" npm --prefix explorer run preview"

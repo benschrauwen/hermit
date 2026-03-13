@@ -53,6 +53,7 @@ describe("InteractiveSessionCache", () => {
           roleEntityCounts: {},
         },
         activeRoleLabel: "role-a",
+        modelLabel: "openai/gpt-5.4",
         consumeRoleSwitchRequest: () => undefined,
       };
     });
@@ -72,6 +73,7 @@ describe("InteractiveSessionCache", () => {
           roleEntityCounts: {},
         },
         activeRoleLabel: "role-b",
+        modelLabel: "openai/gpt-5.4",
         consumeRoleSwitchRequest: () => undefined,
       };
     });
@@ -95,6 +97,7 @@ describe("InteractiveSessionCache", () => {
         roleEntityCounts: {},
       },
       activeRoleLabel: continueRecent ? "continued" : "fresh",
+      modelLabel: "openai/gpt-5.4",
       consumeRoleSwitchRequest: () => undefined,
     }));
 

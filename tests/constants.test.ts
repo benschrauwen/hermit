@@ -13,7 +13,7 @@ describe("constants", () => {
   });
 
   it("default runtime settings stay generic", () => {
-    expect(DEFAULT_MODEL).toBeTruthy();
+    expect(DEFAULT_MODEL).toBeUndefined();
     expect(DEFAULT_THINKING_LEVEL).toBe("medium");
   });
 });

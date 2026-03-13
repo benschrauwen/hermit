@@ -4,10 +4,26 @@ import path from "node:path";
 import { HERMIT_ROLE_ID } from "./constants.js";
 import type { PromptContext, RoleDefinition } from "./types.js";
 
+interface PromptSource {
+  fileName: string;
+  fullPath: string;
+  content: string;
+}
+
+export interface PromptPartBreakdown {
+  kind: "shared" | "agents" | "role-prompt";
+  sourcePath: string;
+  renderedChars: number;
+}
+
+interface RenderedPromptPart extends PromptPartBreakdown {
+  content: string;
+}
+
 export class PromptLibrary {
   private constructor(
     private readonly sharedPromptsDir: string,
-    private readonly sharedPromptContents: string[],
+    private readonly sharedPromptContents: PromptSource[],
     private readonly agentsContent: string,
     private readonly role?: RoleDefinition,
   ) {}
@@ -25,25 +41,20 @@ export class PromptLibrary {
     return new PromptLibrary(sharedPromptsDir, sharedPromptContents, agentsContent);
   }
 
-  async renderSystemPrompt(context: PromptContext, additionalRolePromptFiles: string[] = []): Promise<string> {
-    const parts: string[] = [];
+  async renderSystemPrompt(
+    context: PromptContext,
+    additionalRolePromptFiles: string[] = [],
+  ): Promise<string> {
+    const parts = await this.buildSystemPromptParts(context, additionalRolePromptFiles);
+    return parts.map((part) => part.content).join("\n\n");
+  }
 
-    for (const content of this.sharedPromptContents) {
-      parts.push(this.renderTemplate(content, context));
-    }
-
-    parts.push(this.renderTemplate(this.agentsContent, context));
-
-    for (const fileName of additionalRolePromptFiles) {
-      if (!this.role) {
-        throw new Error("Additional role prompts require a role-backed prompt library.");
-      }
-
-      const content = await fs.readFile(path.join(this.role.rolePromptsDir, fileName), "utf8");
-      parts.push(this.renderTemplate(content, context));
-    }
-
-    return parts.join("\n\n");
+  async getSystemPromptBreakdown(
+    context: PromptContext,
+    additionalRolePromptFiles: string[] = [],
+  ): Promise<PromptPartBreakdown[]> {
+    const parts = await this.buildSystemPromptParts(context, additionalRolePromptFiles);
+    return parts.map(({ content: _content, ...breakdown }) => breakdown);
   }
 
   async renderRolePrompt(fileName: string, context: PromptContext): Promise<string> {
@@ -57,7 +68,7 @@ export class PromptLibrary {
 
   async renderSharedPromptDirectory(directoryName: string, context: PromptContext): Promise<string> {
     const contents = await PromptLibrary.loadMarkdownFiles(path.join(this.sharedPromptsDir, directoryName));
-    return contents.map((content) => this.renderTemplate(content, context)).join("\n\n");
+    return contents.map((entry) => this.renderTemplate(entry.content, context)).join("\n\n");
   }
 
   extractLinkedFiles(): string[] {
@@ -90,13 +101,64 @@ export class PromptLibrary {
     return template.replaceAll(/\{\{(\w+)\}\}/g, (_match, key: string) => values[key] ?? "");
   }
 
-  private static async loadSharedPrompts(sharedPromptsDir: string): Promise<string[]> {
+  private static async loadSharedPrompts(sharedPromptsDir: string): Promise<PromptSource[]> {
     return this.loadMarkdownFiles(sharedPromptsDir);
   }
 
-  private static async loadMarkdownFiles(directory: string): Promise<string[]> {
+  private static async loadMarkdownFiles(directory: string): Promise<PromptSource[]> {
     const entries = await fs.readdir(directory);
     const promptFileNames = entries.filter((f) => f.endsWith(".md")).sort();
-    return Promise.all(promptFileNames.map((fileName) => fs.readFile(path.join(directory, fileName), "utf8")));
+    return Promise.all(
+      promptFileNames.map(async (fileName) => ({
+        fileName,
+        fullPath: path.join(directory, fileName),
+        content: await fs.readFile(path.join(directory, fileName), "utf8"),
+      })),
+    );
+  }
+
+  private async buildSystemPromptParts(
+    context: PromptContext,
+    additionalRolePromptFiles: string[],
+  ): Promise<RenderedPromptPart[]> {
+    const parts: RenderedPromptPart[] = [];
+
+    for (const source of this.sharedPromptContents) {
+      parts.push(this.createPromptPart("shared", source.fullPath, source.content, context));
+    }
+
+    parts.push(this.createPromptPart("agents", this.role?.agentsFile ?? "AGENTS.md", this.agentsContent, context));
+
+    for (const fileName of additionalRolePromptFiles) {
+      if (!this.role) {
+        throw new Error("Additional role prompts require a role-backed prompt library.");
+      }
+
+      const fullPath = path.join(this.role.rolePromptsDir, fileName);
+      const content = await fs.readFile(fullPath, "utf8");
+      parts.push(this.createPromptPart("role-prompt", fullPath, content, context));
+    }
+
+    return parts;
+  }
+
+  private createPromptPart(
+    kind: PromptPartBreakdown["kind"],
+    sourcePath: string,
+    template: string,
+    context: PromptContext,
+  ): RenderedPromptPart {
+    const content = this.renderTemplate(template, context);
+    return {
+      kind,
+      sourcePath: this.toWorkspaceRelativePath(sourcePath, context.workspaceRoot),
+      renderedChars: content.length,
+      content,
+    };
+  }
+
+  private toWorkspaceRelativePath(filePath: string, workspaceRoot: string): string {
+    const relative = path.relative(workspaceRoot, filePath);
+    return relative && !relative.startsWith("..") ? relative : filePath;
   }
 }

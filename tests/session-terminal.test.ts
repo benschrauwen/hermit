@@ -94,4 +94,44 @@ describe("createSessionStreamHandler", () => {
     expect(sink.appendedText).toEqual(["Assistant error: boom\n"]);
     expect(sink.statusTransitions).toEqual(["Thinking", undefined]);
   });
+
+  it("surfaces retry and compaction lifecycle states", () => {
+    const sink = new MockSink();
+    const handleEvent = createSessionStreamHandler(sink);
+
+    handleEvent({
+      type: "message_start",
+      message: { role: "assistant" },
+    } as never);
+    handleEvent({
+      type: "auto_retry_start",
+      attempt: 2,
+      maxAttempts: 3,
+      delayMs: 500,
+    } as never);
+    handleEvent({
+      type: "auto_retry_end",
+      success: true,
+    } as never);
+    handleEvent({
+      type: "auto_compaction_start",
+      reason: "context window limit",
+    } as never);
+    handleEvent({
+      type: "auto_compaction_end",
+      willRetry: true,
+    } as never);
+
+    expect(sink.toolStatuses).toEqual([
+      "Retrying 2/3 in 500ms",
+      "Compacting context: context window limit",
+    ]);
+    expect(sink.statusTransitions).toEqual([
+      "Thinking",
+      "Retrying 2/3 in 500ms",
+      "Thinking",
+      "Compacting context: context window limit",
+      "Retrying after compaction",
+    ]);
+  });
 });

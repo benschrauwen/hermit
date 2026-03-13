@@ -3,7 +3,7 @@ import path from "node:path";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 
-import { runDoctor } from "../src/doctor.js";
+import { printDoctorContext, runDoctor } from "../src/doctor.js";
 import { loadRole } from "../src/roles.js";
 import { ensureWorkspaceScaffold } from "../src/workspace.js";
 import { seedRoleWorkspace, writeSharedEntityRecord } from "./test-helpers.js";
@@ -177,6 +177,24 @@ role_directories:
       const logged = consoleSpy.log.mock.calls.map((c) => c[0] as string);
       expect(result).toBe(false);
       expect(logged.some((m) => m.includes("Role manifest ID mismatch for agents/role-a/role.md"))).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("can print a prompt context breakdown for the selected role", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "doctor-context-"));
+
+    try {
+      seedRoleWorkspace(root, ["role-a"]);
+      const role = await loadRole(root, "role-a");
+      await ensureWorkspaceScaffold(root, role);
+      await printDoctorContext(root, "role-a");
+
+      const logged = consoleSpy.log.mock.calls.map((c) => c[0] as string);
+      expect(logged.some((line) => line.includes("context: total rendered chars"))).toBe(true);
+      expect(logged.some((line) => line.includes("prompts/00-environment.md"))).toBe(true);
+      expect(logged.some((line) => line.includes("agents/role-a/AGENTS.md"))).toBe(true);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

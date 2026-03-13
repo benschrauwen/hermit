@@ -91,6 +91,7 @@ function createInteractiveSession(
       roleEntityCounts: {},
     },
     activeRoleLabel,
+    modelLabel: "anthropic/claude-sonnet-4-6",
     consumeRoleSwitchRequest: () => pendingRequests.shift(),
   };
 }
@@ -138,6 +139,7 @@ describe("runChatLoop role switching", () => {
     expect(onRoleSwitch).toHaveBeenCalledTimes(1);
     expect(initialPrompts).toEqual(["Resume the intake workflow."]);
     expect(switchedPrompts).toEqual([]);
+    expect(stdoutWriteSpy).toHaveBeenCalledWith("\x1b[90mUsing model anthropic/claude-sonnet-4-6.\x1b[0m\n");
   });
 
   it("swaps roles without prompting the new session in TUI mode", async () => {
@@ -161,6 +163,9 @@ describe("runChatLoop role switching", () => {
     expect(initialPrompts).toEqual(["Pick up where we left off."]);
     expect(switchedPrompts).toEqual([]);
     expect(MockChatTui.instances).toHaveLength(1);
-    expect(MockChatTui.instances[0]?.notices).toContain("Switched active role to personal-assistant.");
+    expect(MockChatTui.instances[0]?.notices).toContain("Using model anthropic/claude-sonnet-4-6.");
+    expect(MockChatTui.instances[0]?.notices).toContain(
+      "Switched active role to personal-assistant using anthropic/claude-sonnet-4-6.",
+    );
   });
 });

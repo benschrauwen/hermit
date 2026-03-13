@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
+import { getProviderAwareModelDiagnostics } from "./model-auth.js";
 import { SHARED_ROOT_DIRECTORIES } from "./constants.js";
 import { PromptLibrary } from "./prompt-library.js";
 import { loadRole, validateRoleManifest } from "./roles.js";
@@ -252,8 +253,8 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
   }
 
   if (!role) {
-    if (!process.env.OPENAI_API_KEY) {
-      addGeneralFinding(findings, "warning", "OPENAI_API_KEY is not set. Agent prompts will not run.");
+    for (const diagnostic of getProviderAwareModelDiagnostics()) {
+      addGeneralFinding(findings, diagnostic.level, diagnostic.message);
     }
     printFindings(root, findings);
     return false;
@@ -340,8 +341,8 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
     }
   }
 
-  if (!process.env.OPENAI_API_KEY) {
-    addGeneralFinding(findings, "warning", "OPENAI_API_KEY is not set. Agent prompts will not run.");
+  for (const diagnostic of getProviderAwareModelDiagnostics()) {
+    addGeneralFinding(findings, diagnostic.level, diagnostic.message);
   }
 
   if (findings.length === 0) {
@@ -351,4 +352,23 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
 
   printFindings(root, findings);
   return findings.every((finding) => finding.level !== "error");
+}
+
+export async function printDoctorContext(root: string, roleId: string): Promise<void> {
+  const role = await loadRole(root, roleId);
+  const promptLibrary = await PromptLibrary.load(role);
+  const breakdown = await promptLibrary.getSystemPromptBreakdown(
+    {
+      workspaceRoot: root,
+      roleId: role.id,
+      roleRoot: path.relative(root, role.roleDir) || ".",
+    },
+    [],
+  );
+  const totalChars = breakdown.reduce((sum, part) => sum + part.renderedChars, 0);
+
+  console.log(`context: total rendered chars ${totalChars}`);
+  for (const part of breakdown) {
+    console.log(`context: ${part.kind} ${part.sourcePath} (${part.renderedChars} chars)`);
+  }
 }

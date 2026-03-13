@@ -160,6 +160,9 @@ export interface TelemetryReport {
   };
   summary: {
     sessionCount: number;
+    successfulSessionCount: number;
+    abortedSessionCount: number;
+    failedSessionCount: number;
     turnCount: number;
     toolCallCount: number;
     toolErrorCount: number;

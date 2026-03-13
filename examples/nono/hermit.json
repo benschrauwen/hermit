@@ -16,9 +16,17 @@
   },
   "network": {
     "network_profile": "developer",
-    "proxy_allow": ["skills.sh", "clawhub.ai"]
-  },
-  "secrets": {
-    "openai_api_key": "OPENAI_API_KEY"
+    "proxy_allow": [
+      "skills.sh",
+      "clawhub.ai",
+      "api.openai.com",
+      "api.anthropic.com",
+      "generativelanguage.googleapis.com",
+      "openrouter.ai",
+      "api.groq.com",
+      "api.x.ai",
+      "api.mistral.ai",
+      "api.cerebras.ai"
+    ]
   }
 }
