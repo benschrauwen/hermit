@@ -179,6 +179,12 @@ describe("formatUserPromptEcho", () => {
       "\n\x1b[1m\x1b[95m- sales >>\x1b[0m \x1b[95mInspect the top 3 deals.\x1b[0m\n\n",
     );
   });
+
+  it("formats multiline prompts as a block under the active role label", () => {
+    expect(formatUserPromptEcho("Line one\nLine two", "sales")).toBe(
+      "\n\x1b[1m\x1b[95m- sales >>\x1b[0m\n\x1b[95mLine one\x1b[0m\n\x1b[95mLine two\x1b[0m\n\n",
+    );
+  });
 });
 
 describe("formatActivityStatus", () => {

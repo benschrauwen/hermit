@@ -10,10 +10,13 @@ const STATUS_SPINNER_INTERVAL_MS = 80;
 const MAX_STATUS_TEXT_LENGTH = 96;
 const STATUS_PREFIX_LENGTH = 2; // spinner char + space
 
+type AgentSessionEvent = Parameters<Parameters<AgentSession["subscribe"]>[0]>[0];
+
 function getMaxStatusTextLength(): number {
   const columns = typeof process.stdout.columns === "number" ? process.stdout.columns : 80;
   return Math.max(10, Math.min(MAX_STATUS_TEXT_LENGTH, columns - STATUS_PREFIX_LENGTH));
 }
+
 const ANSI_BOLD = "\x1b[1m";
 const ANSI_DIM = "\x1b[90m";
 const ANSI_ITALIC = "\x1b[3m";
@@ -27,12 +30,28 @@ interface TerminalRenderState {
   pendingLine: string;
 }
 
+export interface SessionOutputSink {
+  appendText(text: string): void;
+  appendToolStatus(text: string): void;
+  showStatus(text: string): void;
+  clearStatus(): void;
+  dispose?(): void;
+}
+
 export function formatEntryDesignator(activeRoleLabel: string): string {
   return `${ANSI_BOLD}${ANSI_BRIGHT_MAGENTA}- ${activeRoleLabel} >>${ANSI_RESET}`;
 }
 
 export function formatUserPromptEcho(prompt: string, activeRoleLabel: string): string {
-  return `\n${formatEntryDesignator(activeRoleLabel)} ${ANSI_BRIGHT_MAGENTA}${prompt}${ANSI_RESET}\n\n`;
+  const normalizedPrompt = prompt.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const lines = normalizedPrompt.split("\n");
+
+  if (lines.length <= 1) {
+    return `\n${formatEntryDesignator(activeRoleLabel)} ${ANSI_BRIGHT_MAGENTA}${normalizedPrompt}${ANSI_RESET}\n\n`;
+  }
+
+  const renderedLines = lines.map((line) => `${ANSI_BRIGHT_MAGENTA}${line}${ANSI_RESET}`).join("\n");
+  return `\n${formatEntryDesignator(activeRoleLabel)}\n${renderedLines}\n\n`;
 }
 
 function normalizeInlineText(value: string): string {
@@ -277,158 +296,78 @@ export function formatActivityStatus(toolName: string | undefined, args?: unknow
   }
 }
 
-export function attachConsoleStreaming(session: AgentSession, telemetry?: TelemetryRecorder): () => void {
+function resetAssistantRenderState(state: TerminalRenderState): void {
+  state.inCodeBlock = false;
+  state.pendingLine = "";
+}
+
+function flushAssistantLines(sink: SessionOutputSink, state: TerminalRenderState, force = false): void {
+  while (true) {
+    const newlineIndex = state.pendingLine.indexOf("\n");
+    if (newlineIndex === -1) {
+      break;
+    }
+
+    const line = state.pendingLine.slice(0, newlineIndex);
+    state.pendingLine = state.pendingLine.slice(newlineIndex + 1);
+    sink.appendText(`${renderTerminalMarkdownLine(line, state)}\n`);
+  }
+
+  if (force && state.pendingLine) {
+    sink.appendText(`${renderTerminalMarkdownLine(state.pendingLine, state)}\n`);
+    state.pendingLine = "";
+  }
+}
+
+export function createSessionStreamHandler(
+  sink: SessionOutputSink,
+  telemetry?: TelemetryRecorder,
+): (event: AgentSessionEvent) => void {
   let lastToolName: string | undefined;
   let assistantPrintedText = false;
-  let cursorAtLineStart = true;
-  let statusVisible = false;
-  let statusText = "Thinking";
-  let spinnerTimer: NodeJS.Timeout | undefined;
-  let spinnerFrame = 0;
   const renderState: TerminalRenderState = { inCodeBlock: false, pendingLine: "" };
 
-  function writeToConsole(text: string): void {
-    if (!text) {
-      return;
-    }
-
-    process.stdout.write(text);
-    cursorAtLineStart = text.endsWith("\n");
-  }
-
-  function stopSpinner(): void {
-    if (spinnerTimer) {
-      clearInterval(spinnerTimer);
-      spinnerTimer = undefined;
-    }
-  }
-
-  function renderStatus(): void {
-    const frame = STATUS_SPINNER_FRAMES[spinnerFrame % STATUS_SPINNER_FRAMES.length];
-    spinnerFrame += 1;
-
-    if (!statusVisible && !cursorAtLineStart) {
-      writeToConsole("\n");
-    }
-
-    writeToConsole(`\r\x1b[2K${ANSI_DIM}${frame} ${statusText || "Thinking"}${ANSI_RESET}`);
-    statusVisible = true;
-    cursorAtLineStart = false;
-  }
-
-  function showStatus(nextStatus = "Thinking"): void {
-    const maxLen = getMaxStatusTextLength();
-    statusText = truncateInlineText(normalizeInlineText(nextStatus || "Thinking"), maxLen) || "Thinking";
-    renderStatus();
-
-    if (!spinnerTimer) {
-      spinnerTimer = setInterval(renderStatus, STATUS_SPINNER_INTERVAL_MS);
-    }
-  }
-
-  function clearStatus(writeNewline = false): void {
-    stopSpinner();
-
-    if (!statusVisible) {
-      if (writeNewline && !cursorAtLineStart) {
-        writeToConsole("\n");
-      }
-      return;
-    }
-
-    writeToConsole("\r\x1b[2K");
-    statusVisible = false;
-    cursorAtLineStart = true;
-
-    if (writeNewline) {
-      writeToConsole("\n");
-    }
-  }
-
-  function printToolTombstone(text: string): void {
-    clearStatus();
-
-    if (!cursorAtLineStart) {
-      writeToConsole("\n");
-    }
-
-    const maxLen = getMaxStatusTextLength();
-    const oneLine = truncateInlineText(text, maxLen);
-    writeToConsole(`${ANSI_DIM}${oneLine}${ANSI_RESET}\n`);
-  }
-
-  function resetAssistantRenderState(): void {
-    renderState.inCodeBlock = false;
-    renderState.pendingLine = "";
-  }
-
-  function flushAssistantLines(force = false): void {
-    while (true) {
-      const newlineIndex = renderState.pendingLine.indexOf("\n");
-      if (newlineIndex === -1) {
-        break;
-      }
-
-      const line = renderState.pendingLine.slice(0, newlineIndex);
-      renderState.pendingLine = renderState.pendingLine.slice(newlineIndex + 1);
-      writeToConsole(`${renderTerminalMarkdownLine(line, renderState)}\n`);
-    }
-
-    if (force && renderState.pendingLine) {
-      writeToConsole(`${renderTerminalMarkdownLine(renderState.pendingLine, renderState)}\n`);
-      renderState.pendingLine = "";
-    }
-  }
-
-  function writeAssistantDelta(text: string): void {
-    renderState.pendingLine += normalizeAssistantText(text);
-    flushAssistantLines();
-  }
-
-  function finishAssistantOutput(): void {
-    flushAssistantLines(true);
-  }
-
-  return session.subscribe((event) => {
+  return (event) => {
     telemetry?.handleEvent(event);
 
     if (event.type === "message_start" && event.message.role === "assistant") {
-      resetAssistantRenderState();
-      showStatus("Thinking");
+      assistantPrintedText = false;
+      lastToolName = undefined;
+      resetAssistantRenderState(renderState);
+      sink.showStatus("Thinking");
       return;
     }
 
     if (event.type === "message_update" && event.assistantMessageEvent.type === "thinking_start") {
-      showStatus("Thinking");
+      sink.showStatus("Thinking");
       return;
     }
 
     if (event.type === "message_update" && event.assistantMessageEvent.type === "thinking_delta") {
-      if (!statusVisible) {
-        showStatus("Thinking");
-      }
+      sink.showStatus("Thinking");
       return;
     }
 
     if (event.type === "message_update" && event.assistantMessageEvent.type === "text_delta") {
       assistantPrintedText = true;
-      clearStatus();
-      writeAssistantDelta(event.assistantMessageEvent.delta);
+      sink.clearStatus();
+      renderState.pendingLine += normalizeAssistantText(event.assistantMessageEvent.delta);
+      flushAssistantLines(sink, renderState);
       return;
     }
 
     if (event.type === "tool_execution_start") {
-      flushAssistantLines(true);
+      flushAssistantLines(sink, renderState, true);
       lastToolName = event.toolName;
       const toolStatus = formatActivityStatus(event.toolName, event.args);
-      printToolTombstone(toolStatus);
-      showStatus(toolStatus);
+      sink.appendToolStatus(toolStatus);
+      sink.showStatus(toolStatus);
       return;
     }
 
     if (event.type === "tool_execution_end" && lastToolName === event.toolName) {
       lastToolName = undefined;
-      showStatus("Thinking");
+      sink.showStatus("Thinking");
       return;
     }
 
@@ -438,26 +377,113 @@ export function attachConsoleStreaming(session: AgentSession, telemetry?: Teleme
           ? event.message.errorMessage
           : undefined;
 
+      sink.clearStatus();
+
       if (!assistantPrintedText && errorMessage) {
-        clearStatus();
-        writeToConsole(`Assistant error: ${errorMessage}\n`);
-      } else {
-        clearStatus(assistantPrintedText || statusVisible);
-        if (assistantPrintedText) {
-          finishAssistantOutput();
-        }
+        sink.appendText(`Assistant error: ${errorMessage}\n`);
+      } else if (assistantPrintedText) {
+        flushAssistantLines(sink, renderState, true);
       }
 
       assistantPrintedText = false;
       lastToolName = undefined;
-      resetAssistantRenderState();
+      resetAssistantRenderState(renderState);
       return;
     }
 
     if (event.type === "message_end" && event.message.role === "user") {
       assistantPrintedText = false;
       lastToolName = undefined;
-      resetAssistantRenderState();
+      resetAssistantRenderState(renderState);
     }
-  });
+  };
+}
+
+class ConsoleSessionSink implements SessionOutputSink {
+  private cursorAtLineStart = true;
+  private statusVisible = false;
+  private statusText = "Thinking";
+  private spinnerTimer: NodeJS.Timeout | undefined;
+  private spinnerFrame = 0;
+
+  appendText(text: string): void {
+    this.clearStatus();
+    this.writeToConsole(text);
+  }
+
+  appendToolStatus(text: string): void {
+    this.clearStatus();
+
+    if (!this.cursorAtLineStart) {
+      this.writeToConsole("\n");
+    }
+
+    const maxLen = getMaxStatusTextLength();
+    const oneLine = truncateInlineText(text, maxLen);
+    this.writeToConsole(`${ANSI_DIM}${oneLine}${ANSI_RESET}\n`);
+  }
+
+  showStatus(nextStatus: string): void {
+    const maxLen = getMaxStatusTextLength();
+    this.statusText = truncateInlineText(normalizeInlineText(nextStatus || "Thinking"), maxLen) || "Thinking";
+    this.renderStatus();
+
+    if (!this.spinnerTimer) {
+      this.spinnerTimer = setInterval(() => this.renderStatus(), STATUS_SPINNER_INTERVAL_MS);
+    }
+  }
+
+  clearStatus(): void {
+    this.stopSpinner();
+
+    if (!this.statusVisible) {
+      return;
+    }
+
+    this.writeToConsole("\r\x1b[2K");
+    this.statusVisible = false;
+    this.cursorAtLineStart = true;
+  }
+
+  dispose(): void {
+    this.clearStatus();
+  }
+
+  private writeToConsole(text: string): void {
+    if (!text) {
+      return;
+    }
+
+    process.stdout.write(text);
+    this.cursorAtLineStart = text.endsWith("\n");
+  }
+
+  private stopSpinner(): void {
+    if (this.spinnerTimer) {
+      clearInterval(this.spinnerTimer);
+      this.spinnerTimer = undefined;
+    }
+  }
+
+  private renderStatus(): void {
+    const frame = STATUS_SPINNER_FRAMES[this.spinnerFrame % STATUS_SPINNER_FRAMES.length];
+    this.spinnerFrame += 1;
+
+    if (!this.statusVisible && !this.cursorAtLineStart) {
+      this.writeToConsole("\n");
+    }
+
+    this.writeToConsole(`\r\x1b[2K${ANSI_DIM}${frame} ${this.statusText || "Thinking"}${ANSI_RESET}`);
+    this.statusVisible = true;
+    this.cursorAtLineStart = false;
+  }
+}
+
+export function attachConsoleStreaming(session: AgentSession, telemetry?: TelemetryRecorder): () => void {
+  const sink = new ConsoleSessionSink();
+  const unsubscribe = session.subscribe(createSessionStreamHandler(sink, telemetry));
+  return () => {
+    unsubscribe();
+    sink.dispose();
+  };
 }

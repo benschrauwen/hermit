@@ -4,6 +4,7 @@ import readline from "node:readline/promises";
 import type { AgentSession } from "@mariozechner/pi-coding-agent";
 
 import { HERMIT_ROLE_ID } from "./constants.js";
+import { ChatTui, attachChatTuiStreaming } from "./session-chat-ui.js";
 import { loadImageAttachments } from "./session-attachments.js";
 import { attachConsoleStreaming, formatEntryDesignator, formatUserPromptEcho } from "./session-terminal.js";
 import type { InteractiveChatSession, RoleSwitchRequest } from "./session-types.js";
@@ -39,6 +40,31 @@ export async function runChatLoop(
     onRoleSwitch?: (request: RoleSwitchRequest, previousRoleLabel: string) => Promise<InteractiveChatSession>;
   },
 ): Promise<void> {
+  if (process.stdin.isTTY && process.stdout.isTTY) {
+    await runTuiChatLoop(options);
+    return;
+  }
+
+  await runReadlineChatLoop(options);
+}
+
+function normalizeChatInput(input: string): string {
+  return input.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
+function isExitCommand(input: string): boolean {
+  const command = input.trim();
+  return command === "/exit" || command === "/quit";
+}
+
+async function runReadlineChatLoop(
+  options: {
+    initialSession: InteractiveChatSession;
+    initialPrompt?: string;
+    initialImages?: string[];
+    onRoleSwitch?: (request: RoleSwitchRequest, previousRoleLabel: string) => Promise<InteractiveChatSession>;
+  },
+): Promise<void> {
   let activeSession = options.initialSession;
   let stopStreaming = attachConsoleStreaming(activeSession.session, activeSession.telemetry);
   const rl = readline.createInterface({
@@ -61,14 +87,17 @@ export async function runChatLoop(
         throw new Error("Too many role switches were requested in a single turn.");
       }
 
+      if (request.roleId === activeSession.activeRoleLabel) {
+        process.stdout.write(`${ANSI_DIM}Ignored redundant role switch to ${activeSession.activeRoleLabel}.${ANSI_RESET}\n`);
+        return;
+      }
+
       const previousRoleLabel = activeSession.activeRoleLabel;
       stopStreaming();
       activeSession = await options.onRoleSwitch(request, previousRoleLabel);
       stopStreaming = attachConsoleStreaming(activeSession.session, activeSession.telemetry);
       process.stdout.write(`${ANSI_DIM}Switched active role to ${activeSession.activeRoleLabel}.${ANSI_RESET}\n`);
-      await activeSession.session.prompt(
-        `The active chat role was switched from ${previousRoleLabel} to ${activeSession.activeRoleLabel}. Briefly acknowledge the switch, adopt the new role immediately, and continue the conversation without asking the user to repeat prior context.`,
-      );
+      return;
     }
   }
 
@@ -85,13 +114,13 @@ export async function runChatLoop(
     }
 
     while (true) {
-      const input = (await rl.question(`\n${formatEntryDesignator(activeSession.activeRoleLabel)} `)).trim();
+      const input = normalizeChatInput(await rl.question(`\n${formatEntryDesignator(activeSession.activeRoleLabel)} `));
       process.stdout.write(ANSI_RESET);
-      if (!input) {
+      if (!input.trim()) {
         continue;
       }
 
-      if (input === "/exit" || input === "/quit") {
+      if (isExitCommand(input)) {
         break;
       }
 
@@ -100,5 +129,90 @@ export async function runChatLoop(
   } finally {
     stopStreaming();
     rl.close();
+  }
+}
+
+async function runTuiChatLoop(
+  options: {
+    initialSession: InteractiveChatSession;
+    initialPrompt?: string;
+    initialImages?: string[];
+    onRoleSwitch?: (request: RoleSwitchRequest, previousRoleLabel: string) => Promise<InteractiveChatSession>;
+  },
+): Promise<void> {
+  let activeSession = options.initialSession;
+  const chatUi = new ChatTui(activeSession.activeRoleLabel);
+  let stopStreaming = attachChatTuiStreaming(activeSession.session, chatUi, activeSession.telemetry);
+  chatUi.setInterruptHandler(async () => {
+    await activeSession.session.abort();
+  });
+
+  async function switchRolesIfRequested(): Promise<void> {
+    let switchCount = 0;
+    while (true) {
+      const request = activeSession.consumeRoleSwitchRequest();
+      if (!request) {
+        return;
+      }
+      if (!options.onRoleSwitch) {
+        return;
+      }
+      switchCount += 1;
+      if (switchCount > 5) {
+        throw new Error("Too many role switches were requested in a single turn.");
+      }
+
+      if (request.roleId === activeSession.activeRoleLabel) {
+        chatUi.appendSystemNotice(`Ignored redundant role switch to ${activeSession.activeRoleLabel}.`);
+        return;
+      }
+
+      const previousRoleLabel = activeSession.activeRoleLabel;
+      stopStreaming();
+      activeSession = await options.onRoleSwitch(request, previousRoleLabel);
+      chatUi.setActiveRoleLabel(activeSession.activeRoleLabel);
+      chatUi.setInterruptHandler(async () => {
+        await activeSession.session.abort();
+      });
+      stopStreaming = attachChatTuiStreaming(activeSession.session, chatUi, activeSession.telemetry);
+      chatUi.appendSystemNotice(`Switched active role to ${activeSession.activeRoleLabel}.`);
+      return;
+    }
+  }
+
+  async function promptActiveSession(prompt: string, imagePaths: string[] = []): Promise<void> {
+    await activeSession.session.prompt(prompt, {
+      images: await loadImageAttachments(imagePaths),
+    });
+    await switchRolesIfRequested();
+  }
+
+  try {
+    if (options.initialPrompt) {
+      await promptActiveSession(options.initialPrompt, options.initialImages ?? []);
+      if (chatUi.consumeExitRequest()) {
+        return;
+      }
+    }
+
+    while (true) {
+      const input = normalizeChatInput(await chatUi.readInput());
+      if (!input.trim()) {
+        continue;
+      }
+
+      if (isExitCommand(input)) {
+        break;
+      }
+
+      chatUi.appendUserPrompt(input);
+      await promptActiveSession(input);
+      if (chatUi.consumeExitRequest()) {
+        break;
+      }
+    }
+  } finally {
+    stopStreaming();
+    await chatUi.close();
   }
 }
