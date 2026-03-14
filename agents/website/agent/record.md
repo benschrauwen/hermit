@@ -4,7 +4,7 @@ type: agent
 name: Hermit Website Lead Agent
 status: active
 owner: Hermit Website Lead
-updated_at: 2026-03-13T14:08:30Z
+updated_at: 2026-03-13T16:25:17.500Z
 last_strategic_review: 2026-03-13
 source_refs:
   - bootstrap conversation on 2026-03-13
@@ -31,7 +31,7 @@ Own Hermit's public-facing website as a file-first product surface built on the 
 ## Next Actions
 
 - Recommend Vercel as the first hosting target and capture the decision on disk after user confirmation.
-- Turn one existing homepage review artifact into the first public proof section instead of treating proof as an open question.
+- Carry the chosen homepage proof section into the renderer and copy using the repo walkthrough outlined in `.hermit/review/homepage-body-proof.txt`.
 - Do one final pre-launch review of the live site after the hosting target and proof section are locked.
 
 ## Waiting For

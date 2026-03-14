@@ -11,7 +11,7 @@ primary_cta_label: Get started
 primary_cta_href: /getting-started
 secondary_cta_label: See inside Hermit
 secondary_cta_href: /inside
-updated_at: 2026-03-13T09:02:00.000Z
+updated_at: 2026-03-13T16:25:17.500Z
 source_refs:
   - README.md
   - docs/architecture.md
@@ -20,6 +20,7 @@ source_refs:
   - user request on 2026-03-13 to make the homepage public-facing and expose internal state
   - live homepage review on 2026-03-13
   - live mobile review on 2026-03-13
+  - .hermit/review/homepage-body-proof.txt
 ---
 
 ## Site Strategy
@@ -34,7 +35,7 @@ At the same time, the site should visibly demonstrate Hermit's file-first model.
 
 - Keep the public pages clean while routing deeper process detail into `/inside` and the entity views.
 - Choose the first hosting target and verify the production deployment path.
-- Decide whether the homepage should also show one screenshot-backed proof artifact.
+- Turn the homepage proof section into a concrete walkthrough of this repo's website bootstrap, based on `.hermit/review/homepage-body-proof.txt`.
 - Do one final pre-launch review of the live site after deployment configuration is chosen.
 
 ## Evidence And Proof
@@ -43,8 +44,8 @@ At the same time, the site should visibly demonstrate Hermit's file-first model.
 - Page and capability records can drive public content and navigation.
 - Agent records expose next actions, waiting-for items, and strategic observations in inspectable files.
 - The explorer already renders workspace entities and agent operating records from the same repo.
+- The first public proof section should walk through this repo's own website bootstrap: the website role under `agents/website/`, the canonical records under `entities/`, and the inspectable `/inside` route.
 
 ## Open Questions
 
-- Which proof artifacts or example workspaces should become the strongest public showcase.
 - How much of the internal process should be highlighted on the homepage versus on the dedicated inside view.
