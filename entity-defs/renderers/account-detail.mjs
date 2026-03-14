@@ -88,11 +88,13 @@ async function findRelatedDeals(root, accountId) {
         }
         if (fm.account_id === accountId) {
           const rawClose = fm.close_date || "";
+          const rawValue = fm.value || "";
           deals.push({
             id: fm.id || entry.name,
             name: fm.name || entry.name,
             stage: fm.stage || "",
-            value: formatValue(fm.value || ""),
+            value: formatValue(rawValue),
+            rawValue: rawValue,
             close_date: formatDate(rawClose) || rawClose,
             owner: fm.owner || "",
             probability: fm.probability || "",
@@ -123,7 +125,7 @@ export default async function renderEntityDetail(context) {
   const openDeals = deals.filter(d => !d.stage.startsWith("closed-"));
   const closedDeals = deals.filter(d => d.stage.startsWith("closed-"));
   const totalOpenValue = openDeals.reduce((sum, d) => {
-    const num = parseFloat(d.value.replace(/[$,]/g, ""));
+    const num = parseFloat((d.rawValue || "").replace(/[$,]/g, ""));
     return sum + (isNaN(num) ? 0 : num);
   }, 0);
 
