@@ -17,7 +17,7 @@ const capabilityEntities = capabilityDef ? await scanEntitiesByDefinition(root, 
 const allPublicPages = await listPublicPages(root);
 const homePage = await getPublicPageBySlug("home", root);
 
-const publicPageOrder = ["getting-started", "architecture", "inside"];
+const publicPageOrder = ["getting-started", "architecture", "inside", "demo/sales-crm"];
 const publicPages = allPublicPages
   .filter((page) => page.slug && page.slug !== "home")
   .sort((left, right) => {
@@ -184,6 +184,21 @@ const homeProofBlocks = homePage?.blocks.filter((block) => block.relativePath.in
       </div>
     </section>
   )}
+
+  <section class="mb-10">
+    <div class="section-header">
+      <div>
+        <p class="section-kicker">Live demo</p>
+        <h2 class="section-title-large">See it in action</h2>
+      </div>
+    </div>
+    <a class="feature-card" href="/demo/sales-crm">
+      <span class="feature-tag">Demo</span>
+      <h3>Enterprise Sales CRM</h3>
+      <p>A full pipeline board, account table, and deal cards — all rendered from markdown files managed by a Sales Leader agent in this workspace.</p>
+      <p class="feature-meta">Accounts · Deals · Pipeline stages · Agent-managed records</p>
+    </a>
+  </section>
 
   {publicPages.length > 0 && (
     <section class="mb-10">
