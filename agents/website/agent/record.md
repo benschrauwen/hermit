@@ -4,8 +4,8 @@ type: agent
 name: Hermit Website Lead Agent
 status: active
 owner: Hermit Website Lead
-updated_at: 2026-03-13T16:25:17.500Z
-last_strategic_review: 2026-03-13
+updated_at: 2026-03-14T07:30:09.954Z
+last_strategic_review: 2026-03-14
 source_refs:
   - bootstrap conversation on 2026-03-13
   - live homepage review on 2026-03-13
@@ -16,6 +16,9 @@ source_refs:
   - explorer build validation on 2026-03-13
   - Astro deploy docs and Playwright/Lighthouse guidance reviewed on 2026-03-13
   - .hermit/telemetry/reports/report-24h-2026-03-13-2026-03-13T14-07-38-163Z.md
+  - daily strategic review on 2026-03-14
+  - npm run cli -- doctor --role website on 2026-03-14
+  - Playwright and Lighthouse CI docs reviewed on 2026-03-14
 ---
 
 ## Summary
@@ -24,12 +27,13 @@ Own Hermit's public-facing website as a file-first product surface built on the 
 
 ## Active Projects
 
-- Bootstrap the first public website structure for Hermit.
+- Ship the first hosted Hermit website release with the core public pages live, one inspectable proof walkthrough, and one final live review completed.
 - Evolve the explorer shell into a clearer hosted site experience.
-- Build a reusable capability catalog that can support homepage and future marketing pages.
+- Keep the capability catalog aligned with real product evidence and homepage copy.
 
 ## Next Actions
 
+- Capture the first hosted release bar in site planning and use it as the launch checklist for deployment and live review.
 - Recommend Vercel as the first hosting target and capture the decision on disk after user confirmation.
 - Carry the chosen homepage proof section into the renderer and copy using the repo walkthrough outlined in `.hermit/review/homepage-body-proof.txt`.
 - Do one final pre-launch review of the live site after the hosting target and proof section are locked.
@@ -48,6 +52,15 @@ Own Hermit's public-facing website as a file-first product surface built on the 
 - Add richer custom renderers for page types with distinct layouts.
 
 ## Strategic Observations
+
+### 2026-03-14
+
+- Goal clarity: the direction is still right, but the agent record was carrying broad setup themes longer than it should. The clearest current milestone is now a concrete first hosted release: homepage, getting-started, architecture, and inside pages live; one inspectable proof walkthrough linked from the homepage; and one final live review completed. No important competing goal surfaced, and nothing is yet stale by the 7-day threshold because the role is still new.
+- Effort alignment: the highest-leverage work remains deployment choice plus turning the homepage proof section into real public copy and rendering. The main drag is decision debt, not missing material: the site, page, and capability records already support the release, and `.hermit/review/homepage-body-proof.txt` already points to the strongest proof direction. Further broad framing work would now be lower leverage than shipping the first hosted release path.
+- Organizational fitness: one website role is still the right shape, and the current `site`, `page`, and `capability` entities are enough for launch. The structural gap remains public proof: the best evidence still lives under `.hermit/review/` rather than in a durable canonical shape. That should stay a user-review follow-up rather than an immediate entity-definition change.
+- Process and prompt quality: the operating system is healthy, but two friction patterns remain. First, review evidence and deployment findings still need stronger flow-back into canonical planning records. Second, bash-heavy ad hoc discovery is still brittle in this environment; even this review hit a GNU-specific `find -printf` failure. A process or prompt adjustment should be considered for user review so website audits and strategic reviews prefer the shared `entity-query` skill or another cross-platform inventory helper when listing records.
+- Telemetry and health: `npm run cli -- doctor --role website` passed today. The most recent telemetry report on disk still covers the 24h window ending 2026-03-13T14:07:38Z, so trend confidence remains low because there is only one report and it is not freshly generated during this review. Within that report, the main issues are still high silent turns (38.8%), elevated bash failures (21 errors, 13.1% error rate), and long-tail turn latency (49.3s p95, with several turns above 90s). Read, edit, and write look healthy enough; bash remains the main reliability problem and web search is predictably slow but low volume.
+- Research and skill gaps: current upstream guidance still supports a lightweight pre-launch QA stack built around `astro build`/`astro preview`, Playwright screenshot assertions for key routes, and Lighthouse CI budgets for regressions. Hermit has manual browser-review evidence already, but it still lacks a durable website-release QA workflow or skill. The strongest near-term improvement is not a new role; it is a repeatable release check that pairs visual diffs with a small performance budget.
 
 ### 2026-03-13
 
