@@ -17,7 +17,7 @@ const entityLookupParameters = Type.Object({
 });
 
 const webSearchParameters = Type.Object({
-  query: Type.String({ description: "Question or topic to search for on the web." }),
+  query: Type.String({ description: "Question, research brief, or complex external-information task to investigate on the web." }),
   allowedDomains: Type.Optional(
     Type.Array(Type.String({ description: "Optional allowed domain without protocol, for example openai.com." })),
   ),
@@ -352,10 +352,12 @@ export function createWebSearchTool(
   return {
     name: "web_search",
     label: "Web Search",
-    description: "Search the web for current external information using OpenAI or Anthropic web search.",
-    promptSnippet: "Use web_search when the task needs current external information that is not in the workspace.",
+    description: "Run a web-connected research subagent for current external information using OpenAI or Anthropic web search.",
+    promptSnippet: "Use web_search when the task needs current external information that is not in the workspace. It can take a full research question, not just keywords.",
     promptGuidelines: [
-      "Use web_search for recent facts, external documentation, or up-to-date API behavior.",
+      "Use web_search for recent facts, external documentation, up-to-date API behavior, or broader external research questions.",
+      "Treat web_search as a web-connected research worker, not a simple keyword lookup box: give it the full question, objective, and any useful constraints.",
+      "Complex web_search runs can take several minutes, so prefer background or heartbeat-friendly use when the answer is not needed immediately.",
       "web_search currently supports OpenAI and Anthropic credentials.",
       "If both are configured, Hermit prefers the provider pinned by ROLE_AGENT_MODEL when it is OpenAI or Anthropic.",
       "Prefer workspace files for canonical local truth, and use allowedDomains when a trusted source is known.",

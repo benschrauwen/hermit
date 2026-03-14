@@ -107,6 +107,18 @@ describe("createRoleSwitchTool", () => {
 });
 
 describe("createWebSearchTool", () => {
+  it("describes web search as full research support", () => {
+    const tool = createWebSearchTool();
+    expect(tool.description).toContain("research subagent");
+    expect(tool.promptSnippet).toContain("full research question");
+    expect(tool.promptGuidelines).toContain(
+      "Treat web_search as a web-connected research worker, not a simple keyword lookup box: give it the full question, objective, and any useful constraints.",
+    );
+    expect(tool.promptGuidelines).toContain(
+      "Complex web_search runs can take several minutes, so prefer background or heartbeat-friendly use when the answer is not needed immediately.",
+    );
+  });
+
   it("formats answer text and citations from the executor", async () => {
     const executor = vi.fn().mockResolvedValue({
       answer: "OpenAI supports web search through the Responses API.",
