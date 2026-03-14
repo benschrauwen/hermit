@@ -23,6 +23,7 @@ export {
   formatEntryDesignator,
   formatUserPromptEcho,
   renderTerminalMarkdown,
+  type StreamingHandle,
 } from "./session-terminal.js";
 
 export { runChatLoop, runOneShotPrompt } from "./session-loop.js";

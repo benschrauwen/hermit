@@ -429,13 +429,16 @@ export function createSessionStreamHandler(
           ? event.message.errorMessage
           : undefined;
 
-      sink.clearStatus();
-
       if (!assistantPrintedText && errorMessage) {
+        sink.clearStatus();
         sink.appendText(`Assistant error: ${errorMessage}\n`);
       } else if (assistantPrintedText) {
         flushAssistantLines(sink, renderState, true);
       }
+
+      // Keep spinner running — the session may continue with more turns.
+      // The caller clears status when the full prompt() resolves.
+      sink.showStatus("Thinking");
 
       assistantPrintedText = false;
       lastToolName = undefined;
@@ -531,11 +534,21 @@ class ConsoleSessionSink implements SessionOutputSink {
   }
 }
 
-export function attachConsoleStreaming(session: AgentSession, telemetry?: TelemetryRecorder): () => void {
+export interface StreamingHandle {
+  stop(): void;
+  clearStatus(): void;
+}
+
+export function attachConsoleStreaming(session: AgentSession, telemetry?: TelemetryRecorder): StreamingHandle {
   const sink = new ConsoleSessionSink();
   const unsubscribe = session.subscribe(createSessionStreamHandler(sink, telemetry));
-  return () => {
-    unsubscribe();
-    sink.dispose();
+  return {
+    stop() {
+      unsubscribe();
+      sink.dispose();
+    },
+    clearStatus() {
+      sink.clearStatus();
+    },
   };
 }

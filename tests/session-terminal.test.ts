@@ -74,7 +74,7 @@ describe("createSessionStreamHandler", () => {
       "read src/session.ts",
       "Thinking",
       undefined,
-      undefined,
+      "Thinking",
     ]);
   });
 
@@ -92,7 +92,7 @@ describe("createSessionStreamHandler", () => {
     } as never);
 
     expect(sink.appendedText).toEqual(["Assistant error: boom\n"]);
-    expect(sink.statusTransitions).toEqual(["Thinking", undefined]);
+    expect(sink.statusTransitions).toEqual(["Thinking", undefined, "Thinking"]);
   });
 
   it("surfaces retry and compaction lifecycle states", () => {
