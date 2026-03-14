@@ -1,6 +1,13 @@
-## Why this is different from ChatGPT or Cursor
+## How Hermit compares
 
-- **It doesn't just answer questions — it builds and runs things.** Hermit creates agents with real responsibilities, tracks their work in files, and improves itself automatically between sessions.
-- **Everything is inspectable.** No hidden database, no opaque backend. Open any file and see exactly what the system knows, what it's doing next, and why.
-- **It keeps working when you're not there.** Automated heartbeats review progress, surface stuck work, and advance the next action — every hour.
-- **It runs locally, in your repo.** Your data stays on your machine. Git is the change history. You own everything.
+| | **Lovable** | **OpenClaw** | **Hermit** |
+|---|---|---|---|
+| **What it builds** | Web apps from prompts | Multi-channel AI agents | A complete operating system: data, agents, workflows, and UI |
+| **Where it runs** | Their cloud | Self-hosted server | Your local machine, your repo |
+| **Data model** | Their database | Skills + adapters + config | Markdown files in git |
+| **AI role** | Generates and deploys code | Connects to channels and runs skills | Builds the whole system, then operates and improves it autonomously |
+| **After setup** | You maintain the app | You configure skills and channels | Hermit keeps working: heartbeats, reviews, strategic improvements |
+| **Inspectability** | View generated code | Logs and config files | Every file is readable, every change is a git commit |
+| **Security model** | SaaS trust | Self-hosted, sandbox per skill | Kernel-enforced sandbox, no network by default |
+
+Lovable is great for shipping a web app fast. OpenClaw is powerful for connecting agents to messaging channels and external tools. Hermit is for building a **durable working system** that keeps running, improving, and staying fully inspectable after the first conversation ends.

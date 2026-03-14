@@ -81,8 +81,9 @@ const capabilityCards = capabilityDef
     })
   : [];
 
-const homeNarrativeBlocks = homePage?.blocks.filter((block) => !block.relativePath.includes("proof")) ?? [];
+const homeNarrativeBlocks = homePage?.blocks.filter((block) => !block.relativePath.includes("proof") && !block.relativePath.includes("faq")) ?? [];
 const homeProofBlocks = homePage?.blocks.filter((block) => block.relativePath.includes("proof")) ?? [];
+const homeFaqBlocks = homePage?.blocks.filter((block) => block.relativePath.includes("faq")) ?? [];
 ---
 <BaseLayout title={siteTitle} description={siteDescription}>
   <!-- Hero -->
@@ -199,6 +200,23 @@ const homeProofBlocks = homePage?.blocks.filter((block) => block.relativePath.in
   {homeProofBlocks.length > 0 && (
     <section class="mb-10">
       {homeProofBlocks.map((block) => (
+        <section class="card detail-panel mb-6">
+          <div class="markdown-body" set:html={block.html} />
+        </section>
+      ))}
+    </section>
+  )}
+
+  <!-- FAQ -->
+  {homeFaqBlocks.length > 0 && (
+    <section class="mb-10">
+      <div class="section-header">
+        <div>
+          <p class="section-kicker">FAQ</p>
+          <h2 class="section-title-large">Common questions</h2>
+        </div>
+      </div>
+      {homeFaqBlocks.map((block) => (
         <section class="card detail-panel mb-6">
           <div class="markdown-body" set:html={block.html} />
         </section>
