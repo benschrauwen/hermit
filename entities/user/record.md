@@ -25,6 +25,7 @@ Single-user workspace for the Hermit project itself. The user wants a focused bu
 - Prefer complete-enough scaffolding instead of hollow placeholders.
 - Comfortable with technical product and implementation work.
 
+
 ## Working Style
 
 - Gives direct ownership and outcome-focused instructions.

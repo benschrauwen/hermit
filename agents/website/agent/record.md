@@ -27,6 +27,10 @@ source_refs:
 
 Own Hermit's public-facing website as a file-first product surface built on the Astro explorer and shared workspace records.
 
+## Standing Instructions
+
+- Always push only the `website` branch when pushing to GitHub.
+
 ## Active Projects
 
 - Stabilize and polish the first hosted Hermit website release now live at https://hermit-ai.com/.
