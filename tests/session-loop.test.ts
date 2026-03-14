@@ -32,6 +32,8 @@ const { questionMock, closeMock, tuiReadInputMock, MockChatTui } = vi.hoisted(()
 
     appendUserPrompt(): void {}
 
+    clearStatus(): void {}
+
     appendSystemNotice(text: string): void {
       this.notices.push(text);
     }
@@ -57,7 +59,7 @@ vi.mock("node:readline/promises", () => ({
 }));
 
 vi.mock("../src/session-terminal.js", () => ({
-  attachConsoleStreaming: () => () => {},
+  attachConsoleStreaming: () => ({ stop: () => {}, clearStatus: () => {} }),
   formatEntryDesignator: (activeRoleLabel: string) => `- ${activeRoleLabel} >>`,
   formatUserPromptEcho: (prompt: string, activeRoleLabel: string) => `${activeRoleLabel}:${prompt}`,
 }));

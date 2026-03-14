@@ -6,7 +6,7 @@ import type { AgentSession } from "@mariozechner/pi-coding-agent";
 import { HERMIT_ROLE_ID } from "./constants.js";
 import { ChatTui, attachChatTuiStreaming } from "./session-chat-ui.js";
 import { loadImageAttachments } from "./session-attachments.js";
-import { attachConsoleStreaming, formatEntryDesignator, formatUserPromptEcho } from "./session-terminal.js";
+import { attachConsoleStreaming, formatEntryDesignator, formatUserPromptEcho, type StreamingHandle } from "./session-terminal.js";
 import type { InteractiveChatSession, RoleSwitchRequest } from "./session-types.js";
 import type { TelemetryRecorder } from "./telemetry-recorder.js";
 
@@ -25,7 +25,7 @@ export async function runOneShotPrompt(
   activeRoleLabel = HERMIT_ROLE_ID,
   modelLabel?: string,
 ): Promise<void> {
-  const stopStreaming = attachConsoleStreaming(session, telemetry);
+  const streaming = attachConsoleStreaming(session, telemetry);
 
   try {
     if (modelLabel) {
@@ -36,7 +36,7 @@ export async function runOneShotPrompt(
       images: await loadImageAttachments(imagePaths),
     });
   } finally {
-    stopStreaming();
+    streaming.stop();
   }
 }
 
@@ -74,7 +74,7 @@ async function runReadlineChatLoop(
   },
 ): Promise<void> {
   let activeSession = options.initialSession;
-  let stopStreaming = attachConsoleStreaming(activeSession.session, activeSession.telemetry);
+  let streaming = attachConsoleStreaming(activeSession.session, activeSession.telemetry);
   process.stdout.write(formatModelNotice(activeSession.modelLabel));
   const rl = readline.createInterface({
     input: process.stdin,
@@ -102,9 +102,9 @@ async function runReadlineChatLoop(
       }
 
       const previousRoleLabel = activeSession.activeRoleLabel;
-      stopStreaming();
+      streaming.stop();
       activeSession = await options.onRoleSwitch(request, previousRoleLabel);
-      stopStreaming = attachConsoleStreaming(activeSession.session, activeSession.telemetry);
+      streaming = attachConsoleStreaming(activeSession.session, activeSession.telemetry);
       process.stdout.write(
         `${ANSI_DIM}Switched active role to ${activeSession.activeRoleLabel} using ${activeSession.modelLabel}.${ANSI_RESET}\n`,
       );
@@ -117,6 +117,7 @@ async function runReadlineChatLoop(
       images: await loadImageAttachments(imagePaths),
     });
     await switchRolesIfRequested();
+    streaming.clearStatus();
   }
 
   try {
@@ -138,7 +139,7 @@ async function runReadlineChatLoop(
       await promptActiveSession(input);
     }
   } finally {
-    stopStreaming();
+    streaming.stop();
     rl.close();
   }
 }
@@ -197,6 +198,7 @@ async function runTuiChatLoop(
       images: await loadImageAttachments(imagePaths),
     });
     await switchRolesIfRequested();
+    chatUi.clearStatus();
   }
 
   try {
