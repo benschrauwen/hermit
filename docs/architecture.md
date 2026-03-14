@@ -67,8 +67,8 @@ flowchart TD
 - `heartbeat` runs one persisted role-backed upkeep turn. Uses the same resolution as `ask`. Strategic review is selected when `--strategic-review` is passed or when `last_strategic_review` in `agent/record.md` is missing or older than 24 hours. The review behavior itself is prompt-driven; the runtime only selects which prompt to use.
 - `heartbeat-daemon` loops over all configured roles on a fixed interval, delegating a normal `heartbeat` run per role.
 - `ingest transcript` places a transcript into the matched entity's evidence directory (or the role's unmatched directory), then runs the role's ingest session. When the transcript is stored as unmatched, the ingest session does not run.
-- `telemetry report` aggregates local telemetry into Markdown and JSON reports.
-- `doctor` validates shared workspace structure plus the selected role contract.
+- `telemetry report` aggregates local telemetry into Markdown and JSON reports, including session outcome counts.
+- `doctor` validates shared workspace structure plus the selected role contract. `doctor --context` also prints the rendered system-prompt file breakdown and char counts for the selected role.
 
 ## Prompt Assembly
 
@@ -80,6 +80,8 @@ System prompt construction:
 4. For Hermit bootstrap chat only, append all `.md` files under `prompts/bootstrap/`.
 
 Role-local prompts are on-demand; they are loaded only when a session explicitly requests them.
+
+`PromptLibrary` can report the active prompt-part breakdown as source paths plus rendered char counts.
 
 ### Template placeholders
 
@@ -124,7 +126,15 @@ Every session gets standard coding tools. Custom tools by session type:
 - **Role interactive** (with role switching enabled): adds `switch_role`
 - **Hermit sessions**: `web_search`, plus `switch_role` when role switching is enabled
 
-Model: `ROLE_AGENT_MODEL` env var, fallback in `src/constants.ts`. Thinking level: `ROLE_AGENT_THINKING_LEVEL` env var, default `medium`.
+Model selection is provider-aware:
+
+- If `ROLE_AGENT_MODEL` is unset, Hermit auto-selects the best available configured model.
+- Preferred model comes from `ROLE_AGENT_MODEL` when explicitly set.
+- Optional fallback models come from `ROLE_AGENT_FALLBACK_MODELS`.
+- If explicit preferences do not resolve, Hermit falls back to the best available configured model it can use.
+- `web_search` currently supports OpenAI and Anthropic credentials. If both are configured, Hermit prefers the provider pinned by `ROLE_AGENT_MODEL` when that provider is OpenAI or Anthropic.
+
+Thinking level: `ROLE_AGENT_THINKING_LEVEL` env var, default `medium`.
 
 ## Entity and Workspace Mechanics
 
@@ -161,7 +171,8 @@ Pipeline:
 `chat`, `ask`, and `heartbeat` run inside `withGitCheckpoint()`. `heartbeat-daemon` does not checkpoint as one process; each delegated heartbeat has its own checkpoint wrapper.
 
 - Before the command: checkpoint if the repo is dirty.
-- After the command: checkpoint if the repo is dirty.
+- After the command: checkpoint if the repo is dirty and the command outcome policy allows it.
+- Command outcomes are tracked as `success`, `aborted`, or `failed` and recorded in checkpoint metadata and telemetry.
 - Dirty detection: `git status --porcelain=v1 --untracked-files=all`.
 - Checkpoints stage and commit the full changed file set, including untracked files.
 - No path allowlist. No automatic rollback.
@@ -179,7 +190,7 @@ Pipeline:
 - Missing frontmatter fields in entity records
 - Unresolved template placeholders and generic placeholder lines
 - Missing entity files declared by entity definitions
-- `OPENAI_API_KEY` presence (warning, not error)
+- Presence of at least one supported provider credential (warning, not error)
 
 Exits non-zero only when at least one `error`-level finding exists.
 

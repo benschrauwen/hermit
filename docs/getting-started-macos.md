@@ -18,7 +18,7 @@ By the end of this guide, you will have:
 - Installed Node.js, Git, and `nono`
 - Downloaded the Hermit repo
 - Installed Hermit's packages
-- Created an OpenAI API key
+- Created one provider API key
 - Saved that key into your Mac's Keychain
 - Started Hermit safely
 - Started `heartbeat-daemon` in a second Terminal tab
@@ -30,7 +30,7 @@ By the end of this guide, you will have:
 You need:
 
 - A Mac with internet access
-- An [OpenAI account](https://platform.openai.com/)
+- An account for at least one supported model provider
 - Enough permission on your Mac to install software
 
 ## 1. Open Terminal
@@ -144,45 +144,68 @@ The install may take 30 seconds or a few minutes. That is normal.
 
 When it is done, you should be back in the main `hermit` folder.
 
-## 7. Create an OpenAI API Key
+## 7. Create One Provider API Key
 
-Hermit needs an OpenAI API key so it can use the AI.
+Hermit needs one supported provider API key so it can use the AI.
 
-1. Open [OpenAI API Keys](https://platform.openai.com/api-keys) in your browser.
+The simplest options for most people are:
+
+- [OpenAI API Keys](https://platform.openai.com/api-keys)
+- [Anthropic Console](https://console.anthropic.com/)
+- [Google AI Studio](https://aistudio.google.com/)
+
+You only need one key to get started. Hermit will automatically pick the best model it can use from the key you provide.
+
+1. Open your provider's API key page in your browser.
 2. Sign in, or create an account if you do not have one yet.
-3. If OpenAI asks for billing setup, finish that first.
-4. Click `Create new secret key`.
-5. Give it a name and choose a project, and click `Create secret key`.
+3. If the provider asks for billing setup, finish that first.
+4. Create a new API key or secret key.
 5. Keep that browser tab open.
 
 Important:
 
-- The key usually starts with `sk-`
-- OpenAI may only show the full key once
+- Some providers only show the full key once
 - Do not share the key with anyone
 
-## 8. Save the OpenAI Key in Your Mac Keychain
+## 8. Save the Provider Key in Your Mac Keychain
 
-This is the recommended way to use Hermit. Your key stays in macOS Keychain and `nono` injects it into Hermit only when needed.
+This is the recommended way to use Hermit. Your key stays in macOS Keychain and Hermit loads it before entering the sandbox when needed.
 
-Do this in this order:
-
-1. Copy and paste this command into Terminal, then press `Return`:
+Choose the command that matches your provider, then paste it into Terminal and press `Return`:
 
 ```bash
-printf 'Paste your OpenAI key, then press Return: '; read -s OPENAI_KEY; echo; security add-generic-password -s "nono" -a "openai_api_key" -w "$OPENAI_KEY" -U; unset OPENAI_KEY
+printf 'Paste your OpenAI key, then press Return: '; read -s PROVIDER_KEY; echo; security add-generic-password -s "nono" -a "openai_api_key" -w "$PROVIDER_KEY" -U; unset PROVIDER_KEY
 ```
 
-2. Terminal will wait for your input.
-3. Go back to the OpenAI page and copy your key.
-4. Return to Terminal and paste the key.
-5. Press `Return`.
+```bash
+printf 'Paste your Anthropic key, then press Return: '; read -s PROVIDER_KEY; echo; security add-generic-password -s "nono" -a "anthropic_api_key" -w "$PROVIDER_KEY" -U; unset PROVIDER_KEY
+```
+
+```bash
+printf 'Paste your Google key, then press Return: '; read -s PROVIDER_KEY; echo; security add-generic-password -s "nono" -a "google_api_key" -w "$PROVIDER_KEY" -U; unset PROVIDER_KEY
+```
+
+You can also use these account names for other supported providers:
+
+- `gemini_api_key`
+- `openrouter_api_key`
+- `groq_api_key`
+- `xai_api_key`
+- `mistral_api_key`
+- `cerebras_api_key`
+
+Then:
+
+1. Terminal will wait for your input.
+2. Go back to your provider page and copy your key.
+3. Return to Terminal and paste the key.
+4. Press `Return`.
 
 What happens next:
 
 - Terminal asks for the key
 - Your pasted key is saved into your Mac Keychain
-- `nono` can then inject it into Hermit when needed
+- Hermit can then load it automatically when needed
 
 Important:
 
@@ -192,7 +215,7 @@ Important:
 If you would rather paste the key into the command manually, use this version instead and replace the placeholder text before pressing `Return`:
 
 ```bash
-security add-generic-password -s "nono" -a "openai_api_key" -w "PASTE_YOUR_OPENAI_KEY_HERE" -U
+security add-generic-password -s "nono" -a "anthropic_api_key" -w "PASTE_YOUR_PROVIDER_KEY_HERE" -U
 ```
 
 If the command succeeds, Terminal may print nothing at all. That is okay.
@@ -382,12 +405,12 @@ npm install
 
 Then try starting the explorer again.
 
-### Hermit says the OpenAI key is missing
+### Hermit says no provider key was found
 
-Save the key again:
+Save a supported provider key again. Example for Anthropic:
 
 ```bash
-printf 'Paste your OpenAI key, then press Return: '; read -s OPENAI_KEY; echo; security add-generic-password -s "nono" -a "openai_api_key" -w "$OPENAI_KEY" -U; unset OPENAI_KEY
+printf 'Paste your Anthropic key, then press Return: '; read -s PROVIDER_KEY; echo; security add-generic-password -s "nono" -a "anthropic_api_key" -w "$PROVIDER_KEY" -U; unset PROVIDER_KEY
 ```
 
 Then restart the Hermit command.

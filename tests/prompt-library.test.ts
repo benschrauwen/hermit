@@ -108,6 +108,7 @@ describe("PromptLibrary", () => {
       );
       expect(out).toContain("Preserve the transcript as raw evidence.");
     });
+
   });
 
   describe("renderRolePrompt", () => {
@@ -140,6 +141,23 @@ describe("PromptLibrary", () => {
       const links = lib.extractLinkedFiles();
       expect(links.length).toBeGreaterThan(0);
       expect(links).toContain("prompts/23-mode-transcript-ingest.md");
+    });
+  });
+
+  describe("getSystemPromptBreakdown", () => {
+    it("returns the prompt source files and rendered char counts", async () => {
+      const role = await loadRole(root, "role-a");
+      const lib = await PromptLibrary.load(role);
+      const breakdown = await lib.getSystemPromptBreakdown({
+        workspaceRoot: root,
+        roleId: "role-a",
+        roleRoot: "agents/role-a",
+      });
+
+      expect(breakdown.length).toBeGreaterThan(0);
+      expect(breakdown[0]?.renderedChars).toBeGreaterThan(0);
+      expect(breakdown.some((part) => part.sourcePath === "prompts/00-environment.md")).toBe(true);
+      expect(breakdown.some((part) => part.sourcePath === "agents/role-a/AGENTS.md")).toBe(true);
     });
   });
 });

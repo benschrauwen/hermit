@@ -1,8 +1,10 @@
+import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { Type, type Static, type TSchema } from "@sinclair/typebox";
-import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
+import { AuthStorage, type ToolDefinition } from "@mariozechner/pi-coding-agent";
 
 import { HERMIT_ROLE_ID } from "./constants.js";
+import { parseModelReference } from "./model-auth.js";
 import { getArray, getString, isRecord } from "./type-guards.js";
 import { isHermitRoleId, loadRole, normalizeRoleId } from "./roles.js";
 import { createRoleEntityRecord, scanEntities } from "./workspace.js";
@@ -48,6 +50,11 @@ interface WebSearchResult {
 }
 
 export type WebSearchExecutor = (params: WebSearchToolParams) => Promise<WebSearchResult>;
+
+async function getConfiguredProviderApiKey(provider: string): Promise<string | undefined> {
+  const authStorage = AuthStorage.create();
+  return authStorage.getApiKey(provider);
+}
 
 function buildRoleFieldSchema(field: RoleFieldDefinition): TSchema {
   if (field.type === "string-array") {
@@ -124,6 +131,56 @@ function extractWebSearchCitations(response: unknown): WebSearchCitation[] {
   return citations;
 }
 
+function extractAnthropicWebSearchText(response: unknown): string {
+  const record = asRecord(response);
+  const parts: string[] = [];
+
+  for (const content of getArray(record?.content) ?? []) {
+    const contentRecord = asRecord(content);
+    if (getString(contentRecord?.type) !== "text") {
+      continue;
+    }
+
+    const text = getString(contentRecord?.text);
+    if (text) {
+      parts.push(text);
+    }
+  }
+
+  return parts.join("\n\n").trim();
+}
+
+function extractAnthropicWebSearchCitations(response: unknown): WebSearchCitation[] {
+  const record = asRecord(response);
+  const citations: WebSearchCitation[] = [];
+  const seenUrls = new Set<string>();
+
+  for (const content of getArray(record?.content) ?? []) {
+    const contentRecord = asRecord(content);
+    if (getString(contentRecord?.type) !== "text") {
+      continue;
+    }
+
+    for (const citation of getArray(contentRecord?.citations) ?? []) {
+      const citationRecord = asRecord(citation);
+      if (getString(citationRecord?.type) !== "web_search_result_location") {
+        continue;
+      }
+
+      const url = getString(citationRecord?.url);
+      if (!url || seenUrls.has(url)) {
+        continue;
+      }
+
+      seenUrls.add(url);
+      const title = getString(citationRecord?.title);
+      citations.push(title ? { url, title } : { url });
+    }
+  }
+
+  return citations;
+}
+
 function formatWebSearchResult(result: WebSearchResult): string {
   const answer = result.answer.trim() || "Web search completed but returned no answer text.";
   if (result.citations.length === 0) {
@@ -136,10 +193,9 @@ function formatWebSearchResult(result: WebSearchResult): string {
   return `${answer}\n\nSources:\n${sources.join("\n")}`;
 }
 
-async function executeOpenAIWebSearch(params: WebSearchToolParams): Promise<WebSearchResult> {
-  const apiKey = process.env.OPENAI_API_KEY;
+async function executeOpenAIWebSearch(params: WebSearchToolParams, apiKey?: string): Promise<WebSearchResult> {
   if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not set. Web search requires OpenAI credentials.");
+    throw new Error("OpenAI credentials are not configured.");
   }
 
   const client = new OpenAI({ apiKey });
@@ -170,6 +226,85 @@ async function executeOpenAIWebSearch(params: WebSearchToolParams): Promise<WebS
     answer: extractWebSearchText(response) || "Web search completed but returned no answer text.",
     citations: extractWebSearchCitations(response),
   };
+}
+
+async function executeAnthropicWebSearch(params: WebSearchToolParams, apiKey?: string): Promise<WebSearchResult> {
+  if (!apiKey) {
+    throw new Error("Anthropic credentials are not configured.");
+  }
+  if (params.externalWebAccess === false) {
+    throw new Error("Anthropic web search does not support externalWebAccess=false. Use OpenAI for that option or omit the flag.");
+  }
+
+  const client = new Anthropic({ apiKey });
+  const response = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 1024,
+    messages: [
+      {
+        role: "user",
+        content: params.query,
+      },
+    ],
+    tools: [
+      {
+        type: "web_search_20250305",
+        name: "web_search",
+        max_uses: 5,
+        ...(params.allowedDomains && params.allowedDomains.length > 0
+          ? {
+              allowed_domains: params.allowedDomains,
+            }
+          : {}),
+      },
+    ],
+  });
+
+  return {
+    answer: extractAnthropicWebSearchText(response) || "Web search completed but returned no answer text.",
+    citations: extractAnthropicWebSearchCitations(response),
+  };
+}
+
+function resolvePreferredWebSearchProvider(): "openai" | "anthropic" | undefined {
+  const preferredModel = process.env.ROLE_AGENT_MODEL?.trim();
+  if (!preferredModel) {
+    return undefined;
+  }
+
+  const provider = parseModelReference(preferredModel).provider;
+  if (provider === "openai" || provider === "anthropic") {
+    return provider;
+  }
+
+  return undefined;
+}
+
+async function executeDefaultWebSearch(params: WebSearchToolParams): Promise<WebSearchResult> {
+  const [openAiApiKey, anthropicApiKey] = await Promise.all([
+    getConfiguredProviderApiKey("openai"),
+    getConfiguredProviderApiKey("anthropic"),
+  ]);
+  const hasOpenAi = Boolean(openAiApiKey?.trim());
+  const hasAnthropic = Boolean(anthropicApiKey?.trim());
+  const preferredProvider = resolvePreferredWebSearchProvider();
+
+  if (preferredProvider === "anthropic" && hasAnthropic) {
+    return executeAnthropicWebSearch(params, anthropicApiKey);
+  }
+  if (preferredProvider === "openai" && hasOpenAi) {
+    return executeOpenAIWebSearch(params, openAiApiKey);
+  }
+  if (hasOpenAi) {
+    return executeOpenAIWebSearch(params, openAiApiKey);
+  }
+  if (hasAnthropic) {
+    return executeAnthropicWebSearch(params, anthropicApiKey);
+  }
+
+  throw new Error(
+    "web_search requires OpenAI or Anthropic credentials from the same auth sources Hermit uses for models (auth storage or environment).",
+  );
 }
 
 export function createEntityLookupTool(root: string, role: RoleDefinition): ToolDefinition<typeof entityLookupParameters> {
@@ -212,15 +347,17 @@ export function createEntityLookupTool(root: string, role: RoleDefinition): Tool
 }
 
 export function createWebSearchTool(
-  executor: WebSearchExecutor = executeOpenAIWebSearch,
+  executor: WebSearchExecutor = executeDefaultWebSearch,
 ): ToolDefinition<typeof webSearchParameters> {
   return {
     name: "web_search",
     label: "Web Search",
-    description: "Search the web for current external information using OpenAI web search.",
+    description: "Search the web for current external information using OpenAI or Anthropic web search.",
     promptSnippet: "Use web_search when the task needs current external information that is not in the workspace.",
     promptGuidelines: [
       "Use web_search for recent facts, external documentation, or up-to-date API behavior.",
+      "web_search currently supports OpenAI and Anthropic credentials.",
+      "If both are configured, Hermit prefers the provider pinned by ROLE_AGENT_MODEL when it is OpenAI or Anthropic.",
       "Prefer workspace files for canonical local truth, and use allowedDomains when a trusted source is known.",
     ],
     parameters: webSearchParameters,

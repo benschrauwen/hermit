@@ -1,3 +1,4 @@
+import type { CheckpointOutcome } from "./git.js";
 import type { TelemetrySessionContext } from "./types.js";
 
 export interface TelemetryEventCommon {
@@ -37,6 +38,7 @@ export interface SessionEndTelemetryEvent extends TelemetryBaseEvent {
   gitHeadAtEnd?: string | undefined;
   checkpointBeforeSha?: string | undefined;
   checkpointAfterSha?: string | undefined;
+  commandOutcome?: CheckpointOutcome | undefined;
 }
 
 interface TurnStartTelemetryEvent extends TelemetryBaseEvent {

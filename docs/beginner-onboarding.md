@@ -175,7 +175,7 @@ This makes Hermit feel less like a one-off conversation tool and more like a sys
 
 ### Sales Leader
 
-A sales leader setup could track accounts, deals, contacts, meeting notes, risks, and next actions.
+A sales leader setup could track accounts, deals, contacts, meeting notes, risks, and next actions. The role should own pipeline management proactively, while you remain the manager who sets direction and carries external asks when needed.
 
 You could ask Hermit to:
 
@@ -183,6 +183,7 @@ You could ask Hermit to:
 - review which deals are most likely to slip
 - summarize call notes into account records
 - prepare weekly pipeline reviews
+- draft follow-up asks or review agendas for you to carry to reps or customers
 - reshape the explorer into something closer to a forecast board or deal dashboard
 
 ### Production Manager

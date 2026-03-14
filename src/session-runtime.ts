@@ -10,8 +10,8 @@ import {
 } from "@mariozechner/pi-coding-agent";
 
 import { createCustomTools, createHermitTools } from "./agent-tools.js";
-import { DEFAULT_MODEL, DEFAULT_THINKING_LEVEL, HERMIT_ROLE_ID } from "./constants.js";
-import { assertOpenAiApiKeyConfigured } from "./openai-api-key.js";
+import { DEFAULT_THINKING_LEVEL, HERMIT_ROLE_ID } from "./constants.js";
+import { resolveConfiguredModel } from "./model-auth.js";
 import { PromptLibrary } from "./prompt-library.js";
 import { resolveBootstrapSessionDirectory, resolvePersistedSessionDirectory, resolveRoleSkillPaths, resolveSharedSkillPaths } from "./session-paths.js";
 import type { RoleSwitchRequest, SessionHistoryType } from "./session-types.js";
@@ -33,37 +33,6 @@ interface SessionOptions {
 }
 
 const BOOTSTRAP_PROMPTS_DIRECTORY = "bootstrap";
-
-function parsePreferredModel(modelName: string): { provider: string; modelId: string } {
-  if (modelName.includes("/")) {
-    const [provider = "openai", ...rest] = modelName.split("/");
-    return { provider, modelId: rest.join("/") };
-  }
-
-  return {
-    provider: "openai",
-    modelId: modelName,
-  };
-}
-
-function resolvePreferredModel(modelRegistry: ModelRegistry): Model<any> {
-  const preferred = parsePreferredModel(DEFAULT_MODEL);
-  const available = modelRegistry.getAvailable();
-  const preferredModel = available.find((model) => model.provider === preferred.provider && model.id === preferred.modelId);
-
-  if (preferredModel) {
-    return preferredModel;
-  }
-
-  const fallback = available[0] ?? modelRegistry.find(preferred.provider, preferred.modelId);
-  if (!fallback) {
-    throw new Error(
-      `No configured model is available. Set OPENAI_API_KEY and optionally ROLE_AGENT_MODEL (current preference: ${DEFAULT_MODEL}).`,
-    );
-  }
-
-  return fallback;
-}
 
 function enrichPromptContextWithCurrentTime(promptContext: PromptContext): PromptContext {
   const now = new Date();
@@ -96,9 +65,8 @@ interface SessionCoreOptions {
 async function createSessionCore(options: SessionCoreOptions): Promise<{
   session: AgentSession;
   telemetry: TelemetryRecorder;
+  modelLabel: string;
 }> {
-  assertOpenAiApiKeyConfigured();
-
   const loader = new DefaultResourceLoader({
     cwd: options.root,
     noExtensions: true,
@@ -111,7 +79,7 @@ async function createSessionCore(options: SessionCoreOptions): Promise<{
 
   const authStorage = AuthStorage.create();
   const modelRegistry = new ModelRegistry(authStorage);
-  const model = resolvePreferredModel(modelRegistry);
+  const { model } = resolveConfiguredModel(authStorage, modelRegistry);
 
   const sessionManager = !options.persist
     ? SessionManager.inMemory(options.root)
@@ -137,7 +105,7 @@ async function createSessionCore(options: SessionCoreOptions): Promise<{
     modelId: model.id,
   });
 
-  return { session, telemetry };
+  return { session, telemetry, modelLabel: `${model.provider}/${model.id}` };
 }
 
 export async function createRoleSession(options: SessionOptions): Promise<{
@@ -145,6 +113,7 @@ export async function createRoleSession(options: SessionOptions): Promise<{
   promptLibrary: PromptLibrary;
   workspaceState: WorkspaceInitializationState;
   telemetry: TelemetryRecorder;
+  modelLabel: string;
 }> {
   await ensureWorkspaceScaffold(options.root, options.role);
 
@@ -153,7 +122,7 @@ export async function createRoleSession(options: SessionOptions): Promise<{
   const promptContext = enrichPromptContextWithCurrentTime(options.promptContext);
   const systemPrompt = await promptLibrary.renderSystemPrompt(promptContext, options.additionalRolePrompts);
 
-  const { session, telemetry } = await createSessionCore({
+  const { session, telemetry, modelLabel } = await createSessionCore({
     root: options.root,
     systemPrompt,
     skillPaths: resolveRoleSkillPaths(options.role),
@@ -173,7 +142,7 @@ export async function createRoleSession(options: SessionOptions): Promise<{
     },
   });
 
-  return { session, promptLibrary, workspaceState, telemetry };
+  return { session, promptLibrary, workspaceState, telemetry, modelLabel };
 }
 
 export async function createHermitSession(options: {
@@ -190,6 +159,7 @@ export async function createHermitSession(options: {
   promptLibrary: PromptLibrary;
   workspaceState: WorkspaceInitializationState;
   telemetry: TelemetryRecorder;
+  modelLabel: string;
 }> {
   await ensureWorkspaceScaffold(options.root);
 
@@ -206,7 +176,7 @@ export async function createHermitSession(options: {
     : "";
   const systemPrompt = [baseSystemPrompt, bootstrapOverlay].filter(Boolean).join("\n\n");
 
-  const { session, telemetry } = await createSessionCore({
+  const { session, telemetry, modelLabel } = await createSessionCore({
     root: options.root,
     systemPrompt,
     skillPaths: resolveSharedSkillPaths(options.root),
@@ -226,5 +196,5 @@ export async function createHermitSession(options: {
     },
   });
 
-  return { session, promptLibrary, workspaceState, telemetry };
+  return { session, promptLibrary, workspaceState, telemetry, modelLabel };
 }

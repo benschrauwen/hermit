@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import type { CheckpointOutcome } from "./git.js";
 import { createTelemetryEventCommon } from "./telemetry-events.js";
 import type { StoredTelemetryEvent } from "./telemetry-events.js";
 import { getNumber, getString, isRecord } from "./type-guards.js";
@@ -37,6 +38,7 @@ interface RecorderStats {
 interface GitSessionEndContext {
   gitHeadAtEnd?: string;
   checkpointAfterSha?: string;
+  commandOutcome?: CheckpointOutcome;
 }
 
 function truncateText(value: string, maxLength = 500): string {
@@ -233,6 +235,9 @@ export class TelemetryRecorder {
       ...(this.context.checkpointBeforeSha !== undefined ? { checkpointBeforeSha: this.context.checkpointBeforeSha } : {}),
       ...(this.gitSessionEndContext.checkpointAfterSha !== undefined
         ? { checkpointAfterSha: this.gitSessionEndContext.checkpointAfterSha }
+        : {}),
+      ...(this.gitSessionEndContext.commandOutcome !== undefined
+        ? { commandOutcome: this.gitSessionEndContext.commandOutcome }
         : {}),
     });
     await this.writeChain;

@@ -2,7 +2,11 @@ export const ENTITY_SEQUENCE_WIDTH = 4;
 export const SHARED_ROOT_DIRECTORIES = ["entities", "agents", "entity-defs", "skills"] as const;
 export const HERMIT_ROLE_ID = "Hermit";
 
-export const DEFAULT_MODEL = process.env.ROLE_AGENT_MODEL ?? "openai/gpt-5.4";
+export const DEFAULT_MODEL = process.env.ROLE_AGENT_MODEL?.trim() || undefined;
+export const DEFAULT_FALLBACK_MODELS = (process.env.ROLE_AGENT_FALLBACK_MODELS ?? "")
+  .split(",")
+  .map((value) => value.trim())
+  .filter((value) => value.length > 0);
 
 const THINKING_LEVELS = ["minimal", "low", "medium", "high", "xhigh"] as const;
 

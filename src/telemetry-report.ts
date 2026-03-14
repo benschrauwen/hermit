@@ -211,6 +211,9 @@ function buildMarkdownReport(report: TelemetryReport): string {
     lines.push(`- Role filter: ${report.roleId}`);
   }
   lines.push(`- Session count: ${report.summary.sessionCount}`);
+  lines.push(
+    `- Session outcomes: success ${report.summary.successfulSessionCount}, aborted ${report.summary.abortedSessionCount}, failed ${report.summary.failedSessionCount}`,
+  );
   lines.push(`- Turn count: ${report.summary.turnCount}`);
   lines.push("");
   lines.push("## Reliability");
@@ -292,6 +295,9 @@ export async function generateTelemetryReport(
   const compactionStartEvents = events.filter(
     (event): event is CompactionTelemetryEvent => event.eventType === "compaction_start",
   );
+  const successfulSessionCount = sessionEndEvents.filter((event) => event.commandOutcome === "success").length;
+  const abortedSessionCount = sessionEndEvents.filter((event) => event.commandOutcome === "aborted").length;
+  const failedSessionCount = sessionEndEvents.filter((event) => event.commandOutcome === "failed").length;
 
   const turnDurations = turnEndEvents.map((event) => event.durationMs);
   const firstTokenDurations = turnEndEvents
@@ -324,6 +330,9 @@ export async function generateTelemetryReport(
     },
     summary: {
       sessionCount: sessionEndEvents.length,
+      successfulSessionCount,
+      abortedSessionCount,
+      failedSessionCount,
       turnCount: turnEndEvents.length,
       toolCallCount: toolEndEvents.length,
       toolErrorCount,
@@ -376,6 +385,7 @@ export function renderTelemetryReportSummary(report: TelemetryReport): string {
     `- Window: ${report.window.label} (${report.window.start} to ${report.window.end})`,
     report.roleId ? `- Role filter: ${report.roleId}` : undefined,
     `- Sessions: ${report.summary.sessionCount}`,
+    `- Session outcomes: success ${report.summary.successfulSessionCount}, aborted ${report.summary.abortedSessionCount}, failed ${report.summary.failedSessionCount}`,
     `- Turns: ${report.summary.turnCount}`,
     `- Tool error rate: ${formatPercent(report.summary.toolErrorRate)} (${report.summary.toolErrorCount}/${report.summary.toolCallCount})`,
     `- Assistant error rate: ${formatPercent(report.summary.assistantErrorRate)} (${report.summary.assistantErrorTurnCount}/${report.summary.turnCount})`,

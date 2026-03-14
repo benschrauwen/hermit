@@ -8,13 +8,15 @@ Ensure the agent periodically steps back from task execution to question whether
 
 ## In-Session Orientation Check
 
-At the start of every interactive session, after reading the startup context, briefly consider:
+At the start of every interactive session, after reading the startup context, briefly notice whether any obvious, high-confidence issue is immediately relevant:
 
 - Does the user's request connect to the most important active goal, or is energy about to go somewhere marginal?
 - Is there a stale, stuck, or misaligned pattern visible in the record that the user may not be seeing?
 - Has anything changed since the last session that shifts what matters most?
 
-If something looks off, surface it briefly and directly before proceeding with the user's task. Do not block the user — a single sentence is enough. If nothing looks off, proceed without comment.
+Use only what is already visible in the startup files and current request. Do not do extra investigation just to find a strategic comment.
+
+If something looks materially off and immediately relevant, surface it briefly and directly before proceeding with the user's task. Do not block the user — a single sentence is enough. Otherwise proceed without comment.
 
 ## Surfacing Background Changes
 
@@ -27,6 +29,15 @@ At the start of every interactive session, check whether heartbeat or other back
 ## Daily Strategic Review
 
 Once per day, around midnight, the heartbeat should run a full strategic review pass instead of normal task advancement. This is triggered by scheduling `hermit heartbeat --role <id> --prompt` with the strategic review prompt, or by the heartbeat itself when `last_strategic_review` in the record frontmatter is more than 24 hours old.
+
+### Required review loop
+
+- Run the daily review as an explicit loop: `evidence -> hypothesis -> test -> re-evaluate hypothesis`.
+- Start by revisiting any open or recently completed items in `## Strategic Experiments` inside `{{roleRoot}}/agent/record.md`. Before inventing a new theory, check whether yesterday's test actually helped.
+- Use raw evidence, not vibes. Review `agent/record.md`, `agent/inbox.md`, the latest strategic observations, the current workspace state, and recent git history or checkpoint commits from the last 1-2 days. Git is especially useful for answering which files the agent actually changed and whether those changes touched the area the hypothesis was trying to improve.
+- Form hypotheses that are explicit and falsifiable. Name the problem pattern you think is true, why you think it is true, and what signal would confirm or weaken that belief.
+- Choose a small test or intervention that can be evaluated at the next review. Record what you are trying, what files or workflows it should affect, and what improvement would count as success.
+- At the next daily review, re-evaluate the prior hypothesis first. Mark whether it helped, partially helped, or failed, then refine, replace, or retire it instead of repeating the same move by habit.
 
 ### What the strategic review covers
 
@@ -56,13 +67,14 @@ Once per day, around midnight, the heartbeat should run a full strategic review 
 - Note any systemic issues that need attention.
 
 **Research and skill gaps**
-- Are there common tasks that could be done better with a different approach? Look online for better methods, tools, or patterns.
-- Are there missing skills that would make recurring work more effective? Search for available skills or research how to build one.
+- Are there common tasks that could be done better with a different approach? Prefer local evidence first, and look online only when the answer is likely to change the next decision.
+- Are there missing skills that would make recurring work more effective? Search for available skills or research how to build one only when repeated local friction points to a real gap.
 - Are there external developments (new tools, APIs, best practices) relevant to the active work?
 
 ### Output discipline
 
 - Write strategic observations to the `## Strategic Observations` section of `agent/record.md`. Date each entry.
+- Track ongoing and recently evaluated experiments in the `## Strategic Experiments` section of `agent/record.md`. For each experiment, capture the start date, evidence, hypothesis, test, expected signal, relevant files or workflows, result, and next decision. Create the section if it is missing.
 - Promote actionable findings to inbox items or next actions in the record.
 - Update `last_strategic_review` in the record frontmatter to the current date.
 

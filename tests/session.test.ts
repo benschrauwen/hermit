@@ -120,6 +120,11 @@ describe("resolveInitialChatPrompt", () => {
       }),
     ).toBe(DEFAULT_CHAT_OPENING_PROMPT);
   });
+
+  it("keeps the default opening focused on the user's agenda", () => {
+    expect(DEFAULT_CHAT_OPENING_PROMPT).toContain("ask what they want to work on");
+    expect(DEFAULT_CHAT_OPENING_PROMPT).toContain("Do not suggest exploratory inspection");
+  });
 });
 
 describe("heartbeat session helpers", () => {
@@ -168,8 +173,8 @@ describe("heartbeat session helpers", () => {
 
   it("uses a backlog-focused default prompt for heartbeat turns", () => {
     expect(DEFAULT_HEARTBEAT_PROMPT).toContain("GTD backlog");
-    expect(DEFAULT_HEARTBEAT_PROMPT).toContain("one small, concrete step");
-    expect(DEFAULT_HEARTBEAT_PROMPT).toContain("instead of asking the user");
+    expect(DEFAULT_HEARTBEAT_PROMPT).toContain("Do not infer or resurrect tasks");
+    expect(DEFAULT_HEARTBEAT_PROMPT).toContain("If no clearly worthwhile step exists");
   });
 });
 

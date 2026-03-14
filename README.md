@@ -5,10 +5,12 @@
 </p>
 
 <p align="center">
-  <strong>Local, file-first runtime for autonomous applications that build themselves through interaction.</strong>
+  <strong>Local, file-first runtime for autonomous applications that improve themselves through interaction.</strong>
 </p>
 
 **Hermit** starts as a small local repo and becomes a job-specific application through conversation. You tell the agent what it should own, and it incrementally creates the operating model, markdown-backed datastore, role prompts, automations, and local explorer UI in the same workspace. Code, data, UI, and agent state live in one directory and evolve together in git. The runtime then keeps the application moving: capturing work, clarifying it, advancing next actions, measuring results, and improving its own prompts, tools, and workflows from local telemetry. No database, no opaque memory layer, no SaaS dependency. Files are the app.
+
+Hermit's home page at https://hermit-two.vercel.app/ is built and maintained by the hermit that lives in the "website" branch.
 
 [Architecture](docs/architecture.md) · [Observability](docs/observability.md) · [License](LICENSE)
 
@@ -43,10 +45,20 @@ npm install
 
 </details>
 
-Save your OpenAI key into macOS Keychain so the sandbox can inject it:
+Save one supported provider key into macOS Keychain so Hermit can load it before entering the sandbox.
+
+Examples:
 
 ```bash
-printf 'Paste your OpenAI key, then press Return: '; read -s OPENAI_KEY; echo; security add-generic-password -s "nono" -a "openai_api_key" -w "$OPENAI_KEY" -U; unset OPENAI_KEY
+security add-generic-password -s "nono" -a "openai_api_key" -w "OPENAI_KEY" -U
+```
+
+```bash
+security add-generic-password -s "nono" -a "anthropic_api_key" -w "ANTHROPIC_KEY" -U
+```
+
+```bash
+security add-generic-password -s "nono" -a "google_api_key" -w "GOOGLE_KEY" -U
 ```
 
 Start Hermit in a safe, sandboxed environment:
@@ -67,6 +79,7 @@ By default `npm start` and `npm run heartbeat-daemon` run inside the included `n
 ## How The App Gets Built
 
 - **You define the job in conversation** — start with a role like sales manager, vineyard operator, or household manager, and Hermit begins shaping the application around that responsibility.
+- **The role owns the function, you manage the role** — Hermit should run the job proactively inside its authority, while you set direction, review important decisions, and provide approval or real-world follow-through when needed.
 - **Hermit creates the operating model** — it establishes roles, prompts, workflows, and review loops for the work instead of assuming a fixed SaaS schema.
 - **Hermit writes the data layer as files** — entities, records, and supporting evidence live as markdown under `entities/` and `entity-defs/`.
 - **Hermit owns the app surface too** — the runtime, prompts, skills, and explorer UI all live in the same repo, so the agent can extend the system it operates.
@@ -105,7 +118,7 @@ npm run heartbeat-daemon                          # run heartbeats for all roles
 npm run explorer                                  # launch the workspace UI as a normal local server
 ```
 
-`heartbeat` runs a single background turn for a role. `heartbeat-daemon` is the built-in replacement for an external cron job: it discovers all configured roles, runs one heartbeat turn for each role immediately, then repeats on a fixed interval (default `1h`). Heartbeat runs use a separate persisted session history under each role so automated sessions stay distinct from normal interactive chat history. When `--strategic-review` is passed, or when the last strategic review is more than 24 hours old, the heartbeat runs a full strategic review instead of normal task advancement.
+`heartbeat` runs a single background turn for a role. `heartbeat-daemon` is the built-in replacement for an external cron job: it discovers all configured roles, runs one heartbeat turn for each role immediately, then repeats on a fixed interval (default `1h`). Heartbeat runs use a separate persisted session history under each role so automated sessions stay distinct from normal interactive chat history. When `--strategic-review` is passed, or when the last strategic review is more than 24 hours old, the heartbeat runs a full strategic review instead of normal task advancement. That review now follows an explicit `evidence -> hypothesis -> test -> re-evaluate hypothesis` loop and tracks open experiments in `agent/record.md`, using git history when useful to verify what the agent actually changed.
 
 ### Advanced Raw Commands
 
@@ -120,6 +133,7 @@ npm run cli -- heartbeat --role <role-id>         # one autonomous GTD upkeep tu
 npm run cli -- heartbeat --role <role-id> --strategic-review  # force a full strategic review
 npm run cli -- ingest transcript ./notes/acme-call.md --role <role-id> --entity d-2026-0001-acme-expansion
 npm run cli -- doctor --role <role-id>            # validate workspace integrity
+npm run cli -- doctor --role <role-id> --context  # print rendered prompt source breakdown
 npm run cli -- telemetry report --window 7d       # aggregate local runtime telemetry
 ```
 
@@ -186,9 +200,23 @@ The bootstrap prompt establishes `entities/user/record.md` as the shared user-co
 
 | Variable | Description |
 |---|---|
-| `OPENAI_API_KEY` | Used for raw unsandboxed CLI sessions. On macOS, the `:unsafe` commands also fall back to the same Keychain entry that `nono` uses before failing. |
-| `ROLE_AGENT_MODEL` | Model override (default: `openai/gpt-5.4`) |
+| `ROLE_AGENT_MODEL` | Optional model override. If unset, Hermit auto-selects the best available configured model. |
+| `ROLE_AGENT_FALLBACK_MODELS` | Optional comma-separated fallback models in preference order when `ROLE_AGENT_MODEL` is pinned. |
 | `ROLE_AGENT_THINKING_LEVEL` | Thinking level (default: `medium`) |
+
+Common provider API key env vars and matching macOS Keychain accounts:
+
+- `OPENAI_API_KEY` / `openai_api_key`
+- `ANTHROPIC_API_KEY` / `anthropic_api_key`
+- `GOOGLE_API_KEY` / `google_api_key`
+- `GEMINI_API_KEY` / `gemini_api_key`
+- `OPENROUTER_API_KEY` / `openrouter_api_key`
+- `GROQ_API_KEY` / `groq_api_key`
+- `XAI_API_KEY` / `xai_api_key`
+- `MISTRAL_API_KEY` / `mistral_api_key`
+- `CEREBRAS_API_KEY` / `cerebras_api_key`
+
+You only need one supported provider key to get started. Hermit will auto-pick the best model it can use from the keys it finds. `web_search` currently supports OpenAI and Anthropic credentials.
 
 ## Sandboxing With `nono`
 
@@ -198,8 +226,8 @@ This repo includes an example profile at `examples/nono/hermit.json`. It grants:
 
 - Read/write access to the current workspace
 - Read access to common Git config paths
-- OpenAI API access only (`api.openai.com`) - allows websearch through OpenAI API
-- `OPENAI_API_KEY` injection from the keychain into the sandboxed process
+- Network access to a small built-in set of common model providers plus the existing skill hosts
+- No required secret list. The startup wrapper loads whichever supported provider keys it finds in your environment or macOS Keychain before entering the sandbox.
 
 The default short commands already use this profile:
 
@@ -215,11 +243,11 @@ npm run start:unsafe
 npm run heartbeat-daemon:unsafe
 ```
 
-Those unsandboxed commands still accept `OPENAI_API_KEY` from your environment, but on macOS they also fall back to the same Keychain item used by `nono` (`service: nono`, `account: openai_api_key`).
+Those commands accept supported provider API key env vars from your environment. On macOS they also look in the same `nono` Keychain service for the common provider account names listed above.
 
 ### Opening up network access
 
-The default profile only allows traffic to `api.openai.com`. To permit additional hosts, add them to the `proxy_allow` list in `examples/nono/hermit.json`:
+The default profile already includes a small set of common provider hosts. To permit additional hosts, add them to the `proxy_allow` list in `examples/nono/hermit.json`:
 
 ```json
 "network": {

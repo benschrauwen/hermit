@@ -28,6 +28,8 @@ A full example role (Sales Leader) lives at `skills/role-setup/example/sales/`; 
 Each role needs explicit answers for:
 
 - What domain it owns
+- What job it owns on the user's behalf
+- How the user manages it: direction-setting, approvals, reviews, and escalation
 - Which decisions it can make independently
 - Which entity types it manages directly
 - Which supporting entity types still need to be created for this role to function well
@@ -57,6 +59,8 @@ If the workspace has no agents yet:
 Ask these questions before writing the role:
 
 - What business or operating domain does this role own?
+- What job does it own on the user's behalf?
+- What should the user manage directly: priorities, approvals, sensitive decisions, external communication?
 - What decisions should it make autonomously, and what should it escalate?
 - Which outcomes matter more than activity volume?
 - Which entity types does it manage directly?
@@ -80,10 +84,12 @@ Treat these answers as build inputs, not just discussion:
 Use this pattern:
 
 - Start from accountability, not adjectives. Define what the role protects, inspects, and refuses to fake.
+- Define the operating relationship clearly: the role owns a function; the user is the manager who sets direction and reviews important calls.
 - Write a leadership lens that explains how this role sees the world.
 - Add a core standard with explicit non-negotiables. "We do not..." lines are useful when they sharpen judgment.
 - Encode the default evidence model. What facts does this role need before it trusts a conclusion?
 - Name the role's recurring inspection motions, such as planning, review, escalation, triage, quality control, or evidence intake.
+- Name what the role does when it needs real-world action it cannot take directly: prepare a draft, recommendation, agenda, or escalation for the user to deliver.
 - Define what honesty looks like in this role. Good personas protect truth over comfort.
 - Keep the persona recognizable. "Disciplined operations leader" works. "Helpful business copilot" is too weak.
 
@@ -179,6 +185,11 @@ Use this outline:
 - A few explicit non-negotiables
 - "We do not..." lines when they sharpen judgment
 
+### Operating Relationship
+- What job this role owns on the user's behalf
+- What the user manages directly: priorities, approvals, sensitive decisions, external communication
+- How the role prepares drafts, asks, or agendas when the user must act as the real-world conduit
+
 ### Operating Expectations
 - The recurring motions this role runs
 - What good and bad look like
@@ -207,7 +218,7 @@ A complete, minimal role example lives under this skill at `skills/role-setup/ex
 What it contains:
 
 - **role.md** — `id: sales`, `name: Sales Leader`, `role_directories: [supporting-files]`. No `transcript_ingest`; manifest stays minimal.
-- **AGENTS.md** — Operating standard (pipeline truth, next steps, evidence), leadership lens, core standard with explicit "We do not..." lines, startup context, entity context (deals, companies, people, products), and four on-demand prompts.
+- **AGENTS.md** — Operating standard (pipeline truth, next steps, evidence), explicit user-as-manager operating relationship, proactive sales operating expectations, startup context, entity context (deals, companies, people, products), and four on-demand prompts.
 - **prompts/pipeline-review.md** — Recurring subdomain: how to run a pipeline review from file evidence.
 - **prompts/deal-update.md** — Recurring subdomain: how to capture and write deal updates into records.
 - **prompts/people.md** — People/contacts mode: stakeholders, roles, engagement at accounts.
@@ -303,6 +314,7 @@ Raw internal commitments, reminders, and follow-up ideas that still need clarifi
 - The role should feel like a specific operator with real standards, not a generic assistant plus jargon.
 - A new session should know what to read first without guessing.
 - The entity context should make it obvious where this role works in the workspace.
+- The role should make the reporting relationship explicit: it owns the function, while the user sets direction, reviews important calls, and acts as the real-world conduit when needed.
 - The role should have a small set of strong opinions that improve decisions under ambiguity.
 - The role should be able to explain what good looks like and what bad smells like.
 - The first draft should be focused, but complete enough that repeated task modes, obvious directories, and real capabilities are not silently deferred.

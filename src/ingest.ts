@@ -4,7 +4,7 @@ import readline from "node:readline/promises";
 import process from "node:process";
 
 import { PromptLibrary } from "./prompt-library.js";
-import { assertOpenAiApiKeyConfigured } from "./openai-api-key.js";
+import { assertProviderAwareModelConfigured } from "./model-auth.js";
 import { loadRole } from "./roles.js";
 import { createRoleSession, runOneShotPrompt } from "./session.js";
 import type { EntityRecord } from "./types.js";
@@ -104,9 +104,9 @@ export async function runTranscriptIngest(options: {
   };
   const commandPrompt = await promptLibrary.renderRolePrompt(role.transcriptIngest.commandPrompt, promptContext);
 
-  assertOpenAiApiKeyConfigured();
+  assertProviderAwareModelConfigured();
 
-  const { session, telemetry } = await createRoleSession({
+  const { session, telemetry, modelLabel } = await createRoleSession({
     root: options.root,
     role,
     persist: true,
@@ -115,5 +115,5 @@ export async function runTranscriptIngest(options: {
     additionalRolePrompts: role.transcriptIngest.systemPrompts,
   });
 
-  await runOneShotPrompt(session, commandPrompt, options.imagePaths, telemetry, role.id);
+  await runOneShotPrompt(session, commandPrompt, options.imagePaths, telemetry, role.id, modelLabel);
 }
