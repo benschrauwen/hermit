@@ -8,7 +8,7 @@ stage: proposal
 value: $680,000
 close_date: 2026-04-30
 probability: 65%
-updated_at: 2026-03-12T10:30:00.000Z
+updated_at: 2026-03-14T10:17:00.000Z
 source_refs:
   - demo data
 ---
@@ -26,7 +26,7 @@ Expand deployment from 3 facilities to all 11 facilities plus add administrative
 
 ## Next Steps
 
-- Follow up with Priya Nair for technical review feedback by March 18.
+- Follow up with Priya Nair for technical review feedback by April 1.
 - Schedule executive briefing with Dr. Whitfield to confirm expansion scope.
 - Prepare competitive positioning doc vs ServiceNow for procurement discussions.
 

@@ -8,7 +8,7 @@ stage: discovery
 value: $450,000
 close_date: 2026-06-15
 probability: 30%
-updated_at: 2026-03-10T14:30:00.000Z
+updated_at: 2026-03-14T10:17:00.000Z
 source_refs:
   - demo data
 ---
@@ -26,7 +26,7 @@ Greenfield opportunity to replace manual compliance and reporting workflows. Ear
 
 ## Next Steps
 
-- Send Elena the ROI calculator and reference case studies by March 15.
+- Send Elena the ROI calculator and reference case studies by March 28.
 - Request introduction to Richard Fong (CISO) for early security review alignment.
 - Prepare data residency and SOC 2 documentation package.
 - Target demo for broader stakeholder group in early April.

@@ -8,7 +8,7 @@ stage: qualification
 value: $120,000
 close_date: 2026-05-15
 probability: 50%
-updated_at: 2026-03-08T09:30:00.000Z
+updated_at: 2026-03-14T10:17:00.000Z
 source_refs:
   - demo data
 ---
@@ -26,7 +26,7 @@ Centralize student services workflow across 4 campuses. Mid-market deal with fas
 
 ## Next Steps
 
-- Build ROI model showing staff efficiency gains across 4 campuses by March 20.
+- Build ROI model showing staff efficiency gains across 4 campuses by April 3.
 - Send technical architecture overview to Amy Lin for IT review.
 - Schedule follow-up call with Michael Torres to discuss phased rollout plan.
 

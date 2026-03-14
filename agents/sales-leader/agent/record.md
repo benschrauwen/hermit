@@ -4,7 +4,7 @@ type: agent
 name: Sales Leader Agent
 status: active
 owner: Sales Leader
-updated_at: 2026-03-14T09:17:33.000Z
+updated_at: 2026-03-14T10:17:33.000Z
 last_strategic_review: 2026-03-14
 source_refs:
   - role bootstrap on 2026-03-14
@@ -18,11 +18,12 @@ File-first enterprise sales leadership role for pipeline discipline, deal progre
 
 ### P1: Pipeline demo data quality and realism
 - **Goal**: Keep the 5 demo accounts and 8 demo deals realistic enough to showcase Hermit's CRM capabilities on the public website.
-- **Next action**: Review deal next-step dates that are now past or imminent and update them to stay plausible for visitors.
+- **Next action**: Next date refresh due around April 1 when the new dates start going stale.
 
 ## Next Actions
 
-- [ ] Update demo deal dates and next steps so the CRM showcase stays fresh (P1). Due: 2026-03-15.
+- [x] Update demo deal dates and next steps so the CRM showcase stays fresh (P1). Done: 2026-03-14.
+- [ ] Next demo date refresh (P1). Due: 2026-04-01.
 - [ ] Add a pipeline review summary or snapshot note to demonstrate what a real sales leader cadence produces (Someday/Maybe candidate).
 
 ## Waiting For

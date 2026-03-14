@@ -24,7 +24,7 @@ Raw internal commitments, reminders, and follow-up ideas that still need clarifi
 - **notify**: User at next interactive session
 - **not_before**: —
 - **due_at**: 2026-03-15
-- **status**: open
+- **status**: done — dates updated 2026-03-14 (heartbeat). Atlas Mar 15→28, NexGen Mar 16→30, Meridian Mar 18→Apr 1, BrightPath Mar 20→Apr 3.
 
 ### INB-002: Evaluate whether the sales leader role needs prompt or entity changes (for user review)
 - **captured_at**: 2026-03-14T09:17:00Z

@@ -8,7 +8,7 @@ stage: negotiation
 value: $520,000
 close_date: 2026-04-15
 probability: 75%
-updated_at: 2026-03-13T16:30:00.000Z
+updated_at: 2026-03-14T10:17:00.000Z
 source_refs:
   - demo data
 ---
@@ -26,7 +26,7 @@ Expand from 2 plants to 6 plants in North America, plus add quality management w
 
 ## Next Steps
 
-- Respond to Raj Mehta's redline on payment terms by March 16.
+- Respond to Raj Mehta's redline on payment terms by March 30.
 - Finalize implementation timeline with Jennifer Walsh for Q2 start.
 - Prepare executive summary for Klaus Bauer to socialize with European leadership for future expansion.
 
