@@ -21,7 +21,7 @@ source_refs:
   - live homepage review on 2026-03-13
   - live mobile review on 2026-03-13
   - .hermit/review/homepage-body-proof.txt
-  - user confirmation on 2026-03-14 that the Vercel deployment is live at https://hermit-two.vercel.app/
+  - user confirmation on 2026-03-14 that the Vercel deployment is live at https://hermit-ai.com/
 ---
 
 ## Site Strategy
@@ -35,7 +35,7 @@ At the same time, the site should visibly demonstrate Hermit's file-first model.
 ## Current Priorities
 
 - Keep the public pages clean while routing deeper process detail into `/inside` and the entity views.
-- Stabilize the live Vercel deployment at https://hermit-two.vercel.app/ and watch for regressions.
+- Stabilize the live deployment at https://hermit-ai.com/ and watch for regressions.
 - Turn the homepage proof section into a concrete walkthrough of this repo's website bootstrap, based on `.hermit/review/homepage-body-proof.txt`.
 - Do post-launch polish and release QA on the live site.
 
@@ -45,7 +45,7 @@ At the same time, the site should visibly demonstrate Hermit's file-first model.
 - Page and capability records can drive public content and navigation.
 - Agent records expose next actions, waiting-for items, and strategic observations in inspectable files.
 - The explorer already renders workspace entities and agent operating records from the same repo.
-- The first hosted deployment is live on Vercel at https://hermit-two.vercel.app/.
+- The first hosted deployment is live at https://hermit-ai.com/.
 - The first public proof section should walk through this repo's own website bootstrap: the website role under `agents/website/`, the canonical records under `entities/`, and the inspectable `/inside` route.
 
 ## Open Questions

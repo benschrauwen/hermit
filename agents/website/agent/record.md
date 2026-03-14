@@ -19,7 +19,7 @@ source_refs:
   - daily strategic review on 2026-03-14
   - npm run cli -- doctor --role website on 2026-03-14
   - Playwright and Lighthouse CI docs reviewed on 2026-03-14
-  - user confirmation on 2026-03-14 that the Vercel deployment is live at https://hermit-two.vercel.app/
+  - user confirmation on 2026-03-14 that the Vercel deployment is live at https://hermit-ai.com/
   - heartbeat backlog clarification on 2026-03-14
 ---
 
@@ -29,7 +29,7 @@ Own Hermit's public-facing website as a file-first product surface built on the 
 
 ## Active Projects
 
-- Stabilize and polish the first hosted Hermit website release now live at https://hermit-two.vercel.app/.
+- Stabilize and polish the first hosted Hermit website release now live at https://hermit-ai.com/.
 - Evolve the explorer shell into a clearer hosted site experience.
 - Keep the capability catalog aligned with real product evidence and homepage copy.
 

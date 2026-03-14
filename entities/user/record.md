@@ -51,4 +51,4 @@ Single-user workspace for the Hermit project itself. The user wants a focused bu
 
 ## Resolved
 
-- Deployment target: Vercel, confirmed 2026-03-14. Live at https://hermit-two.vercel.app/.
+- Deployment target: Vercel, confirmed 2026-03-14. Live at https://hermit-ai.com/.
