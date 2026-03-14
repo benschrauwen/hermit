@@ -72,7 +72,7 @@ if (dealDef) {
       owner: String(fm.owner ?? ""),
       stage: String(fm.stage ?? ""),
       value: String(fm.value ?? ""),
-      close_date: String(fm.close_date ?? ""),
+      close_date: fm.close_date instanceof Date ? fm.close_date.toISOString() : String(fm.close_date ?? ""),
       probability: String(fm.probability ?? ""),
       summary: String(fm.summary ?? ""),
     });
@@ -137,8 +137,28 @@ const wonValue = wonDeals.reduce((sum, d) => {
 
 function formatCurrency(value: number): string {
   if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`;
+  if (value >= 1_000) return `$${Math.round(value / 1_000)}K`;
   return `$${value.toFixed(0)}`;
+}
+
+function formatDealValue(raw: string): string {
+  const num = parseFloat(raw.replace(/[$,]/g, ""));
+  if (isNaN(num)) return raw;
+  return formatCurrency(num);
+}
+
+function formatDate(raw: string): string {
+  if (!raw) return "";
+  // Handle ISO dates, date strings, and Date.toString() output
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return raw;
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${months[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+}
+
+function formatArr(raw: string): string {
+  if (!raw || raw === "$0" || raw === "0") return "—";
+  return raw;
 }
 
 function getAccountName(accountId: string): string {
@@ -219,13 +239,13 @@ function getAccountName(accountId: string): string {
               <a href={`/entities/deal/${deal.id}`} class="pipeline-card">
                 <div class="pipeline-card-header">
                   <span class="pipeline-card-name">{deal.name}</span>
-                  <span class="pipeline-card-value">{deal.value}</span>
+                  <span class="pipeline-card-value">{formatDealValue(deal.value)}</span>
                 </div>
                 <span class="pipeline-card-account">{getAccountName(deal.account_id)}</span>
                 <div class="pipeline-card-footer">
                   <span class="pipeline-card-owner">{deal.owner}</span>
                   {deal.close_date && (
-                    <span class="pipeline-card-date">Close: {deal.close_date}</span>
+                    <span class="pipeline-card-date">{formatDate(deal.close_date)}</span>
                   )}
                 </div>
                 {deal.probability && (
@@ -293,7 +313,7 @@ function getAccountName(accountId: string): string {
                   {account.status}
                 </span>
               </td>
-              <td class="font-medium">{account.arr || "—"}</td>
+              <td class="font-medium">{formatArr(account.arr)}</td>
             </tr>
           ))}
         </tbody>

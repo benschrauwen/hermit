@@ -9,7 +9,25 @@ function escapeHtml(value) {
 
 function field(frontmatter, key, fallback = "") {
   const value = frontmatter?.[key];
+  if (value instanceof Date) return value.toISOString();
   return typeof value === "string" ? value : fallback;
+}
+
+function formatDate(raw) {
+  if (!raw) return "";
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return raw;
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${months[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+}
+
+function formatValue(raw) {
+  if (!raw) return "—";
+  const num = parseFloat(raw.replace(/[$,]/g, ""));
+  if (isNaN(num)) return raw;
+  if (num >= 1_000_000) return `$${(num / 1_000_000).toFixed(1)}M`;
+  if (num >= 1_000) return `$${Math.round(num / 1_000)}K`;
+  return `$${num.toFixed(0)}`;
 }
 
 function stageColor(stage) {
@@ -39,9 +57,11 @@ export default async function renderEntityDetail(context) {
   const bodyHtml = file?.content ? await context.renderMarkdown(file.content) : "";
 
   const stage = field(frontmatter, "stage");
-  const value = field(frontmatter, "value");
+  const valueRaw = field(frontmatter, "value");
+  const value = formatValue(valueRaw);
   const probability = field(frontmatter, "probability");
-  const closeDate = field(frontmatter, "close_date");
+  const closeDateRaw = field(frontmatter, "close_date");
+  const closeDate = formatDate(closeDateRaw) || closeDateRaw;
   const owner = field(frontmatter, "owner");
   const accountId = field(frontmatter, "account_id");
   const probNum = parseInt(probability);

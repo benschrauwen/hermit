@@ -12,7 +12,25 @@ function escapeHtml(value) {
 
 function field(frontmatter, key, fallback = "") {
   const value = frontmatter?.[key];
+  if (value instanceof Date) return value.toISOString();
   return typeof value === "string" ? value : fallback;
+}
+
+function formatDate(raw) {
+  if (!raw) return "";
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return raw;
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${months[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+}
+
+function formatValue(raw) {
+  if (!raw) return "—";
+  const num = parseFloat(raw.replace(/[$,]/g, ""));
+  if (isNaN(num)) return raw;
+  if (num >= 1_000_000) return `$${(num / 1_000_000).toFixed(1)}M`;
+  if (num >= 1_000) return `$${Math.round(num / 1_000)}K`;
+  return `$${num.toFixed(0)}`;
 }
 
 function statusBadge(status) {
@@ -69,12 +87,13 @@ async function findRelatedDeals(root, accountId) {
           fm[key] = val;
         }
         if (fm.account_id === accountId) {
+          const rawClose = fm.close_date || "";
           deals.push({
             id: fm.id || entry.name,
             name: fm.name || entry.name,
             stage: fm.stage || "",
-            value: fm.value || "",
-            close_date: fm.close_date || "",
+            value: formatValue(fm.value || ""),
+            close_date: formatDate(rawClose) || rawClose,
             owner: fm.owner || "",
             probability: fm.probability || "",
           });
@@ -142,7 +161,7 @@ export default async function renderEntityDetail(context) {
     <section style="display: grid; gap: 1rem; margin-bottom: 1.5rem; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
       <div class="card" style="padding: 1.25rem;">
         <span style="display: block; font-size: 0.6875rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: #64748b;">ARR</span>
-        <strong style="display: block; margin-top: 0.5rem; font-size: 1.75rem; font-weight: 700; color: ${arr ? '#059669' : '#94a3b8'}; letter-spacing: -0.02em;">${escapeHtml(arr || "—")}</strong>
+        <strong style="display: block; margin-top: 0.5rem; font-size: 1.75rem; font-weight: 700; color: ${arr && arr !== '$0' && arr !== '0' ? '#059669' : '#94a3b8'}; letter-spacing: -0.02em;">${escapeHtml(arr && arr !== '$0' && arr !== '0' ? formatValue(arr) : "—")}</strong>
       </div>
       <div class="card" style="padding: 1.25rem;">
         <span style="display: block; font-size: 0.6875rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: #64748b;">Open Pipeline</span>
