@@ -287,4 +287,6 @@ explorer:
     detail:
       site: renderers/site-detail.mjs
       capability: renderers/capability-detail.mjs
+      deal: renderers/deal-detail.mjs
+      account: renderers/account-detail.mjs
 ---

@@ -366,14 +366,13 @@ function getAccountName(accountId: string): string {
 <style>
   .pipeline-board {
     display: grid;
-    grid-template-columns: repeat(6, minmax(200px, 1fr));
+    grid-template-columns: repeat(6, 1fr);
     gap: 0.75rem;
-    overflow-x: auto;
     padding-bottom: 1rem;
   }
 
   .pipeline-column {
-    min-width: 200px;
+    min-width: 0;
   }
 
   .pipeline-column-header {
@@ -517,13 +516,23 @@ function getAccountName(accountId: string): string {
 
   @media (max-width: 1024px) {
     .pipeline-board {
-      grid-template-columns: repeat(3, minmax(200px, 1fr));
+      grid-template-columns: repeat(3, 1fr);
+      overflow-x: auto;
+    }
+
+    .pipeline-column {
+      min-width: 200px;
     }
   }
 
   @media (max-width: 640px) {
     .pipeline-board {
-      grid-template-columns: repeat(2, minmax(180px, 1fr));
+      grid-template-columns: repeat(2, 1fr);
+      overflow-x: auto;
+    }
+
+    .pipeline-column {
+      min-width: 180px;
     }
   }
 </style>
