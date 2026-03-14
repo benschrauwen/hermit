@@ -10,7 +10,7 @@
 
 **Hermit** starts as a small local repo and becomes a job-specific application through conversation. You tell the agent what it should own, and it incrementally creates the operating model, markdown-backed datastore, role prompts, automations, and local explorer UI in the same workspace. Code, data, UI, and agent state live in one directory and evolve together in git. The runtime then keeps the application moving: capturing work, clarifying it, advancing next actions, measuring results, and improving its own prompts, tools, and workflows from local telemetry. No database, no opaque memory layer, no SaaS dependency. Files are the app.
 
-Hermit's home page at https://hermit-two.vercel.app/ is built and maintained by the hermit that lives in the "website" branch.
+Hermit's home page at https://hermit-ai.com/ is built and maintained by the hermit that lives in the "website" branch.
 
 [Architecture](docs/architecture.md) · [Observability](docs/observability.md) · [License](LICENSE)
 
