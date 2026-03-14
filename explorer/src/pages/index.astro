@@ -17,7 +17,7 @@ const capabilityEntities = capabilityDef ? await scanEntitiesByDefinition(root, 
 const allPublicPages = await listPublicPages(root);
 const homePage = await getPublicPageBySlug("home", root);
 
-const publicPageOrder = ["getting-started", "architecture", "inside", "demo/sales-crm"];
+const publicPageOrder = ["getting-started", "architecture", "inside", "faq", "demo/sales-crm"];
 const publicPages = allPublicPages
   .filter((page) => page.slug && page.slug !== "home")
   .sort((left, right) => {
@@ -81,9 +81,8 @@ const capabilityCards = capabilityDef
     })
   : [];
 
-const homeNarrativeBlocks = homePage?.blocks.filter((block) => !block.relativePath.includes("proof") && !block.relativePath.includes("faq")) ?? [];
+const homeNarrativeBlocks = homePage?.blocks.filter((block) => !block.relativePath.includes("proof")) ?? [];
 const homeProofBlocks = homePage?.blocks.filter((block) => block.relativePath.includes("proof")) ?? [];
-const homeFaqBlocks = homePage?.blocks.filter((block) => block.relativePath.includes("faq")) ?? [];
 ---
 <BaseLayout title={siteTitle} description={siteDescription}>
   <!-- Hero -->
@@ -200,23 +199,6 @@ const homeFaqBlocks = homePage?.blocks.filter((block) => block.relativePath.incl
   {homeProofBlocks.length > 0 && (
     <section class="mb-10">
       {homeProofBlocks.map((block) => (
-        <section class="card detail-panel mb-6">
-          <div class="markdown-body" set:html={block.html} />
-        </section>
-      ))}
-    </section>
-  )}
-
-  <!-- FAQ -->
-  {homeFaqBlocks.length > 0 && (
-    <section class="mb-10">
-      <div class="section-header">
-        <div>
-          <p class="section-kicker">FAQ</p>
-          <h2 class="section-title-large">Common questions</h2>
-        </div>
-      </div>
-      {homeFaqBlocks.map((block) => (
         <section class="card detail-panel mb-6">
           <div class="markdown-body" set:html={block.html} />
         </section>

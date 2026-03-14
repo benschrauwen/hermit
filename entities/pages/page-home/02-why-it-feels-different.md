@@ -1,13 +1,7 @@
 ## How Hermit compares
 
-| | **Lovable** | **OpenClaw** | **Hermit** |
-|---|---|---|---|
-| **What it builds** | Web apps from prompts | Multi-channel AI agents | A complete operating system: data, agents, workflows, and UI |
-| **Where it runs** | Their cloud | Self-hosted server | Your local machine, your repo |
-| **Data model** | Their database | Skills + adapters + config | Markdown files in git |
-| **AI role** | Generates and deploys code | Connects to channels and runs skills | Builds the whole system, then operates and improves it autonomously |
-| **After setup** | You maintain the app | You configure skills and channels | Hermit keeps working: heartbeats, reviews, strategic improvements |
-| **Inspectability** | View generated code | Logs and config files | Every file is readable, every change is a git commit |
-| **Security model** | SaaS trust | Self-hosted, sandbox per skill | Kernel-enforced sandbox, no network by default |
+**Lovable and Bolt** generate and deploy web apps from prompts. They're fast and polished for that job. Hermit does something different: it builds a working system — data, agents, workflows, and UI — that keeps operating and improving after the conversation ends. Lovable gives you an app. Hermit gives you an app that runs itself.
 
-Lovable is great for shipping a web app fast. OpenClaw is powerful for connecting agents to messaging channels and external tools. Hermit is for building a **durable working system** that keeps running, improving, and staying fully inspectable after the first conversation ends.
+**OpenClaw** is a powerful open-source platform for connecting AI agents to messaging channels, external tools, and a large skills ecosystem. Hermit is more opinionated and more contained: instead of connecting an agent to the world, it builds the entire application inside one repo as readable files. The agent doesn't just use tools — it shapes the system it operates in, including its own prompts and workflows. Think of OpenClaw as an agent that reaches outward, and Hermit as an agent that builds inward.
+
+Both are genuinely good at what they do. Hermit is worth considering when you want the AI to own a durable operating function — not just respond to requests, but maintain a system of record, track its own work, and get better at the job over time.
