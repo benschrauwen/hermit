@@ -1,162 +1,90 @@
 ---
 name: role-setup
-description: Design and scaffold Hermit roles, including `role.md`, `AGENTS.md`, startup files, and a sharp operating persona. Use when creating the first role in a blank Hermit workspace, adding a new role, or refining a role's operating standard.
+description: Define Hermit roles, including `role.md`, `AGENTS.md`, prompts, and startup files.
 ---
 
 # Role Setup
 
-Use this skill when the task is about creating or redesigning `agents/<role-id>/` in a Hermit workspace.
+Use when:
+- You are creating or redesigning `agents/<role-id>/`.
 
-This skill is intentionally self-contained. Do not assume the workspace already contains any example roles.
+Do not use when:
+- The main work is entity design. Use `entity-setup`.
+- You are making a small edit to an existing prompt with no role contract change.
 
-Do not use this skill when:
-- The main work is adding or reshaping entity types. Use `entity-setup`.
-- The task is a one-off edit to an existing prompt file with no role contract change.
+Contract:
+- `agents/<role-id>/role.md`: manifest only.
+- `agents/<role-id>/AGENTS.md`: operating standard, startup context, entity context, prompt index.
+- `agents/<role-id>/prompts/`: recurring dense subdomains.
+- `agents/<role-id>/skills/`: optional reusable role-local workflows.
+- `prompts/templates/agent/record.md` and `prompts/templates/agent/inbox.md`: shared templates.
+- `inbox/`: shared file drop zone. Not the same as `agent/inbox.md`.
 
-A full example role (Sales Leader) lives at `skills/role-setup/example/sales/`; see the "Example: Sales Leader" section below.
+Decide for each role:
+- owned domain and job
+- what the user still manages directly
+- what the role can decide alone
+- managed entity types
+- startup files and shared context
+- recurring subdomains that need prompt files
+- optional `role_directories` and `transcript_ingest`
+- non-negotiable standards and evidence rules
 
-## Core Model
+Build order:
+1. If the role needs new entities, create them in the same pass.
+2. Write `role.md` with manifest facts only.
+3. Write `AGENTS.md` with operating standard, startup context, entity context, and on-demand prompts.
+4. Add `prompts/*.md` only for recurring dense work.
+5. Ensure shared agent templates exist.
+6. Let the runtime scaffold `agent/` when possible. If not, create `agent/record.md` and `agent/inbox.md` from the shared templates.
+7. Add `transcript_ingest` only when the entity type, directories, and prompts already exist.
+8. Run `npm run cli -- doctor --role <role-id>`.
 
-- `agents/<role-id>/role.md` is the short manifest. Keep it compact and factual.
-- `agents/<role-id>/AGENTS.md` is the operating overlay and prompt index. This is where the role's real working style lives.
-- `agents/<role-id>/prompts/` holds on-demand subdomain prompts that should not always sit in the main system prompt.
-- `agents/<role-id>/skills/` is optional and only needed for reusable role-local workflows.
-- `prompts/templates/agent/record.md` and `prompts/templates/agent/inbox.md` are the shared templates for each role's GTD-style operating files. Do not fork those lightly.
+Interview follow-through:
+- If the user names recurring task clusters, create matching `prompts/*.md` files in the first draft.
+- If the user names evidence flows or special working areas, reflect them in `role_directories` or `transcript_ingest`.
+- If startup files or shared context are obviously required, include them in `AGENTS.md` immediately.
+- Do not leave `On-Demand Prompts` empty when the role already has obvious recurring work modes.
 
-## What A Role Must Decide
+Rules:
+- Keep `role.md` short and factual.
+- Put behavior in `AGENTS.md`, not `role.md`.
+- Start from accountability, not adjectives.
+- State what evidence the role needs before it trusts a conclusion.
+- Define what the role escalates to the user.
 
-Each role needs explicit answers for:
+When to create another role:
+- A single role can own many responsibilities. Do not split just because there is a lot to do.
+- Split when the work needs a genuinely different lens: different operating model, evidence standards, decision cadence, or definition of "good."
+- If two work modes would disagree on what counts as progress or what deserves escalation, they probably want separate roles.
+- Encode this awareness into `AGENTS.md` so the role can say when a request belongs elsewhere.
 
-- What domain it owns
-- What job it owns on the user's behalf
-- How the user manages it: direction-setting, approvals, reviews, and escalation
-- Which decisions it can make independently
-- Which entity types it manages directly
-- Which supporting entity types still need to be created for this role to function well
-- Which shared context it should read at startup
-- Which files or directories it needs beyond the default scaffold
-- Which recurring subdomains deserve their own prompt files
-- Whether it needs optional capabilities such as transcript ingest
-- What standards it protects even when those standards are inconvenient
+How to get a strong persona:
+- Define what the role protects, inspects, and refuses to fake.
+- Write a leadership lens that explains how the role sees the world and what it optimizes for.
+- Add explicit non-negotiables. "We do not..." lines sharpen judgment.
+- Encode the default evidence model: what facts does the role need before it trusts a conclusion?
+- Name the recurring inspection motions: planning, review, escalation, triage, quality control, evidence intake.
+- Name what the role does when it needs real-world action it cannot take: prepare a draft, recommendation, agenda, or escalation for the user.
+- Define what honesty looks like. Good personas protect truth over comfort.
+- If the persona still sounds generic, ask: What does this role hate seeing? What does it treat as fake progress? What should it say "no" to faster than a normal assistant would?
 
-## Bootstrap from zero
-
-If the workspace has no agents yet:
-
-- Create `agents/<role-id>/role.md`, `agents/<role-id>/AGENTS.md`, `agents/<role-id>/prompts/`, and `agents/<role-id>/skills/`.
-- Start with one sharp role before creating several overlapping roles. A single well-bounded operator beats three vague personas.
-- Make sure shared agent templates exist at `prompts/templates/agent/record.md` and `prompts/templates/agent/inbox.md`. Role validation depends on them.
-- Pair the role with a real entity landscape. A role with no managed entities and no startup context becomes generic quickly.
-- It is allowed, and often necessary, to create the supporting entity types, templates, and starter records in the same workflow as the role.
-- If the workspace also has no entity definitions yet, use `entity-setup` in the same pass so the role can point at real shared and owned data.
-- Let the runtime scaffold `agents/<role-id>/agent/` and `.role-agent/` when possible. If you are only doing file setup by hand, create `agent/record.md` and `agent/inbox.md` from the shared templates.
-- Keep the first pass focused, but not hollow. Create the smallest complete role that can actually operate in its domain.
-- If the role already has clear recurring work modes, create the matching `prompts/*.md` files in the first pass instead of leaving the prompt index empty.
-- If the role clearly needs extra working directories or capabilities such as evidence intake or transcript ingest, include them in the first pass instead of deferring them by default.
-
-## Interview Checklist
-
-Ask these questions before writing the role:
-
-- What business or operating domain does this role own?
-- What job does it own on the user's behalf?
-- What should the user manage directly: priorities, approvals, sensitive decisions, external communication?
-- What decisions should it make autonomously, and what should it escalate?
-- Which outcomes matter more than activity volume?
-- Which entity types does it manage directly?
-- Which shared files should it read at session start?
-- What recurring task clusters deserve their own prompt files?
-- Does it need special capabilities such as transcript ingest?
-- Does it need extra working directories like `supporting-files/` or inbox folders for evidence?
-- What are the 5-10 standards this role should enforce even when they are uncomfortable?
-- Which common failure modes should it call out directly?
-- What kind of leader or operator should it resemble in judgment, not just tone?
-- Can the user give 2-3 example tasks this role should handle well and 2 tasks it should explicitly avoid?
-
-Treat these answers as build inputs, not just discussion:
-
-- If the user names recurring task clusters, turn them into `prompts/*.md` files during the first draft unless they are clearly one-off edge cases.
-- If the user names evidence flows, ingestion work, or special working areas, reflect that in `role_directories`, `transcript_ingest`, or both when the workflow is real.
-- If startup files or shared context are obviously required for competent work, include them in `AGENTS.md` immediately instead of leaving them implied.
-
-## How To Get A Strong Persona
-
-Use this pattern:
-
-- Start from accountability, not adjectives. Define what the role protects, inspects, and refuses to fake.
-- Define the operating relationship clearly: the role owns a function; the user is the manager who sets direction and reviews important calls.
-- Write a leadership lens that explains how this role sees the world.
-- Add a core standard with explicit non-negotiables. "We do not..." lines are useful when they sharpen judgment.
-- Encode the default evidence model. What facts does this role need before it trusts a conclusion?
-- Name the role's recurring inspection motions, such as planning, review, escalation, triage, quality control, or evidence intake.
-- Name what the role does when it needs real-world action it cannot take directly: prepare a draft, recommendation, agenda, or escalation for the user to deliver.
-- Define what honesty looks like in this role. Good personas protect truth over comfort.
-- Keep the persona recognizable. "Disciplined operations leader" works. "Helpful business copilot" is too weak.
-
-If the persona still sounds generic, ask more pointed questions:
-
-- What does this role hate seeing?
-- What does this role repeatedly push teams to clarify?
-- What does this role treat as fake progress?
-- What should this role say "no" to faster than a normal assistant would?
-
-## When To Create Another Role
-
-- A role can own many responsibilities.
-- Create a new role when the work needs a genuinely different lens: a different operating model, different personality, different approach, or another broad responsibility set that would change judgment.
-- Do not split roles just because one operator has a lot to do. Split when the work would be better served by a distinct operator.
-- If two work modes would disagree on evidence standards, decision cadence, escalation style, or what "good" looks like, they probably want separate roles.
-- Encode this awareness into the role's `AGENTS.md` so the role can clearly say when another role should be created or when a request belongs elsewhere.
-
-## Split Responsibilities Correctly
-
-Put each kind of information in the right file:
-
-- `role.md`: manifest facts only, such as `id`, `name`, `description`, optional `role_directories`, and optional `transcript_ingest`
-- `AGENTS.md`: operating standard, startup context, entity context, and links to on-demand prompts
-- `prompts/*.md`: deep, recurring subdomain guidance that should be read only when relevant
-- `agent/record.md`: clarified role-local operating system
-- `agent/inbox.md`: raw internal commitments and reminders waiting for clarification
-
-## Build Order
-
-1. Decide whether the role needs new or updated entity types to support its work. If yes, create or revise them in the same pass.
-2. Write `agents/<role-id>/role.md` with only manifest-level facts.
-3. Write `agents/<role-id>/AGENTS.md` with:
-   - operating standard
-   - startup context
-   - entity context
-   - on-demand prompt index
-4. Add `agents/<role-id>/prompts/*.md` for recurring subdomains that are already clear from the user's description. Do not leave `On-Demand Prompts` empty when the role obviously has repeated dense work modes.
-5. Ensure `prompts/templates/agent/record.md` and `prompts/templates/agent/inbox.md` exist.
-6. If needed, declare `transcript_ingest` only after the target entity type, evidence path, and prompt files already exist.
-7. Validate with `npm run cli -- doctor --role <role-id>`.
-
-## `role.md` Skeleton
-
-Keep it short:
+`role.md` skeleton:
 
 ```yaml
 ---
 id: operations
 name: Head of Operations
-description: File-first operations leadership role for process quality, execution control, and cross-functional follow-through.
+description: File-first operations leadership role for process quality, execution control, and follow-through.
 ---
 ```
 
-`role_directories` is optional. Omit it when the role needs no extra working directories; the runtime will default it to `[]`.
-
-If the role needs extra working directories, add them explicitly:
+Optional fields:
 
 ```yaml
 role_directories:
   - supporting-files
-  - supporting-files/inbox
-```
 
-Only add `transcript_ingest` when the workflow is real:
-
-```yaml
 transcript_ingest:
   entity_type: work-item
   command_prompt: command-transcript-run.md
@@ -167,172 +95,58 @@ transcript_ingest:
   activity_log_file: activity-log.md
 ```
 
-## `AGENTS.md` Skeleton
-
-Use this outline:
+`AGENTS.md` outline:
 
 ```markdown
 # <Role Name>
 
 ## Operating Standard
-- Brief statement of what this role owns and protects
+- What the role owns and protects
 
 ### Leadership Lens
-- How this role sees the world
-- What it optimizes for
+- How the role sees the work
 
 ### Core Standard
-- A few explicit non-negotiables
-- "We do not..." lines when they sharpen judgment
+- Non-negotiables
 
 ### Operating Relationship
-- What job this role owns on the user's behalf
-- What the user manages directly: priorities, approvals, sensitive decisions, external communication
-- How the role prepares drafts, asks, or agendas when the user must act as the real-world conduit
+- What the role owns
+- What the user approves or handles directly
 
 ### Operating Expectations
-- The recurring motions this role runs
-- What good and bad look like
-- Which conclusions require evidence before trust
-- When this role should recommend creating or switching to another role because the work needs a different operating lens
+- Recurring motions
+- Evidence rules
+- Escalation rules
 
 ## Startup Context
 - `agent/record.md`
 - `agent/inbox.md`
-- List the shared context files this role should always read first
-- List the role-owned entity areas this role most often works in
+- shared files this role always reads first
 
 ## Entity Context
-- Which entity types and directories this role manages
+- managed types and directories
 
 ## On-Demand Prompts
-- Link each recurring subdomain prompt
+- recurring prompt files
 ```
 
-Keep `AGENTS.md` concise, but make the first screenful specific enough that the role already sounds like a real operator instead of a generic assistant with domain nouns.
+Shared template starters:
 
-## Example: Sales Leader
+Copy from `prompts/templates/agent/record.md` and `prompts/templates/agent/inbox.md` when the runtime has not scaffolded them. The canonical templates include GTD sections (Active Projects, Next Actions, Waiting For, Calendar, Someday Or Maybe, Strategic Experiments, Strategic Observations) and an inbox Purpose section. Do not omit those sections when creating files manually.
 
-A complete, minimal role example lives under this skill at `skills/role-setup/example/sales/`. You can copy it into `agents/sales/` (and adjust entity paths to match your `entity-defs/entities.md`) to get a working sales role.
-
-What it contains:
-
-- **role.md** — `id: sales`, `name: Sales Leader`, `role_directories: [supporting-files]`. No `transcript_ingest`; manifest stays minimal.
-- **AGENTS.md** — Operating standard (pipeline truth, next steps, evidence), explicit user-as-manager operating relationship, proactive sales operating expectations, startup context, entity context (deals, companies, people, products), and four on-demand prompts.
-- **prompts/pipeline-review.md** — Recurring subdomain: how to run a pipeline review from file evidence.
-- **prompts/deal-update.md** — Recurring subdomain: how to capture and write deal updates into records.
-- **prompts/people.md** — People/contacts mode: stakeholders, roles, engagement at accounts.
-- **prompts/product.md** — Product-in-sales mode: what’s in play for a deal, positioning, objections (not product strategy).
-- **supporting-files/** — Extra working directory declared in `role.md`.
-
-The example is correct for the runtime: `npm run cli -- doctor --role sales` will pass once the workspace has the shared agent templates and entity definitions that define `deals`, `companies`, `people`, and `products`—e.g. the entity-setup example at `skills/entity-setup/example-sales/` (or you point the role’s entity context at your actual entity directories). Use it as a reference for structure and tone, then tailor to your domain.
-
-## Good On-Demand Prompt Candidates
-
-Create a separate role prompt when a subdomain is both recurring and dense, for example:
-
-- evidence intake
-- review rituals
-- escalation handling
-- planning cadence
-- transcript ingest
-- stakeholder updates
-- operating reviews
-
-Keep the main `AGENTS.md` sharp. If the file starts reading like five manuals pasted together, split it.
-Do not create prompt files for every possible topic. Create them when they meaningfully reduce ambiguity in recurring work.
-Do not leave the section empty just because the workspace is new. If the user's description already reveals recurring modes, capture them now.
-
-## Minimal Shared Agent Templates
-
-If the framework has not created them yet, use starter templates like these under `prompts/templates/agent/`.
-
-`record.md`
-
-```markdown
----
-id: {{roleId}}-agent
-type: agent
-name: {{roleName}} Agent
-status: active
-owner: {{roleName}}
-updated_at: {{updatedAt}}
-source_refs:
-{{sourceRefsYaml}}
----
-
-## Summary
-
-{{roleDescription}}
-
-## Active Projects
-
-- None yet.
-
-## Next Actions
-
-- None yet.
-
-## Waiting For
-
-- None yet.
-
-## Calendar
-
-- None scheduled.
-
-## Someday Or Maybe
-
-- None yet.
-```
-
-`inbox.md`
-
-```markdown
----
-id: {{roleId}}-agent-inbox
-type: agent-inbox
-name: {{roleName}} Agent Inbox
-status: active
-owner: {{roleName}}
-updated_at: {{updatedAt}}
-source_refs:
-{{sourceRefsYaml}}
----
-
-## Purpose
-
-Raw internal commitments, reminders, and follow-up ideas that still need clarification into `agent/record.md`.
-
-## Open Inbox Items
-
-- None.
-```
-
-## Quality Bar
-
-- The role should feel like a specific operator with real standards, not a generic assistant plus jargon.
-- A new session should know what to read first without guessing.
-- The entity context should make it obvious where this role works in the workspace.
-- The role should make the reporting relationship explicit: it owns the function, while the user sets direction, reviews important calls, and acts as the real-world conduit when needed.
-- The role should have a small set of strong opinions that improve decisions under ambiguity.
-- The role should be able to explain what good looks like and what bad smells like.
-- The first draft should be focused, but complete enough that repeated task modes, obvious directories, and real capabilities are not silently deferred.
-- The role should know where its lens stops and when another role should be created instead of absorbing incompatible work.
-
-## Anti-Patterns
-
-- Packing every domain detail into `role.md`.
+Anti-patterns:
+- Packing domain detail into `role.md` instead of `AGENTS.md`.
 - Writing an `AGENTS.md` that is all tone and no inspectable operating standard.
 - Creating many prompt files before the core role behavior is clear.
-- Leaving `On-Demand Prompts` empty even though the role already has obvious recurring work modes.
+- Leaving `On-Demand Prompts` empty when the role already has obvious recurring work modes.
 - Inventing special agent files per role instead of using the shared `prompts/templates/agent/` templates.
 - Giving the role broad authority without clarifying what evidence it needs.
-- Cramming several distinct operating lenses into one role just because they touch the same domain or stakeholders.
+- Cramming several distinct operating lenses into one role just because they touch the same domain.
 
-## Validation
+Reference example:
+- `skills/role-setup/example/sales/`
 
-- Run `npm run cli -- doctor --role <role-id>` when the repo supports it.
-- Read the final `AGENTS.md` top to bottom and check whether the role sounds concrete in the first screenful.
-- Confirm the role's startup context points to real files.
-- Confirm the entity context matches real directories and real entity types.
+Validation:
+- Check that startup paths are real.
+- Check that entity context matches real directories.
+- Read the first screenful of `AGENTS.md`; it should sound like a specific operator, not a generic assistant.

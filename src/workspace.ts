@@ -25,6 +25,7 @@ export interface WorkspacePaths {
   entitiesDir: string;
   agentsDir: string;
   skillsDir: string;
+  inboxDir: string;
   roleDir?: string;
   agentsFile?: string;
   manifestFile?: string;

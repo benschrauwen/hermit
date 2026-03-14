@@ -173,6 +173,7 @@ describe("heartbeat session helpers", () => {
 
   it("uses a backlog-focused default prompt for heartbeat turns", () => {
     expect(DEFAULT_HEARTBEAT_PROMPT).toContain("GTD backlog");
+    expect(DEFAULT_HEARTBEAT_PROMPT).toContain("shared `inbox/` directory");
     expect(DEFAULT_HEARTBEAT_PROMPT).toContain("Do not infer or resurrect tasks");
     expect(DEFAULT_HEARTBEAT_PROMPT).toContain("If no clearly worthwhile step exists");
   });

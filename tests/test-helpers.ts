@@ -269,6 +269,7 @@ export function seedRoleWorkspace(root: string, roleIds: string[] = ["role-a"]):
   mkdirSync(path.join(root, "agents"), { recursive: true });
   mkdirSync(path.join(root, "prompts"), { recursive: true });
   mkdirSync(path.join(root, "skills"), { recursive: true });
+  mkdirSync(path.join(root, "inbox"), { recursive: true });
 
   cpSync(path.join(repoRoot, "prompts"), path.join(root, "prompts"), {
     recursive: true,

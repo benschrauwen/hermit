@@ -6,6 +6,7 @@ describe("constants", () => {
     expect(SHARED_ROOT_DIRECTORIES).toContain("entities");
     expect(SHARED_ROOT_DIRECTORIES).toContain("agents");
     expect(SHARED_ROOT_DIRECTORIES).toContain("entity-defs");
+    expect(SHARED_ROOT_DIRECTORIES).toContain("inbox");
   });
 
   it("ENTITY_SEQUENCE_WIDTH is 4", () => {
