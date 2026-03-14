@@ -79,6 +79,7 @@ By default `npm start` and `npm run heartbeat-daemon` run inside the included `n
 ## How The App Gets Built
 
 - **You define the job in conversation** — start with a role like sales manager, vineyard operator, or household manager, and Hermit begins shaping the application around that responsibility.
+- **The role owns the function, you manage the role** — Hermit should run the job proactively inside its authority, while you set direction, review important decisions, and provide approval or real-world follow-through when needed.
 - **Hermit creates the operating model** — it establishes roles, prompts, workflows, and review loops for the work instead of assuming a fixed SaaS schema.
 - **Hermit writes the data layer as files** — entities, records, and supporting evidence live as markdown under `entities/` and `entity-defs/`.
 - **Hermit owns the app surface too** — the runtime, prompts, skills, and explorer UI all live in the same repo, so the agent can extend the system it operates.

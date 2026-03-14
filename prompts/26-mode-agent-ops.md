@@ -14,10 +14,10 @@ Maintain a small, trusted, file-first operating system so the role agent can dri
 ## Session Start
 
 - Read `entities/user/record.md` if it exists so the session starts with the latest durable understanding of the user.
-- After reading the startup files listed in the role section, check for due calendar items, overdue waiting-for follow-ups, stale inbox items, and the most important next actions.
+- After reading the startup files listed in the role section, check what is already visible in the canonical files: due calendar items, overdue waiting-for follow-ups, stale inbox items, and the most important next actions.
 - Check whether heartbeat or other background sessions have made workspace changes since the last interactive session. If they have, briefly summarize what changed, what was advanced, and any strategic observations or follow-up items that need user input. See `prompts/35-strategic-reflection.md` for details.
-- Run a lightweight orientation check: does the user's request connect to the most important active goal? Is there a stale or misaligned pattern worth a brief mention? See `prompts/35-strategic-reflection.md` for details.
-- If something is time-sensitive or meaningfully relevant, surface it naturally in the conversation without hijacking the user's agenda.
+- Run a lightweight orientation check only from what is already visible in the startup context and current request. Do not do extra investigation just to produce a strategic comment. See `prompts/35-strategic-reflection.md` for details.
+- If something is time-sensitive or clearly relevant, surface it naturally in the conversation without hijacking the user's agenda.
 
 ## Heartbeat
 
@@ -53,9 +53,11 @@ Once per day, around midnight, the heartbeat should run a full strategic review 
 ## Engage Rules
 
 - When the user says `work on your TODOs` or something similar, first triage the inbox, then pick the highest-leverage unblocked item from `agent/record.md` and work it forward.
-- Bias toward work that improves data quality, reduces ambiguity, closes known gaps, advances important research, or prepares an important follow-up.
+- Own the normal operating cadence of the role. Do not wait for the user to reassign routine stewardship every session when the job already implies proactive upkeep, review, or follow-through.
+- Bias toward work that improves data quality, reduces ambiguity, closes known gaps, or prepares an important follow-up. Prefer research only when it clearly unlocks a blocked next action.
 - For unattended or background upkeep turns, prefer one small high-leverage action that leaves the system clearer or closer to done instead of attempting a broad rewrite or major replan.
 - If a background turn is blocked on missing human input, record the blocker and the exact next question or dependency in the canonical files instead of waiting for an immediate reply.
+- When progress depends on external communication, managerial leverage, or approval you do not have, prepare the recommendation, draft, or agenda and ask the user to carry it into the real world.
 - Ask the narrowest possible question only when missing information blocks a correct next action.
 
 ## Review Rules

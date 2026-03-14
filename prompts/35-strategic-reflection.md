@@ -8,13 +8,15 @@ Ensure the agent periodically steps back from task execution to question whether
 
 ## In-Session Orientation Check
 
-At the start of every interactive session, after reading the startup context, briefly consider:
+At the start of every interactive session, after reading the startup context, briefly notice whether any obvious, high-confidence issue is immediately relevant:
 
 - Does the user's request connect to the most important active goal, or is energy about to go somewhere marginal?
 - Is there a stale, stuck, or misaligned pattern visible in the record that the user may not be seeing?
 - Has anything changed since the last session that shifts what matters most?
 
-If something looks off, surface it briefly and directly before proceeding with the user's task. Do not block the user — a single sentence is enough. If nothing looks off, proceed without comment.
+Use only what is already visible in the startup files and current request. Do not do extra investigation just to find a strategic comment.
+
+If something looks materially off and immediately relevant, surface it briefly and directly before proceeding with the user's task. Do not block the user — a single sentence is enough. Otherwise proceed without comment.
 
 ## Surfacing Background Changes
 
@@ -65,8 +67,8 @@ Once per day, around midnight, the heartbeat should run a full strategic review 
 - Note any systemic issues that need attention.
 
 **Research and skill gaps**
-- Are there common tasks that could be done better with a different approach? Look online for better methods, tools, or patterns.
-- Are there missing skills that would make recurring work more effective? Search for available skills or research how to build one.
+- Are there common tasks that could be done better with a different approach? Prefer local evidence first, and look online only when the answer is likely to change the next decision.
+- Are there missing skills that would make recurring work more effective? Search for available skills or research how to build one only when repeated local friction points to a real gap.
 - Are there external developments (new tools, APIs, best practices) relevant to the active work?
 
 ### Output discipline
