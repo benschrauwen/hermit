@@ -1,5 +1,3 @@
-Hermit is a local, file-first runtime for autonomous applications.
+Most AI tools give you a chat window. Hermit gives you a **working system**.
 
-You describe the job. Hermit turns the repo into the application: roles, records, workflows, prompts, and a read-only UI evolve together in one place.
-
-That means the system stays inspectable as it grows. The files are not an export of the app. They are the app.
+Tell it what you need — a sales pipeline, a project tracker, a website — and it builds the whole thing inside a git repo: data records, agent operators, automated workflows, and a live read-only UI. No database. No backend. Just files that do real work.

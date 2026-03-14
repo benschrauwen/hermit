@@ -85,10 +85,11 @@ const homeNarrativeBlocks = homePage?.blocks.filter((block) => !block.relativePa
 const homeProofBlocks = homePage?.blocks.filter((block) => block.relativePath.includes("proof")) ?? [];
 ---
 <BaseLayout title={siteTitle} description={siteDescription}>
+  <!-- Hero -->
   <section class="hero card">
     <div class="hero-copy">
-      <p class="hero-kicker">File-first autonomous applications</p>
-      <h1>{siteTitle}</h1>
+      <p class="hero-kicker">AI that builds, not just answers</p>
+      <h1>Your repo becomes the app</h1>
       <p class="hero-lead">{siteDescription}</p>
       <div class="cta-row">
         <a class="button-primary" href={primaryCtaHref}>{primaryCtaLabel}</a>
@@ -99,41 +100,67 @@ const homeProofBlocks = homePage?.blocks.filter((block) => block.relativePath.in
           <span class="github-badge-label">GitHub</span>
           <span class="github-badge-value">benschrauwen/hermit</span>
         </a>
-        <a class="resource-link" href="https://benschrauwen.substack.com/p/the-advent-of-autonomous-applications" target="_blank" rel="noreferrer">Read Ben's announcement ↗</a>
+        <a class="resource-link" href="https://benschrauwen.substack.com/p/the-advent-of-autonomous-applications" target="_blank" rel="noreferrer">Read the announcement ↗</a>
       </div>
-      <p class="hero-proof-note">Built from roles, records, and renderers in this repo — with the working process visible inside the site.</p>
     </div>
     <div class="hero-visual-shell">
       <img class="hero-mascot" src="/mascot.png" alt="Hermit mascot" />
     </div>
     <div class="hero-stat-grid">
       <div class="stat-card">
-        <span class="stat-label">Capabilities</span>
-        <strong class="stat-value">{capabilityCards.length}</strong>
-      </div>
-      <div class="stat-card">
-        <span class="stat-label">Public pages</span>
-        <strong class="stat-value">{publicPages.length + 1}</strong>
-      </div>
-      <div class="stat-card">
-        <span class="stat-label">Active roles</span>
+        <span class="stat-label">Agent roles</span>
         <strong class="stat-value">{roleIds.length}</strong>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Entity types</span>
+        <strong class="stat-value">{entityDefs.length}</strong>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Live pages</span>
+        <strong class="stat-value">{publicPages.length + 1}</strong>
       </div>
     </div>
   </section>
 
+  <!-- What Hermit actually does — concrete, not abstract -->
   {homePage?.publicHtml && (
     <section class="card detail-panel mb-10">
       <div class="markdown-body" set:html={homePage.publicHtml} />
     </section>
   )}
 
+  <!-- CRM Demo — the proof, right up front -->
+  <section class="mb-10">
+    <div class="section-header">
+      <div>
+        <p class="section-kicker">Live demo</p>
+        <h2 class="section-title-large">See what Hermit builds</h2>
+      </div>
+    </div>
+    <a class="feature-card demo-card" href="/demo/sales-crm" style="display: grid; gap: 1.5rem; grid-template-columns: 1fr; padding: 2rem;">
+      <div>
+        <span class="feature-tag">Interactive demo</span>
+        <h3 style="font-size: 1.375rem; margin-top: 0.5rem;">Enterprise Sales CRM</h3>
+        <p style="margin-top: 0.75rem; font-size: 1rem; line-height: 1.7; color: #334155;">
+          We told Hermit: "set up an enterprise sales pipeline." It created a Sales Leader agent,
+          account and deal records, and this live pipeline dashboard — all from markdown files in the repo.
+          No database. No backend. No code written by hand.
+        </p>
+        <p class="feature-meta" style="margin-top: 1rem;">5 accounts · 8 deals · Pipeline board · Account details · Agent-managed</p>
+        <span style="display: inline-flex; align-items: center; margin-top: 1rem; font-size: 0.875rem; font-weight: 600; color: #0369a1;">
+          Open the demo →
+        </span>
+      </div>
+    </a>
+  </section>
+
+  <!-- How it works — narrative blocks from markdown -->
   {homeNarrativeBlocks.length > 0 && (
     <section class="mb-10">
       <div class="section-header">
         <div>
           <p class="section-kicker">How it works</p>
-          <h2 class="section-title-large">Why Hermit feels different</h2>
+          <h2 class="section-title-large">From conversation to working system</h2>
         </div>
       </div>
       <div class="card-grid">
@@ -146,14 +173,31 @@ const homeProofBlocks = homePage?.blocks.filter((block) => block.relativePath.in
     </section>
   )}
 
-  {homeProofBlocks.length > 0 && (
+  <!-- Capabilities -->
+  {capabilityCards.length > 0 && (
     <section class="mb-10">
       <div class="section-header">
         <div>
-          <p class="section-kicker">Proof</p>
-          <h2 class="section-title-large">A concrete example in this repo</h2>
+          <p class="section-kicker">Under the hood</p>
+          <h2 class="section-title-large">What makes it work</h2>
         </div>
+        <a class="section-link" href="/entities/capability">See all →</a>
       </div>
+      <div class="card-grid">
+        {capabilityCards.map((capability) => (
+          <a class="feature-card" href={capability.href}>
+            <span class="feature-tag">Capability</span>
+            <h3>{capability.name}</h3>
+            {capability.headline && <p>{capability.headline}</p>}
+          </a>
+        ))}
+      </div>
+    </section>
+  )}
+
+  <!-- Proof — inspectable links -->
+  {homeProofBlocks.length > 0 && (
+    <section class="mb-10">
       {homeProofBlocks.map((block) => (
         <section class="card detail-panel mb-6">
           <div class="markdown-body" set:html={block.html} />
@@ -162,87 +206,29 @@ const homeProofBlocks = homePage?.blocks.filter((block) => block.relativePath.in
     </section>
   )}
 
-  {capabilityCards.length > 0 && (
-    <section class="mb-10">
-      <div class="section-header">
-        <div>
-          <p class="section-kicker">Capabilities</p>
-          <h2 class="section-title-large">What Hermit can do</h2>
-        </div>
-        <a class="section-link" href="/entities/capability">See all capabilities</a>
-      </div>
-      <div class="card-grid">
-        {capabilityCards.map((capability) => (
-          <a class="feature-card" href={capability.href}>
-            <span class="feature-tag">Capability</span>
-            <h3>{capability.name}</h3>
-            {capability.headline && <p>{capability.headline}</p>}
-            {capability.summary && <p class="feature-summary">{capability.summary}</p>}
-            {capability.audience && <p class="feature-meta">For {capability.audience}</p>}
-          </a>
-        ))}
-      </div>
-    </section>
-  )}
-
-  <section class="mb-10">
-    <div class="section-header">
-      <div>
-        <p class="section-kicker">Live demo</p>
-        <h2 class="section-title-large">See it in action</h2>
-      </div>
-    </div>
-    <a class="feature-card" href="/demo/sales-crm">
-      <span class="feature-tag">Demo</span>
-      <h3>Enterprise Sales CRM</h3>
-      <p>A full pipeline board, account table, and deal cards — all rendered from markdown files managed by a Sales Leader agent in this workspace.</p>
-      <p class="feature-meta">Accounts · Deals · Pipeline stages · Agent-managed records</p>
-    </a>
-  </section>
-
+  <!-- Explore -->
   {publicPages.length > 0 && (
     <section class="mb-10">
       <div class="section-header">
         <div>
-          <p class="section-kicker">Next steps</p>
-          <h2 class="section-title-large">Explore the site</h2>
+          <p class="section-kicker">Go deeper</p>
+          <h2 class="section-title-large">Explore</h2>
         </div>
       </div>
       <div class="card-grid compact-grid">
-        {publicPages.map((page) => (
+        {publicPages.filter(p => p.slug !== "demo/sales-crm").map((page) => (
           <a class="feature-card compact-card" href={page.href}>
             <span class="feature-tag">Page</span>
             <h3>{page.name}</h3>
             {page.summary && <p>{page.summary}</p>}
           </a>
         ))}
+        <a class="feature-card compact-card" href="/inside">
+          <span class="feature-tag">Inside Hermit</span>
+          <h3>Inspect the workspace</h3>
+          <p>See every entity, agent, record, and next action in the system — live.</p>
+        </a>
       </div>
     </section>
   )}
-
-  <section class="mb-10">
-    <div class="section-header">
-      <div>
-        <p class="section-kicker">Transparency</p>
-        <h2 class="section-title-large">Inspect how the site improves itself</h2>
-      </div>
-    </div>
-    <div class="card-grid compact-grid">
-      <a class="feature-card compact-card" href="/inside">
-        <span class="feature-tag">Inside Hermit</span>
-        <h3>Open the internal state</h3>
-        <p>See the page records, capability records, active website work, and the route into entities and agents.</p>
-      </a>
-      <a class="feature-card compact-card" href="/entities/site/site">
-        <span class="feature-tag">Site record</span>
-        <h3>Read the site strategy</h3>
-        <p>Inspect the canonical site record that drives the homepage promise, audience, and calls to action.</p>
-      </a>
-      <a class="feature-card compact-card" href="/agents/website">
-        <span class="feature-tag">Website agent</span>
-        <h3>See the current next actions</h3>
-        <p>Open the website role's working record and inbox to see how improvements are tracked in files.</p>
-      </a>
-    </div>
-  </section>
 </BaseLayout>

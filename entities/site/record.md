@@ -6,11 +6,11 @@ status: live
 owner: Hermit Website Lead
 audience: People evaluating Hermit and trying to understand what it can do
 primary_goal: Help visitors understand Hermit quickly, try it locally, and inspect how the system improves itself
-value_proposition: Hermit turns a local repo into a file-first autonomous application that can shape its own roles, records, workflows, and read-only UI over time
-primary_cta_label: Get started
-primary_cta_href: /getting-started
-secondary_cta_label: See inside Hermit
-secondary_cta_href: /inside
+value_proposition: An AI runtime that builds working apps inside your repo. You describe the job — it creates the roles, data, workflows, and UI. Everything lives in markdown files you can read, edit, and trust.
+primary_cta_label: See the sales CRM demo
+primary_cta_href: /demo/sales-crm
+secondary_cta_label: Get started
+secondary_cta_href: /getting-started
 updated_at: 2026-03-14T08:38:19.995Z
 source_refs:
   - README.md

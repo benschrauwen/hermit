@@ -1,8 +1,6 @@
-## Why it feels different
+## Why this is different from ChatGPT or Cursor
 
-- **It is local first.** Hermit works against your repo, not an opaque backend.
-- **It shapes the operating model.** Roles, entity types, and workflows are built around the job you describe.
-- **It keeps improving in the open.** Heartbeats, next actions, and strategy notes are visible in files.
-- **The UI stays close to the truth.** The explorer and website read the same workspace the agent edits.
-
-So the value is not just that an AI can answer questions. The value is that it leaves behind a working system that can keep moving.
+- **It doesn't just answer questions — it builds and runs things.** Hermit creates agents with real responsibilities, tracks their work in files, and improves itself automatically between sessions.
+- **Everything is inspectable.** No hidden database, no opaque backend. Open any file and see exactly what the system knows, what it's doing next, and why.
+- **It keeps working when you're not there.** Automated heartbeats review progress, surface stuck work, and advance the next action — every hour.
+- **It runs locally, in your repo.** Your data stays on your machine. Git is the change history. You own everything.

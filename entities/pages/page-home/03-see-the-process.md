@@ -1,7 +1,7 @@
-## See the public surface and the working system
+## This site is built by Hermit
 
-Hermit is not just a website generator or a chat wrapper.
+You're looking at proof right now. This website is not a separate app — it's rendered directly from the same workspace that the agents operate in.
 
-It can present a polished public surface while also exposing the records, operators, and next actions behind that surface. That makes the system easier to trust, inspect, and improve over time.
+The **Website Lead** agent manages the pages, capabilities, and site strategy. The **Sales Leader** agent manages the CRM demo's accounts and deals. Both work from markdown files in the same repo, and both have their own next actions, inboxes, and strategic reviews you can inspect.
 
-If you want the polished explanation, start with the public pages. If you want to inspect the machinery, step into **Inside Hermit**.
+[See inside this workspace →](/inside)
