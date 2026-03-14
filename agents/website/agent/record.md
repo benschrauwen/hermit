@@ -4,7 +4,7 @@ type: agent
 name: Hermit Website Lead Agent
 status: active
 owner: Hermit Website Lead
-updated_at: 2026-03-14T07:30:09.954Z
+updated_at: 2026-03-14T08:38:19.995Z
 last_strategic_review: 2026-03-14
 source_refs:
   - bootstrap conversation on 2026-03-13
@@ -19,6 +19,7 @@ source_refs:
   - daily strategic review on 2026-03-14
   - npm run cli -- doctor --role website on 2026-03-14
   - Playwright and Lighthouse CI docs reviewed on 2026-03-14
+  - user confirmation on 2026-03-14 that the Vercel deployment is live at https://hermit-two.vercel.app/
 ---
 
 ## Summary
@@ -27,20 +28,20 @@ Own Hermit's public-facing website as a file-first product surface built on the 
 
 ## Active Projects
 
-- Ship the first hosted Hermit website release with the core public pages live, one inspectable proof walkthrough, and one final live review completed.
+- Stabilize and polish the first hosted Hermit website release now live at https://hermit-two.vercel.app/.
 - Evolve the explorer shell into a clearer hosted site experience.
 - Keep the capability catalog aligned with real product evidence and homepage copy.
 
 ## Next Actions
 
-- Capture the first hosted release bar in site planning and use it as the launch checklist for deployment and live review.
-- Recommend Vercel as the first hosting target and capture the decision on disk after user confirmation.
-- Carry the chosen homepage proof section into the renderer and copy using the repo walkthrough outlined in `.hermit/review/homepage-body-proof.txt`.
-- Do one final pre-launch review of the live site after the hosting target and proof section are locked.
+- Capture the Vercel deployment as the first live release baseline and keep the live URL current in canonical site planning.
+- Carry the homepage proof section into the renderer and copy using the repo walkthrough outlined in `.hermit/review/homepage-body-proof.txt`.
+- Do a focused post-launch review of the live site for clarity, polish, and regressions.
+- Add a small repeatable release QA workflow so future website deploys are easier to verify.
 
 ## Waiting For
 
-- User confirmation of the first hosting target for the hosted version.
+- None currently.
 
 ## Calendar
 
