@@ -124,6 +124,8 @@ describe("resolveInitialChatPrompt", () => {
   it("keeps the default opening focused on the user's agenda", () => {
     expect(DEFAULT_CHAT_OPENING_PROMPT).toContain("ask what they want to work on");
     expect(DEFAULT_CHAT_OPENING_PROMPT).toContain("Do not suggest exploratory inspection");
+    expect(DEFAULT_CHAT_OPENING_PROMPT).toContain("focused 1:1");
+    expect(DEFAULT_CHAT_OPENING_PROMPT).toContain("capturing the follow-up work for heartbeat");
   });
 });
 
