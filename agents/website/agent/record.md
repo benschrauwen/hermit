@@ -4,7 +4,7 @@ type: agent
 name: Hermit Website Lead Agent
 status: active
 owner: Hermit Website Lead
-updated_at: 2026-03-14T08:38:19.995Z
+updated_at: 2026-03-14T08:30:37Z
 last_strategic_review: 2026-03-14
 source_refs:
   - bootstrap conversation on 2026-03-13
@@ -20,6 +20,7 @@ source_refs:
   - npm run cli -- doctor --role website on 2026-03-14
   - Playwright and Lighthouse CI docs reviewed on 2026-03-14
   - user confirmation on 2026-03-14 that the Vercel deployment is live at https://hermit-two.vercel.app/
+  - heartbeat backlog clarification on 2026-03-14
 ---
 
 ## Summary
@@ -34,14 +35,13 @@ Own Hermit's public-facing website as a file-first product surface built on the 
 
 ## Next Actions
 
-- Capture the Vercel deployment as the first live release baseline and keep the live URL current in canonical site planning.
 - Carry the homepage proof section into the renderer and copy using the repo walkthrough outlined in `.hermit/review/homepage-body-proof.txt`.
 - Do a focused post-launch review of the live site for clarity, polish, and regressions.
 - Add a small repeatable release QA workflow so future website deploys are easier to verify.
 
 ## Waiting For
 
-- None currently.
+- User decision on whether public proof artifacts should get their own canonical entity or stable record shape instead of living only under `.hermit/review/`. Next step once the user replies: either scaffold the new durable proof structure or explicitly keep proof in existing records. Follow up by 2026-03-18 if it has not come up naturally before then.
 
 ## Calendar
 

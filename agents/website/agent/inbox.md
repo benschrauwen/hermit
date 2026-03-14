@@ -4,12 +4,13 @@ type: agent-inbox
 name: Hermit Website Lead Agent Inbox
 status: active
 owner: Hermit Website Lead
-updated_at: 2026-03-14T07:30:09.954Z
+updated_at: 2026-03-14T08:30:37Z
 source_refs:
   - bootstrap conversation on 2026-03-13
   - daily strategic review on 2026-03-13
   - heartbeat telemetry check on 2026-03-13
   - daily strategic review on 2026-03-14
+  - heartbeat backlog clarification on 2026-03-14
 ---
 
 ## Purpose

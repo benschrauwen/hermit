@@ -176,6 +176,112 @@ entities:
     files:
       - path: record.md
         template: capability/record.md
+  - key: account
+    label: Account
+    type: account
+    create_directory: accounts
+    scan_directories:
+      - accounts
+    id_strategy: prefixed-slug
+    id_prefix: acct
+    id_source_fields:
+      - name
+    name_template: "{{name}}"
+    status_field: status
+    owner_field: owner
+    fields:
+      - key: name
+        label: Account Name
+        type: string
+        description: Company or organization name.
+        required: true
+      - key: owner
+        label: Owner
+        type: string
+        description: Sales owner for this account.
+        required: true
+      - key: status
+        label: Status
+        type: string
+        description: Account status (prospect, active, churned).
+        required: true
+      - key: industry
+        label: Industry
+        type: string
+        description: Industry vertical.
+      - key: size
+        label: Company Size
+        type: string
+        description: Employee count range or revenue tier.
+      - key: tier
+        label: Tier
+        type: string
+        description: Account tier (enterprise, mid-market, growth).
+      - key: arr
+        label: ARR
+        type: string
+        description: Current annual recurring revenue, if customer.
+    files:
+      - path: record.md
+        template: account/record.md
+
+  - key: deal
+    label: Deal
+    type: deal
+    create_directory: deals
+    scan_directories:
+      - deals
+    exclude_directory_names:
+      - notes
+    id_strategy: prefixed-slug
+    id_prefix: deal
+    id_source_fields:
+      - name
+    name_template: "{{name}}"
+    status_field: stage
+    owner_field: owner
+    include_in_initialization: true
+    fields:
+      - key: name
+        label: Deal Name
+        type: string
+        description: Short deal identifier.
+        required: true
+      - key: account_id
+        label: Account
+        type: string
+        description: ID of the linked account.
+        required: true
+      - key: owner
+        label: Owner
+        type: string
+        description: Sales owner.
+        required: true
+      - key: stage
+        label: Stage
+        type: string
+        description: Pipeline stage (discovery, qualification, proposal, negotiation, closed-won, closed-lost).
+        required: true
+      - key: value
+        label: Value
+        type: string
+        description: Deal value.
+      - key: close_date
+        label: Close Date
+        type: string
+        description: Expected or actual close date.
+      - key: probability
+        label: Probability
+        type: string
+        description: Win probability percentage.
+      - key: summary
+        label: Summary
+        type: string
+        description: Short deal summary.
+    files:
+      - path: record.md
+        template: deal/record.md
+
 explorer:
   renderers:
     detail:
