@@ -22,6 +22,7 @@ Code handles the deterministic infrastructure that should not depend on model im
 - `entity-defs/entities.md` defines entity types and optional explorer renderer config.
 - `entity-defs/` also holds entity templates and optional renderer modules.
 - `skills/` holds shared pi skills.
+- `inbox/` holds uncategorized incoming user files until an agent routes them to the right durable location or removes them as temporary drops.
 - `prompts/` holds shared prompt files and shared templates.
 - `agents/` holds one directory per role.
 
@@ -39,7 +40,7 @@ Each `agents/<role-id>/` directory contains:
 
 Role-owned entities live under `entities/`, not under `agents/<role-id>/`. The runtime distinguishes shared versus role-managed entities by the directory roots declared in `entity-defs/entities.md`.
 
-Runtime scaffolding and `doctor` hard-require `entities/`, `agents/`, `entity-defs/`, and `skills/`. Role sessions also require `prompts/`, `AGENTS.md`, shared agent templates, and any prompt or renderer files referenced by the role.
+Runtime scaffolding and `doctor` hard-require `entities/`, `agents/`, `entity-defs/`, `skills/`, and `inbox/`. Role sessions also require `prompts/`, `AGENTS.md`, shared agent templates, and any prompt or renderer files referenced by the role.
 
 ## Runtime Flow
 
@@ -151,6 +152,8 @@ Thinking level: `ROLE_AGENT_THINKING_LEVEL` env var, default `medium`.
 
 `ensureWorkspaceScaffold()` creates shared root directories and role-local directories. For existing roles, it backfills `agent/record.md` and `agent/inbox.md` from `prompts/templates/agent/*.md` when missing.
 
+The shared `inbox/` directory is a transient intake area, not a canonical store. Agents are expected to triage new files dropped there into the correct entity or role directories, preserve source references when those files change canonical understanding, and remove one-off temporary files once their contents are safely captured elsewhere.
+
 `createRoleEntityRecord()` renders declared entity files, computes a deterministic ID, and writes without overwriting unless forced.
 
 Entity scanning is filesystem-based. A directory containing `record.md` is an entity leaf. Shared entity scanning excludes directory roots claimed by role entity definitions. Role entity scanning uses each definition's `scan_directories` or `create_directory`.
@@ -181,7 +184,7 @@ Pipeline:
 
 `doctor` is a structural validator. Checks:
 
-- Required shared root directories (`entities`, `agents`, `entity-defs`, `skills`)
+- Required shared root directories (`entities`, `agents`, `entity-defs`, `skills`, `inbox`)
 - Role manifest loading and directory identity
 - `AGENTS.md` presence and linked markdown files
 - Required shared agent templates and transcript ingest prompts

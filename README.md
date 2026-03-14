@@ -153,6 +153,7 @@ npm run cli -- telemetry report --window 7d       # aggregate local runtime tele
 A Hermit app is a normal repository. These directories are the application:
 
 ```
+inbox/             # shared drop zone for uncategorized incoming user files
 entities/
   <entity-id>/     # entity data
 entity-defs/
@@ -183,6 +184,8 @@ Roles are how Hermit turns a broad job into an operator inside the app. Each rol
 Prompts are loaded from directories, not declared in the manifest. The runtime loads shared prompts from `prompts/`, appends the role's `AGENTS.md`, and appends any session-specific role prompt files (e.g. transcript ingest prompts). Role-local prompts live under `agents/<role-id>/prompts/` and are loaded on demand.
 
 Entity schema lives in `entity-defs/entities.md`, and entity starter templates and explorer renderers live under `entity-defs/`. The `agents/` directory is for behavior and agent state, while `entities/` and `entity-defs/` define app state and schema.
+
+The shared `inbox/` directory is the default intake area for uncategorized incoming files. Agents should process files dropped there, route durable material into the right role or entity directories, and remove temporary drop files once their contents are preserved elsewhere.
 
 The runtime stays generic. Roles define behavior through files, not code changes. Adding a new role:
 

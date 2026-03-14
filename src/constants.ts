@@ -1,5 +1,5 @@
 export const ENTITY_SEQUENCE_WIDTH = 4;
-export const SHARED_ROOT_DIRECTORIES = ["entities", "agents", "entity-defs", "skills"] as const;
+export const SHARED_ROOT_DIRECTORIES = ["entities", "agents", "entity-defs", "skills", "inbox"] as const;
 export const HERMIT_ROLE_ID = "Hermit";
 
 export const DEFAULT_MODEL = process.env.ROLE_AGENT_MODEL?.trim() || undefined;

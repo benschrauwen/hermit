@@ -37,6 +37,7 @@ Do **not** use this file as the source of truth for the user's configured domain
  - Shared and role-managed entity directories live here.
  - Exact structure is defined by `entity-defs/entities.md` and the setup skills, not by the runtime.
 - `entity-defs/`: shared entity definitions and custom explorer renderers.
+- `inbox/`: shared intake area for uncategorized incoming user files before they are routed to their durable homes or removed as temporary drops.
 - `prompts/templates/`: shared non-entity scaffolds such as core agent operating templates.
 - `skills/`: shared pi skills that can be loaded on demand across roles.
 - `agents/`: one subdirectory per operating role (agent).
@@ -63,6 +64,7 @@ Each agent directory contains its own:
 
 - `agents/<role-id>/agent/record.md` stores the current clarified operating system for that role.
 - `agents/<role-id>/agent/inbox.md` stores that role's raw captured commitments until clarified.
+- `inbox/` stores incoming uncategorized user files temporarily; it is not a canonical archive and should be drained into the right role or entity directories.
 - Shared and role-managed entity `record.md` files under `entities/` store the best current state for each entity instance.
 - Entity-defined supporting files live beside the canonical record when `entity-defs/entities.md` requires them.
 - Prompt files are editable operating instructions, but they are not business facts.

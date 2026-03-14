@@ -40,6 +40,7 @@ describe("workspace", () => {
     const rolePaths = getWorkspacePaths(tmpRoot, role);
     expect(sharedPaths.entitiesDir).toBe(path.join(tmpRoot, "entities"));
     expect(sharedPaths.skillsDir).toBe(path.join(tmpRoot, "skills"));
+    expect(sharedPaths.inboxDir).toBe(path.join(tmpRoot, "inbox"));
     expect(rolePaths.roleDir).toBe(path.join(tmpRoot, "agents", "role-a"));
     expect(rolePaths.sharedSkillsDir).toBe(path.join(tmpRoot, "skills"));
     expect(rolePaths.roleSkillsDir).toBe(path.join(tmpRoot, "agents", "role-a", "skills"));
@@ -53,7 +54,7 @@ describe("workspace", () => {
   it("creates shared and role scaffolds", async () => {
     const role = await loadRole(tmpRoot, "role-a");
     await ensureWorkspaceScaffold(tmpRoot, role);
-    expect(readdirSync(tmpRoot)).toEqual(expect.arrayContaining(["entities", "agents", "skills"]));
+    expect(readdirSync(tmpRoot)).toEqual(expect.arrayContaining(["entities", "agents", "skills", "inbox"]));
     expect(readFileSync(path.join(tmpRoot, "agents", "role-a", "agent", "record.md"), "utf8")).toContain("Role A");
     expect(readFileSync(path.join(tmpRoot, "agents", "role-a", "agent", "record.md"), "utf8")).toContain(
       "## Strategic Experiments",

@@ -285,6 +285,7 @@ export function getRootPaths(root: string): {
   entitiesDir: string;
   agentsDir: string;
   skillsDir: string;
+  inboxDir: string;
 } {
   const entitiesDir = path.join(root, "entities");
   return {
@@ -292,6 +293,7 @@ export function getRootPaths(root: string): {
     entitiesDir,
     agentsDir: path.join(root, "agents"),
     skillsDir: path.join(root, "skills"),
+    inboxDir: path.join(root, "inbox"),
   };
 }
 

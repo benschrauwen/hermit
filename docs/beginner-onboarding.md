@@ -26,7 +26,7 @@ On a fresh setup, the first conversation usually defines your first agent. Hermi
 
 Instead of forcing you into a rigid product setup, Hermit grows with the way you actually work.
 
-It also does something important in the background: it keeps a simple operating system for each agent. If you know GTD, it will feel familiar. Each agent keeps an inbox for rough capture and a working record for things like active projects, next actions, waiting-on items, calendar items, and someday-or-maybe ideas.
+It also does something important in the background: it keeps a simple operating system for each agent. If you know GTD, it will feel familiar. Each agent keeps an inbox for rough capture and a working record for things like active projects, next actions, waiting-on items, calendar items, and someday-or-maybe ideas. The workspace can also keep a shared `inbox/` folder where you drop incoming files for Hermit to route into the right records.
 
 Then the heartbeat comes in. About once an hour, Hermit gives each agent a short background turn to clean up, review what is unblocked, and move one useful next step forward. About once a day, it also does a bigger review to step back and look at priorities, structure, and opportunities to improve the way the system is working.
 
@@ -50,6 +50,7 @@ Over time, Hermit can help you:
 - create and update structured records
 - review priorities and surface risks
 - summarize notes or transcripts into durable records
+- process files you drop into the shared `inbox/` and move them to the right place
 - look things up online when current information matters
 - improve its own ways of working and explorer views
 
@@ -123,9 +124,10 @@ At a high level, Hermit works like this:
 2. Hermit creates or updates agents, kinds of records, starter files, and instructions in the workspace.
 3. The important information lives in normal files instead of disappearing into a hidden system.
 4. Each agent keeps a simple GTD-style operating system with an inbox and a working record.
-5. The heartbeat reviews that operating system in the background and moves useful work forward.
-6. The explorer reads the same workspace and shows it to you.
-7. Git keeps the history of how the system changed over time.
+5. The shared `inbox/` folder can hold uncategorized incoming files until Hermit routes them into the right entity or role directories.
+6. The heartbeat reviews that operating system in the background and moves useful work forward.
+7. The explorer reads the same workspace and shows it to you.
+8. Git keeps the history of how the system changed over time.
 
 So the tool is not hidden behind a service. The tool is the workspace.
 
