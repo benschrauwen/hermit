@@ -3,9 +3,10 @@ id: user
 type: user
 name: Primary User
 status: active
-updated_at: 2026-03-13T07:53:43.386Z
+updated_at: 2026-03-14T09:19:25Z
 source_refs:
   - bootstrap conversation on 2026-03-13
+  - user confirmation on 2026-03-14 that Vercel deployment is live
 ---
 
 ## Summary
@@ -46,5 +47,8 @@ Single-user workspace for the Hermit project itself. The user wants a focused bu
 
 ## Open Questions
 
-- Which hosted deployment target should be used first.
 - Which proof artifacts or examples should become the first public showcase items.
+
+## Resolved
+
+- Deployment target: Vercel, confirmed 2026-03-14. Live at https://hermit-two.vercel.app/.
