@@ -1,0 +1,558 @@
+---
+import path from "node:path";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { readEntityFrontmatter } from "../../lib/entity-content.js";
+import { getWorkspaceRoot, loadEntityDefs, scanEntitiesByDefinition } from "../../lib/workspace.js";
+
+const root = getWorkspaceRoot();
+const { entities: entityDefs } = await loadEntityDefs(root);
+
+const accountDef = entityDefs.find((e) => e.type === "account");
+const dealDef = entityDefs.find((e) => e.type === "deal");
+
+interface AccountData {
+  id: string;
+  name: string;
+  owner: string;
+  status: string;
+  industry: string;
+  tier: string;
+  size: string;
+  arr: string;
+}
+
+interface DealData {
+  id: string;
+  name: string;
+  account_id: string;
+  owner: string;
+  stage: string;
+  value: string;
+  close_date: string;
+  probability: string;
+  summary: string;
+}
+
+const accounts: AccountData[] = accountDef
+  ? (await scanEntitiesByDefinition(root, accountDef)).map((entity) => {
+      // readEntityFrontmatter is async but we collect below
+      return entity;
+    }).map((e) => ({ id: e.id, name: e.name, path: e.path } as any))
+  : [];
+
+// Read frontmatter for accounts
+const accountsWithData: AccountData[] = [];
+if (accountDef) {
+  const rawAccounts = await scanEntitiesByDefinition(root, accountDef);
+  for (const entity of rawAccounts) {
+    const fm = await readEntityFrontmatter(entity.path);
+    accountsWithData.push({
+      id: entity.id,
+      name: String(fm.name ?? entity.name),
+      owner: String(fm.owner ?? ""),
+      status: String(fm.status ?? ""),
+      industry: String(fm.industry ?? ""),
+      tier: String(fm.tier ?? ""),
+      size: String(fm.size ?? ""),
+      arr: String(fm.arr ?? ""),
+    });
+  }
+}
+
+// Read frontmatter for deals
+const dealsWithData: DealData[] = [];
+if (dealDef) {
+  const rawDeals = await scanEntitiesByDefinition(root, dealDef);
+  for (const entity of rawDeals) {
+    const fm = await readEntityFrontmatter(entity.path);
+    dealsWithData.push({
+      id: entity.id,
+      name: String(fm.name ?? entity.name),
+      account_id: String(fm.account_id ?? ""),
+      owner: String(fm.owner ?? ""),
+      stage: String(fm.stage ?? ""),
+      value: String(fm.value ?? ""),
+      close_date: fm.close_date instanceof Date ? fm.close_date.toISOString() : String(fm.close_date ?? ""),
+      probability: String(fm.probability ?? ""),
+      summary: String(fm.summary ?? ""),
+    });
+  }
+}
+
+// Pipeline stages for the board view
+const pipelineStages = ["discovery", "qualification", "proposal", "negotiation", "closed-won", "closed-lost"];
+
+const stageLabels: Record<string, string> = {
+  discovery: "Discovery",
+  qualification: "Qualification",
+  proposal: "Proposal",
+  negotiation: "Negotiation",
+  "closed-won": "Closed Won",
+  "closed-lost": "Closed Lost",
+};
+
+const stageColors: Record<string, string> = {
+  discovery: "bg-blue-100 text-blue-800 border-blue-200",
+  qualification: "bg-amber-100 text-amber-800 border-amber-200",
+  proposal: "bg-violet-100 text-violet-800 border-violet-200",
+  negotiation: "bg-orange-100 text-orange-800 border-orange-200",
+  "closed-won": "bg-emerald-100 text-emerald-800 border-emerald-200",
+  "closed-lost": "bg-slate-100 text-slate-500 border-slate-200",
+};
+
+const stageHeaderColors: Record<string, string> = {
+  discovery: "border-blue-400",
+  qualification: "border-amber-400",
+  proposal: "border-violet-400",
+  negotiation: "border-orange-400",
+  "closed-won": "border-emerald-400",
+  "closed-lost": "border-slate-300",
+};
+
+// Group deals by stage
+const dealsByStage = pipelineStages.map((stage) => ({
+  stage,
+  label: stageLabels[stage] ?? stage,
+  deals: dealsWithData.filter((d) => d.stage === stage),
+  color: stageColors[stage] ?? "",
+  headerColor: stageHeaderColors[stage] ?? "",
+}));
+
+// Summary metrics
+const openDeals = dealsWithData.filter((d) => !d.stage.startsWith("closed-"));
+const totalPipelineValue = openDeals.reduce((sum, d) => {
+  const num = parseFloat(d.value.replace(/[$,]/g, ""));
+  return sum + (isNaN(num) ? 0 : num);
+}, 0);
+const weightedPipelineValue = openDeals.reduce((sum, d) => {
+  const val = parseFloat(d.value.replace(/[$,]/g, ""));
+  const prob = parseFloat(d.probability.replace(/%/g, "")) / 100;
+  return sum + (isNaN(val) || isNaN(prob) ? 0 : val * prob);
+}, 0);
+const wonDeals = dealsWithData.filter((d) => d.stage === "closed-won");
+const wonValue = wonDeals.reduce((sum, d) => {
+  const num = parseFloat(d.value.replace(/[$,]/g, ""));
+  return sum + (isNaN(num) ? 0 : num);
+}, 0);
+
+function formatCurrency(value: number): string {
+  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `$${Math.round(value / 1_000)}K`;
+  return `$${value.toFixed(0)}`;
+}
+
+function formatDealValue(raw: string): string {
+  const num = parseFloat(raw.replace(/[$,]/g, ""));
+  if (isNaN(num)) return raw;
+  return formatCurrency(num);
+}
+
+function formatDate(raw: string): string {
+  if (!raw) return "";
+  // Handle ISO dates, date strings, and Date.toString() output
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return raw;
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${months[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+}
+
+function formatArr(raw: string): string {
+  if (!raw || raw === "$0" || raw === "0") return "—";
+  return raw;
+}
+
+function getAccountName(accountId: string): string {
+  const account = accountsWithData.find((a) => a.id === accountId);
+  return account?.name ?? accountId;
+}
+---
+<BaseLayout title="Sales CRM Demo" description="A demo CRM pipeline view built from workspace entity files in Hermit">
+  <div class="breadcrumb">
+    <a href="/">Hermit</a> → <a href="/inside">Inside</a> → Sales CRM Demo
+  </div>
+
+  <!-- Hero -->
+  <section class="crm-hero card mb-8">
+    <div class="p-8 lg:p-10">
+      <p class="hero-kicker">Demo</p>
+      <h1 class="mt-2">Enterprise Sales Pipeline</h1>
+      <p class="hero-lead mt-4 max-w-3xl">
+        This is a live CRM view rendered from markdown files in the workspace. Every account and deal
+        below is a <code>record.md</code> file managed by a Sales Leader agent — the same file-first
+        model that powers the rest of this site.
+      </p>
+      <div class="mt-5 flex flex-wrap gap-2">
+        <span class="inline-flex items-center rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
+          Powered by workspace entities
+        </span>
+        <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+          {accountsWithData.length} accounts · {dealsWithData.length} deals
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Metrics -->
+  <section class="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="stat-card card p-5">
+      <span class="stat-label">Open Pipeline</span>
+      <strong class="stat-value mt-2 block">{formatCurrency(totalPipelineValue)}</strong>
+      <span class="mt-1 block text-xs text-slate-500">{openDeals.length} open deals</span>
+    </div>
+    <div class="stat-card card p-5">
+      <span class="stat-label">Weighted Pipeline</span>
+      <strong class="stat-value mt-2 block">{formatCurrency(weightedPipelineValue)}</strong>
+      <span class="mt-1 block text-xs text-slate-500">probability-adjusted</span>
+    </div>
+    <div class="stat-card card p-5">
+      <span class="stat-label">Closed Won</span>
+      <strong class="stat-value mt-2 block text-emerald-700">{formatCurrency(wonValue)}</strong>
+      <span class="mt-1 block text-xs text-slate-500">{wonDeals.length} deal{wonDeals.length !== 1 ? "s" : ""} this quarter</span>
+    </div>
+    <div class="stat-card card p-5">
+      <span class="stat-label">Accounts</span>
+      <strong class="stat-value mt-2 block">{accountsWithData.length}</strong>
+      <span class="mt-1 block text-xs text-slate-500">{accountsWithData.filter(a => a.status === "active").length} active</span>
+    </div>
+  </section>
+
+  <!-- Pipeline Board -->
+  <section class="mb-10">
+    <div class="section-header">
+      <div>
+        <p class="section-kicker">Pipeline Board</p>
+        <h2 class="section-title-large">Deals by Stage</h2>
+      </div>
+    </div>
+    <div class="pipeline-board">
+      {dealsByStage.map((col) => (
+        <div class="pipeline-column">
+          <div class={`pipeline-column-header ${col.headerColor}`}>
+            <span class="pipeline-column-title">{col.label}</span>
+            <span class="pipeline-column-count">{col.deals.length}</span>
+          </div>
+          <div class="pipeline-column-body">
+            {col.deals.length === 0 && (
+              <div class="pipeline-empty">No deals</div>
+            )}
+            {col.deals.map((deal) => (
+              <a href={`/entities/deal/${deal.id}`} class="pipeline-card">
+                <div class="pipeline-card-header">
+                  <span class="pipeline-card-name">{deal.name}</span>
+                  <span class="pipeline-card-value">{formatDealValue(deal.value)}</span>
+                </div>
+                <span class="pipeline-card-account">{getAccountName(deal.account_id)}</span>
+                <div class="pipeline-card-footer">
+                  <span class="pipeline-card-owner">{deal.owner}</span>
+                  {deal.close_date && (
+                    <span class="pipeline-card-date">{formatDate(deal.close_date)}</span>
+                  )}
+                </div>
+                {deal.probability && (
+                  <div class="mt-2">
+                    <div class="pipeline-prob-bar">
+                      <div class="pipeline-prob-fill" style={`width: ${parseInt(deal.probability)}%`}></div>
+                    </div>
+                    <span class="pipeline-card-prob">{deal.probability} probability</span>
+                  </div>
+                )}
+              </a>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <!-- Accounts Table -->
+  <section class="mb-10">
+    <div class="section-header">
+      <div>
+        <p class="section-kicker">Account Overview</p>
+        <h2 class="section-title-large">Enterprise Accounts</h2>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Account</th>
+            <th>Industry</th>
+            <th>Tier</th>
+            <th>Owner</th>
+            <th>Status</th>
+            <th>ARR</th>
+          </tr>
+        </thead>
+        <tbody>
+          {accountsWithData.map((account) => (
+            <tr>
+              <td>
+                <a href={`/entities/account/${account.id}`} class="font-medium text-slate-900 no-underline hover:text-sky-700">
+                  {account.name}
+                </a>
+                <span class="block text-xs text-slate-500">{account.size}</span>
+              </td>
+              <td>{account.industry}</td>
+              <td>
+                <span class={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                  account.tier === "enterprise"
+                    ? "bg-violet-50 text-violet-700"
+                    : "bg-slate-100 text-slate-600"
+                }`}>
+                  {account.tier}
+                </span>
+              </td>
+              <td>{account.owner}</td>
+              <td>
+                <span class={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                  account.status === "active"
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "bg-amber-50 text-amber-700"
+                }`}>
+                  {account.status}
+                </span>
+              </td>
+              <td class="font-medium">{formatArr(account.arr)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section class="mb-10">
+    <div class="section-header">
+      <div>
+        <p class="section-kicker">How this works</p>
+        <h2 class="section-title-large">Files, not a database</h2>
+      </div>
+    </div>
+    <div class="card-grid">
+      <div class="feature-card">
+        <span class="feature-tag">Architecture</span>
+        <h3>Markdown records</h3>
+        <p>
+          Every account and deal is a <code>record.md</code> file with YAML frontmatter
+          for structured fields and markdown body for context, notes, and activities.
+          No database, no API — just files in a repo.
+        </p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-tag">Agent</span>
+        <h3>Sales Leader role</h3>
+        <p>
+          A dedicated Sales Leader agent owns pipeline discipline. It runs pipeline reviews,
+          updates deal records, surfaces stale deals, and tracks next steps — all from the
+          same workspace.
+        </p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-tag">Rendering</span>
+        <h3>Astro-powered views</h3>
+        <p>
+          This CRM view is an Astro page that reads entity files at build time. The same
+          pattern powers the homepage, capability pages, and internal state views across
+          the site.
+        </p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-tag">Extensibility</span>
+        <h3>Add your own entities</h3>
+        <p>
+          Define new entity types in <code>entity-defs/entities.md</code>, create templates,
+          and write records. The explorer and any custom pages will pick them up automatically.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="card mb-10 p-8 text-center">
+    <p class="section-kicker">Interested?</p>
+    <h2 class="section-title-large mt-2">This is just one view of a Hermit workspace</h2>
+    <p class="mx-auto mt-4 max-w-2xl text-slate-600">
+      The same file-first model that powers this CRM demo also runs the website you're browsing,
+      the agent that improves it, and the internal operating records visible on the Inside page.
+    </p>
+    <div class="cta-row mt-6 justify-center">
+      <a class="button-primary" href="/getting-started">Get started with Hermit</a>
+      <a class="button-secondary" href="/inside">See inside this workspace</a>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .pipeline-board {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0.75rem;
+    padding-bottom: 1rem;
+  }
+
+  .pipeline-column {
+    min-width: 0;
+  }
+
+  .pipeline-column-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    border-radius: 0.75rem 0.75rem 0 0;
+    background: rgb(248 250 252);
+    border: 1px solid rgb(226 232 240);
+    border-bottom: 3px solid;
+  }
+
+  .pipeline-column-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgb(51 65 85);
+  }
+
+  .pipeline-column-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 9999px;
+    background: white;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: rgb(71 85 105);
+    border: 1px solid rgb(226 232 240);
+  }
+
+  .pipeline-column-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    min-height: 120px;
+    background: rgb(248 250 252 / 0.5);
+    border: 1px solid rgb(226 232 240);
+    border-top: 0;
+    border-radius: 0 0 0.75rem 0.75rem;
+  }
+
+  .pipeline-empty {
+    padding: 1.5rem;
+    text-align: center;
+    font-size: 0.8rem;
+    color: rgb(148 163 184);
+  }
+
+  .pipeline-card {
+    display: block;
+    padding: 0.875rem;
+    background: white;
+    border: 1px solid rgb(226 232 240);
+    border-radius: 0.625rem;
+    text-decoration: none;
+    color: rgb(15 23 42);
+    transition: all 150ms;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+  }
+
+  .pipeline-card:hover {
+    border-color: rgb(125 211 252);
+    box-shadow: 0 4px 12px rgb(0 0 0 / 0.08);
+    transform: translateY(-1px);
+    color: rgb(15 23 42);
+  }
+
+  .pipeline-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .pipeline-card-name {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: rgb(15 23 42);
+    line-height: 1.4;
+  }
+
+  .pipeline-card-value {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: rgb(15 23 42);
+    white-space: nowrap;
+  }
+
+  .pipeline-card-account {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: rgb(100 116 139);
+  }
+
+  .pipeline-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.5rem;
+    gap: 0.5rem;
+  }
+
+  .pipeline-card-owner {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: rgb(71 85 105);
+  }
+
+  .pipeline-card-date {
+    font-size: 0.6875rem;
+    color: rgb(148 163 184);
+  }
+
+  .pipeline-prob-bar {
+    height: 4px;
+    background: rgb(241 245 249);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .pipeline-prob-fill {
+    height: 100%;
+    background: rgb(14 165 233);
+    border-radius: 2px;
+    transition: width 300ms;
+  }
+
+  .pipeline-card-prob {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.625rem;
+    color: rgb(148 163 184);
+  }
+
+  @media (max-width: 1024px) {
+    .pipeline-board {
+      grid-template-columns: repeat(3, 1fr);
+      overflow-x: auto;
+    }
+
+    .pipeline-column {
+      min-width: 200px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .pipeline-board {
+      grid-template-columns: repeat(2, 1fr);
+      overflow-x: auto;
+    }
+
+    .pipeline-column {
+      min-width: 180px;
+    }
+  }
+</style>

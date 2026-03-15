@@ -24,6 +24,16 @@ yarn-error.log*
 .agents/
 .pi/
 .claude/
+skills-lock.json
+skills/*
+!skills/entity-query/
+!skills/entity-query/**
+!skills/entity-setup/
+!skills/entity-setup/**
+!skills/find-skills/
+!skills/find-skills/**
+!skills/role-setup/
+!skills/role-setup/**
 
 # OS
 .DS_Store
@@ -45,6 +55,8 @@ coverage/
 
 # Hermit runtime artifacts
 .hermit/
+agents/**/.role-agent/sessions/*.jsonl
+agents/**/.role-agent/heartbeat-sessions/*.jsonl
 
 # Cursor / plan artifacts (optional; remove if you want to track plans)
 .cursor/plans/
