@@ -238,6 +238,8 @@ async function ensureAgentFiles(
   values: {
     roleId: string;
     roleName: string;
+    roleAgentName: string;
+    roleInboxName: string;
     roleDescription: string;
     roleRoot: string;
   },
@@ -293,6 +295,8 @@ export async function ensureWorkspaceScaffold(root: string, role?: RoleDefinitio
   await ensureAgentFiles(root, path.join(root, HERMIT_ROLE_ROOT, "agent"), {
     roleId: HERMIT_ROLE_ID,
     roleName: HERMIT_ROLE_ID,
+    roleAgentName: `${HERMIT_ROLE_ID} Agent`,
+    roleInboxName: `${HERMIT_ROLE_ID} Agent Inbox`,
     roleDescription: "Stewardship of the Hermit framework, runtime, prompts, docs, and workspace operating model.",
     roleRoot: HERMIT_ROLE_ROOT,
   });
@@ -323,6 +327,8 @@ export async function ensureWorkspaceScaffold(root: string, role?: RoleDefinitio
   await ensureAgentFiles(role.root, path.join(role.roleDir, "agent"), {
     roleId: role.id,
     roleName: role.name,
+    roleAgentName: `${role.name} Agent`,
+    roleInboxName: `${role.name} Agent Inbox`,
     roleDescription: role.description,
     roleRoot: roleRootRelative,
   });

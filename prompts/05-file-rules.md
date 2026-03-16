@@ -14,6 +14,8 @@
 - `{{roleRoot}}/agent/inbox.md` is canonical for raw agent commitments.
 - `inbox/` is a shared intake directory, not a canonical store.
 - Transcripts, PDFs, decks, screenshots, and notes are supporting evidence.
+- Process images one at a time by default. LLM and agent context is finite, and loading many images at once can crowd out more important context.
+- Only load multiple images together when the task truly requires cross-image comparison or joint interpretation.
 - When supporting evidence changes canonical understanding, update the canonical file and cite the source in `source_refs`.
 - Route `inbox/` promptly. Keep durable material near the records it informs and delete temporary drop files once their contents are preserved elsewhere.
 
