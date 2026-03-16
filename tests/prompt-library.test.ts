@@ -40,7 +40,7 @@ describe("PromptLibrary", () => {
         workspaceRoot: "/my/root",
       });
       expect(out).toContain("# Bootstrap Guidance");
-      expect(out).toContain("focused, file-first setup that is complete enough to be genuinely useful");
+      expect(out).toContain("Create early anchors: `entities/user/record.md`, shared `inbox/`");
       expect(out).toContain("# Extra Bootstrap");
       expect(out).toContain("Second overlay.");
     });
@@ -59,12 +59,12 @@ describe("PromptLibrary", () => {
         transcriptPath: "/path/to/transcript.md",
       });
       expect(out).toContain("# User Record");
-      expect(out).toContain("Maintain that person's durable record in one shared canonical file: `entities/user/record.md`.");
+      expect(out).toContain("Keep the user's durable record in `entities/user/record.md`.");
       expect(out).toContain("# User Communication");
-      expect(out).toContain("Assume the end user is likely non-technical unless the user clearly shows otherwise.");
-      expect(out).toContain("# Role Evolution");
+      expect(out).toContain("Assume a non-technical audience unless the user clearly shows otherwise.");
+      expect(out).toContain("# Routing Guidance");
       expect(out).toContain("A single role may own many responsibilities.");
-      expect(out).toContain("Create or recommend a new role when the work repeatedly needs a different operating model");
+      expect(out).toContain("If a new lens is needed, create or recommend a new role instead of stretching the current one.");
       expect(out).toContain("# File Rules");
       expect(out).toContain("Role A Role");
       expect(out).toContain("agents/role-a");

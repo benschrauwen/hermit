@@ -8,7 +8,7 @@ const slugify = slugifyImport as unknown as (
   options?: { lower?: boolean; strict?: boolean; trim?: boolean },
 ) => string;
 
-import { ENTITY_SEQUENCE_WIDTH, SHARED_ROOT_DIRECTORIES } from "./constants.js";
+import { ENTITY_SEQUENCE_WIDTH, HERMIT_ROLE_ID, HERMIT_ROLE_ROOT, SHARED_ROOT_DIRECTORIES } from "./constants.js";
 import { fileExists, formatErrorMessage, isMissingPathError } from "./fs-utils.js";
 import { getRootPaths, getRolePaths, listRoleIds } from "./roles.js";
 import { renderBulletList, renderTemplate, renderTemplateString, renderYamlList } from "./template-library.js";
@@ -232,6 +232,47 @@ async function renderEntityTemplate(
   return renderTemplate(path.join(role.entityDefsDir, relativeTemplatePath), values);
 }
 
+async function ensureAgentFiles(
+  root: string,
+  agentRoot: string,
+  values: {
+    roleId: string;
+    roleName: string;
+    roleDescription: string;
+    roleRoot: string;
+  },
+): Promise<void> {
+  const agentFiles = [
+    {
+      relativePath: "record.md",
+      template: "templates/agent/record.md",
+    },
+    {
+      relativePath: "inbox.md",
+      template: "templates/agent/inbox.md",
+    },
+  ] as const;
+
+  await fs.mkdir(agentRoot, { recursive: true });
+
+  await Promise.all(
+    agentFiles.map(async (file) => {
+      const filePath = path.join(agentRoot, file.relativePath);
+      if (!(await fileExists(filePath))) {
+        await fs.writeFile(
+          filePath,
+          await renderSharedPromptTemplate(root, file.template, {
+            ...values,
+            updatedAt: new Date().toISOString(),
+            sourceRefsYaml: renderYamlList(["workspace default scaffold"]),
+          }),
+          "utf8",
+        );
+      }
+    }),
+  );
+}
+
 export async function writeFileSafely(filePath: string, content: string, force = false): Promise<void> {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
 
@@ -249,6 +290,12 @@ export async function appendLine(filePath: string, line: string): Promise<void> 
 
 export async function ensureWorkspaceScaffold(root: string, role?: RoleDefinition): Promise<void> {
   await ensureDirectory(root, [...SHARED_ROOT_DIRECTORIES]);
+  await ensureAgentFiles(root, path.join(root, HERMIT_ROLE_ROOT, "agent"), {
+    roleId: HERMIT_ROLE_ID,
+    roleName: HERMIT_ROLE_ID,
+    roleDescription: "Stewardship of the Hermit framework, runtime, prompts, docs, and workspace operating model.",
+    roleRoot: HERMIT_ROLE_ROOT,
+  });
 
   if (!role) {
     return;
@@ -273,41 +320,12 @@ export async function ensureWorkspaceScaffold(root: string, role?: RoleDefinitio
   ]);
 
   const roleRootRelative = path.relative(root, role.roleDir) || ".";
-  const agentFiles = [
-    {
-      relativePath: "agent/record.md",
-      template: "templates/agent/record.md",
-      values: {
-        roleId: role.id,
-        roleName: role.name,
-        roleDescription: role.description,
-        updatedAt: new Date().toISOString(),
-        sourceRefsYaml: renderYamlList(["workspace default scaffold"]),
-        roleRoot: roleRootRelative,
-      },
-    },
-    {
-      relativePath: "agent/inbox.md",
-      template: "templates/agent/inbox.md",
-      values: {
-        roleId: role.id,
-        roleName: role.name,
-        roleDescription: role.description,
-        updatedAt: new Date().toISOString(),
-        sourceRefsYaml: renderYamlList(["workspace default scaffold"]),
-        roleRoot: roleRootRelative,
-      },
-    },
-  ] as const;
-
-  await Promise.all(
-    agentFiles.map(async (file) => {
-      const filePath = path.join(role.roleDir, file.relativePath);
-      if (!(await fileExists(filePath))) {
-        await fs.writeFile(filePath, await renderSharedPromptTemplate(role.root, file.template, file.values), "utf8");
-      }
-    }),
-  );
+  await ensureAgentFiles(role.root, path.join(role.roleDir, "agent"), {
+    roleId: role.id,
+    roleName: role.name,
+    roleDescription: role.description,
+    roleRoot: roleRootRelative,
+  });
 }
 
 export async function getWorkspaceInitializationState(root: string, role: RoleDefinition): Promise<WorkspaceInitializationState> {

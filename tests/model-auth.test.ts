@@ -87,7 +87,7 @@ describe("provider-aware model resolution", () => {
     expect([
       "openai/gpt-5.4-pro",
       "openai/gpt-5.4",
-      "anthropic/claude-opus-4.1",
+      "anthropic/claude-opus-4-6",
       "anthropic/claude-sonnet-4-6",
     ]).toContain(`${resolved.model.provider}/${resolved.model.id}`);
   });

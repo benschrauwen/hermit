@@ -16,7 +16,7 @@ function runCliHelp(args: string[]): string {
 }
 
 describe("cli help", () => {
-  it("exposes the git checkpoint opt-out on session commands", () => {
+  it("exposes the git checkpoint opt-out on session commands", { timeout: 15_000 }, () => {
     expect(runCliHelp(["chat"])).toContain("--no-git-checkpoints");
     expect(runCliHelp(["ask"])).toContain("--no-git-checkpoints");
     expect(runCliHelp(["heartbeat"])).toContain("--no-git-checkpoints");

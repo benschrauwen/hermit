@@ -4,6 +4,7 @@ import {
   formatHeartbeatDaemonDuration,
   parseHeartbeatDaemonInterval,
   resolveHeartbeatDaemonDelay,
+  resolveHeartbeatDaemonTargetIds,
   runHeartbeatCycle,
 } from "../src/heartbeat-daemon.js";
 
@@ -35,6 +36,16 @@ describe("resolveHeartbeatDaemonDelay", () => {
   it("subtracts elapsed time and never returns a negative delay", () => {
     expect(resolveHeartbeatDaemonDelay(60_000, 1_000, 11_000)).toBe(50_000);
     expect(resolveHeartbeatDaemonDelay(60_000, 1_000, 61_500)).toBe(0);
+  });
+});
+
+describe("resolveHeartbeatDaemonTargetIds", () => {
+  it("prepends Hermit before combined strategic-review sweeps", () => {
+    expect(resolveHeartbeatDaemonTargetIds(["role-a", "role-b"])).toEqual(["Hermit", "role-a", "role-b"]);
+  });
+
+  it("avoids duplicating Hermit when it is already present", () => {
+    expect(resolveHeartbeatDaemonTargetIds(["Hermit", "role-a"])).toEqual(["Hermit", "role-a"]);
   });
 });
 

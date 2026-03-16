@@ -8,10 +8,12 @@ import {
   DEFAULT_HEARTBEAT_PROMPT,
   formatActivityStatus,
   formatUserPromptEcho,
+  HERMIT_STRATEGIC_REVIEW_PROMPT,
   loadImageAttachments,
   ONBOARDING_CHAT_OPENING_PROMPT,
   renderTerminalMarkdown,
   resolveBootstrapSessionDirectory,
+  resolveHermitSessionDirectory,
   resolveRoleSkillPaths,
   resolvePersistedSessionDirectory,
   resolveSharedSkillPaths,
@@ -167,6 +169,9 @@ describe("heartbeat session helpers", () => {
 
   it("stores Hermit chat history outside role-local directories", () => {
     expect(resolveBootstrapSessionDirectory("/tmp/workspace")).toBe("/tmp/workspace/.hermit/sessions/hermit");
+    expect(resolveHermitSessionDirectory("/tmp/workspace", "heartbeat")).toBe(
+      "/tmp/workspace/.hermit/sessions/hermit-heartbeat",
+    );
   });
 
   it("loads only shared skills during Hermit chat", () => {
@@ -178,6 +183,12 @@ describe("heartbeat session helpers", () => {
     expect(DEFAULT_HEARTBEAT_PROMPT).toContain("shared `inbox/` directory");
     expect(DEFAULT_HEARTBEAT_PROMPT).toContain("Do not infer or resurrect tasks");
     expect(DEFAULT_HEARTBEAT_PROMPT).toContain("If no clearly worthwhile step exists");
+  });
+
+  it("uses a strategic-review prompt for Hermit framework upkeep", () => {
+    expect(HERMIT_STRATEGIC_REVIEW_PROMPT).toContain(".hermit/agent/record.md");
+    expect(HERMIT_STRATEGIC_REVIEW_PROMPT).toContain("prompts/35-strategic-reflection.md");
+    expect(HERMIT_STRATEGIC_REVIEW_PROMPT).toContain("prompts/90-self-improvement.md");
   });
 });
 
