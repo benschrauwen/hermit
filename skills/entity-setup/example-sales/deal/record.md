@@ -1,12 +1,12 @@
 ---
-id: {{id}}
+id: {{idYaml}}
 type: deal
-name: {{name}}
-company_id: {{company_id}}
-owner: {{owner}}
-stage: {{stage}}
-value: {{value}}
-updated_at: {{updatedAt}}
+name: {{nameYaml}}
+company_id: {{company_idYaml}}
+owner: {{ownerYaml}}
+stage: {{stageYaml}}
+value: {{valueYaml}}
+updated_at: {{updatedAtYaml}}
 source_refs:
 {{sourceRefsYaml}}
 ---

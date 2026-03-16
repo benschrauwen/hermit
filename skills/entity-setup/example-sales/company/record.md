@@ -1,9 +1,9 @@
 ---
-id: {{id}}
+id: {{idYaml}}
 type: company
-name: {{name}}
-industry: {{industry}}
-updated_at: {{updatedAt}}
+name: {{nameYaml}}
+industry: {{industryYaml}}
+updated_at: {{updatedAtYaml}}
 source_refs:
 {{sourceRefsYaml}}
 ---

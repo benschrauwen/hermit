@@ -1,10 +1,10 @@
 ---
 id: {{roleId}}-agent
 type: agent
-name: {{roleName}} Agent
+name: {{roleAgentNameYaml}}
 status: active
-owner: {{roleName}}
-updated_at: {{updatedAt}}
+owner: {{roleNameYaml}}
+updated_at: {{updatedAtYaml}}
 last_strategic_review:
 source_refs:
 {{sourceRefsYaml}}

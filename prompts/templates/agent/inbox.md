@@ -1,10 +1,10 @@
 ---
 id: {{roleId}}-agent-inbox
 type: agent-inbox
-name: {{roleName}} Agent Inbox
+name: {{roleInboxNameYaml}}
 status: active
-owner: {{roleName}}
-updated_at: {{updatedAt}}
+owner: {{roleNameYaml}}
+updated_at: {{updatedAtYaml}}
 source_refs:
 {{sourceRefsYaml}}
 ---

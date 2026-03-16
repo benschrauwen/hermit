@@ -154,6 +154,31 @@ describe("workspace", () => {
     expect(readFileSync(path.join(caseEntity.path, "activity-log.md"), "utf8")).toContain("Add activity");
   });
 
+  it("writes YAML-safe frontmatter for names with colons", async () => {
+    const role = await loadRole(tmpRoot, "role-a");
+    await ensureWorkspaceScaffold(tmpRoot, role);
+
+    const item = await createRoleEntityRecord(
+      role,
+      "item",
+      {
+        title: "Bleau : De Gres Six",
+        summary: "Climbing guide",
+        owner: "Taylor",
+        status: "active",
+        nextStep: "Shelve",
+      },
+      { sourceRefs: ["agent onboarding: bookshelf photo"] },
+    );
+
+    const record = readFileSync(path.join(item.path, "record.md"), "utf8");
+    expect(record).toContain('name: "Bleau : De Gres Six"');
+    expect(record).toContain('source_refs:\n  - "agent onboarding: bookshelf photo"');
+
+    const entities = await scanEntities(tmpRoot, role);
+    expect(entities.map((entity) => entity.name)).toContain("Bleau : De Gres Six");
+  });
+
   it("applies schema defaults when optional fields omit a defaulted value", async () => {
     const role = await loadRole(tmpRoot, "role-a");
     await ensureWorkspaceScaffold(tmpRoot, role);

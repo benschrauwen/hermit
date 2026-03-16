@@ -1,9 +1,9 @@
 ---
-id: {{id}}
+id: {{idYaml}}
 type: product
-name: {{name}}
-category: {{category}}
-updated_at: {{updatedAt}}
+name: {{nameYaml}}
+category: {{categoryYaml}}
+updated_at: {{updatedAtYaml}}
 source_refs:
 {{sourceRefsYaml}}
 ---

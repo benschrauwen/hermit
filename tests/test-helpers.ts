@@ -147,12 +147,12 @@ explorer:
     root,
     "entity-defs/item/record.md",
     `---
-id: {{id}}
-type: {{type}}
-name: {{name}}
-status: {{status}}
-owner: {{owner}}
-updated_at: {{updatedAt}}
+id: {{idYaml}}
+type: {{typeYaml}}
+name: {{nameYaml}}
+status: {{statusYaml}}
+owner: {{ownerYaml}}
+updated_at: {{updatedAtYaml}}
 source_refs:
 {{sourceRefsYaml}}
 ---
@@ -171,12 +171,12 @@ source_refs:
     root,
     "entity-defs/case/record.md",
     `---
-id: {{id}}
-type: {{type}}
-name: {{name}}
-status: {{status}}
-owner: {{owner}}
-updated_at: {{updatedAt}}
+id: {{idYaml}}
+type: {{typeYaml}}
+name: {{nameYaml}}
+status: {{statusYaml}}
+owner: {{ownerYaml}}
+updated_at: {{updatedAtYaml}}
 source_refs:
 {{sourceRefsYaml}}
 ---
@@ -195,12 +195,12 @@ source_refs:
     root,
     "entity-defs/issue/record.md",
     `---
-id: {{id}}
-type: {{type}}
-name: {{name}}
-status: {{status}}
-owner: {{owner}}
-updated_at: {{updatedAt}}
+id: {{idYaml}}
+type: {{typeYaml}}
+name: {{nameYaml}}
+status: {{statusYaml}}
+owner: {{ownerYaml}}
+updated_at: {{updatedAtYaml}}
 source_refs:
 {{sourceRefsYaml}}
 ---

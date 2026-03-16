@@ -119,12 +119,12 @@ Record template:
 
 ```markdown
 ---
-id: {{id}}
+id: {{idYaml}}
 type: work-item
-name: {{name}}
-status: {{status}}
-owner: {{owner}}
-updated_at: {{updatedAt}}
+name: {{nameYaml}}
+status: {{statusYaml}}
+owner: {{ownerYaml}}
+updated_at: {{updatedAtYaml}}
 source_refs:
 {{sourceRefsYaml}}
 ---

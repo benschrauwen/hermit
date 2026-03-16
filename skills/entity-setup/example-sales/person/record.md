@@ -1,11 +1,11 @@
 ---
-id: {{id}}
+id: {{idYaml}}
 type: person
-name: {{name}}
-company_id: {{company_id}}
-role: {{role}}
-email: {{email}}
-updated_at: {{updatedAt}}
+name: {{nameYaml}}
+company_id: {{company_idYaml}}
+role: {{roleYaml}}
+email: {{emailYaml}}
+updated_at: {{updatedAtYaml}}
 source_refs:
 {{sourceRefsYaml}}
 ---
