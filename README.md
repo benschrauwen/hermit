@@ -114,11 +114,11 @@ git rebase main
 
 ```bash
 npm start                                         # open the last active role in the sandbox
-npm run heartbeat-daemon                          # run heartbeats for all roles every hour in the sandbox
+npm run heartbeat-daemon                          # run role heartbeats hourly and a daily strategic-review sweep when due
 npm run explorer                                  # launch the workspace UI as a normal local server
 ```
 
-`heartbeat` runs a single background turn for a role. `heartbeat-daemon` is the built-in replacement for an external cron job: it discovers all configured roles, runs one heartbeat turn for each role immediately, then repeats on a fixed interval (default `1h`). Heartbeat runs use a separate persisted session history under each role so automated sessions stay distinct from normal interactive chat history. When `--strategic-review` is passed, or when the last strategic review is more than 24 hours old, the heartbeat runs a full strategic review instead of normal task advancement. That review now follows an explicit `evidence -> hypothesis -> test -> re-evaluate hypothesis` loop and tracks open experiments in `agent/record.md`, using git history when useful to verify what the agent actually changed.
+`heartbeat` runs a single background turn for a role. `heartbeat-daemon` is the built-in replacement for an external cron job: it runs normal role heartbeats on the configured interval (default `1h`), and when any strategic review becomes due it runs one combined strategic-review sweep for `Hermit` plus all configured roles as separate sessions. Automated runs use separate persisted session histories so they stay distinct from normal interactive chat history. When `--strategic-review` is passed, or when the last strategic review is more than 24 hours old, the role heartbeat command runs a full strategic review instead of normal task advancement. That review now follows an explicit `evidence -> hypothesis -> test -> re-evaluate hypothesis` loop and tracks open experiments in `agent/record.md`, using git history when useful to verify what the agent actually changed. Hermit keeps its own strategic-review state under `.hermit/agent/record.md`.
 
 ### Advanced Raw Commands
 

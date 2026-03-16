@@ -1,3 +1,4 @@
+import { HERMIT_ROLE_ID } from "./constants.js";
 import { parseDuration } from "./duration.js";
 
 export const DEFAULT_HEARTBEAT_DAEMON_INTERVAL = "1h";
@@ -42,6 +43,10 @@ export function formatHeartbeatDaemonDuration(ms: number): string {
 
 export function resolveHeartbeatDaemonDelay(intervalMs: number, startedAtMs: number, nowMs = Date.now()): number {
   return Math.max(0, intervalMs - Math.max(0, nowMs - startedAtMs));
+}
+
+export function resolveHeartbeatDaemonTargetIds(roleIds: string[]): string[] {
+  return [HERMIT_ROLE_ID, ...roleIds.filter((roleId) => roleId !== HERMIT_ROLE_ID)];
 }
 
 export async function runHeartbeatCycle(options: {

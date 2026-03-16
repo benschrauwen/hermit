@@ -14,12 +14,13 @@ import {
   DEFAULT_HEARTBEAT_DAEMON_INTERVAL,
   formatHeartbeatDaemonDuration,
   parseHeartbeatDaemonInterval,
+  resolveHeartbeatDaemonTargetIds,
   resolveHeartbeatDaemonDelay,
   runHeartbeatCycle,
 } from "./heartbeat-daemon.js";
 import { runTranscriptIngest } from "./ingest.js";
 import { InteractiveSessionCache, snapshotPreexistingInteractiveSessionKeys } from "./chat-session-cache.js";
-import { HERMIT_ROLE_ID } from "./constants.js";
+import { HERMIT_ROLE_ID, HERMIT_ROLE_ROOT } from "./constants.js";
 import {
   inferRootAndRoleFromCwd,
   listRoleIds,
@@ -33,6 +34,7 @@ import {
   createHermitSession,
   createRoleSession,
   DEFAULT_HEARTBEAT_PROMPT,
+  HERMIT_STRATEGIC_REVIEW_PROMPT,
   type InteractiveChatSession,
   type RoleSwitchRequest,
   STRATEGIC_REVIEW_HEARTBEAT_PROMPT,
@@ -43,6 +45,7 @@ import {
 import { assertProviderAwareModelConfigured } from "./model-auth.js";
 import { generateTelemetryReport, renderTelemetryReportSummary, writeTelemetryReport } from "./telemetry.js";
 import type { RoleDefinition } from "./types.js";
+import { ensureWorkspaceScaffold } from "./workspace.js";
 
 async function resolveRoleContext(explicitRoleId?: string): Promise<{ root: string; roleId: string }> {
   const inferred = inferRootAndRoleFromCwd(process.cwd());
@@ -104,10 +107,21 @@ function buildRolePromptContext(root: string, role: RoleDefinition): {
   };
 }
 
+function buildHermitPromptContext(root: string): {
+  workspaceRoot: string;
+  roleId: string;
+  roleRoot: string;
+} {
+  return {
+    workspaceRoot: root,
+    roleId: HERMIT_ROLE_ID,
+    roleRoot: HERMIT_ROLE_ROOT,
+  };
+}
+
 const STRATEGIC_REVIEW_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
-async function isStrategicReviewDue(role: RoleDefinition): Promise<boolean> {
-  const recordPath = path.join(role.roleDir, "agent", "record.md");
+async function isStrategicReviewDueForRecord(recordPath: string): Promise<boolean> {
   try {
     const content = await fs.readFile(recordPath, "utf-8");
     const { data } = matter(content);
@@ -119,6 +133,28 @@ async function isStrategicReviewDue(role: RoleDefinition): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function isStrategicReviewDue(role: RoleDefinition): Promise<boolean> {
+  return isStrategicReviewDueForRecord(path.join(role.roleDir, "agent", "record.md"));
+}
+
+async function isHermitStrategicReviewDue(root: string): Promise<boolean> {
+  return isStrategicReviewDueForRecord(path.join(root, HERMIT_ROLE_ROOT, "agent", "record.md"));
+}
+
+async function shouldRunStrategicReviewSweep(root: string, roles: RoleDefinition[]): Promise<boolean> {
+  if (await isHermitStrategicReviewDue(root)) {
+    return true;
+  }
+
+  for (const role of roles) {
+    if (await isStrategicReviewDue(role)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 type SessionCommandName = "chat" | "ask" | "heartbeat";
@@ -247,13 +283,14 @@ interface HeartbeatRunOptions {
   continue?: boolean;
   prompt?: string;
   strategicReview?: boolean;
+  automaticStrategicReview?: boolean;
 }
 
 async function resolveHeartbeatPrompt(role: RoleDefinition, options: HeartbeatRunOptions): Promise<string> {
   if (options.prompt) {
     return options.prompt;
   }
-  if (options.strategicReview || await isStrategicReviewDue(role)) {
+  if (options.strategicReview || options.automaticStrategicReview !== false && await isStrategicReviewDue(role)) {
     return STRATEGIC_REVIEW_HEARTBEAT_PROMPT;
   }
   return DEFAULT_HEARTBEAT_PROMPT;
@@ -270,6 +307,7 @@ async function runHeartbeatForRole(options: {
   continueRecent?: boolean;
   prompt?: string;
   strategicReview?: boolean;
+  automaticStrategicReview?: boolean;
   gitCheckpointsEnabled?: boolean;
 }): Promise<void> {
   await withGitCheckpoint({
@@ -295,8 +333,42 @@ async function runHeartbeatForRole(options: {
       const heartbeatPrompt = await resolveHeartbeatPrompt(options.role, {
         ...(options.prompt !== undefined ? { prompt: options.prompt } : {}),
         ...(options.strategicReview !== undefined ? { strategicReview: options.strategicReview } : {}),
+        ...(options.automaticStrategicReview !== undefined
+          ? { automaticStrategicReview: options.automaticStrategicReview }
+          : {}),
       });
       await runOneShotPrompt(session, heartbeatPrompt, [], telemetry, options.role.id, modelLabel);
+      return telemetry;
+    },
+  });
+}
+
+async function runStrategicReviewForHermit(options: {
+  root: string;
+  continueRecent?: boolean;
+  gitCheckpointsEnabled?: boolean;
+}): Promise<void> {
+  await withGitCheckpoint({
+    root: options.root,
+    commandName: "heartbeat",
+    roleId: HERMIT_ROLE_ID,
+    ...(options.gitCheckpointsEnabled !== undefined ? { gitCheckpointsEnabled: options.gitCheckpointsEnabled } : {}),
+    run: async (gitContext) => {
+      const { session, telemetry, modelLabel } = await createHermitSession({
+        root: options.root,
+        persist: true,
+        continueRecent: Boolean(options.continueRecent),
+        sessionHistoryType: "heartbeat",
+        bootstrapMode: false,
+        telemetryCommandName: "heartbeat",
+        telemetryContext: gitContext.telemetryContext,
+        promptContext: {
+          ...buildHermitPromptContext(options.root),
+          ...gitContext.promptContext,
+        },
+      });
+
+      await runOneShotPrompt(session, HERMIT_STRATEGIC_REVIEW_PROMPT, [], telemetry, HERMIT_ROLE_ID, modelLabel);
       return telemetry;
     },
   });
@@ -359,9 +431,7 @@ async function buildInteractiveChatSession(
           telemetryCommandName: "chat",
           telemetryContext: gitContext.telemetryContext,
           promptContext: {
-            workspaceRoot: target.root,
-            roleId: HERMIT_ROLE_ID,
-            roleRoot: ".",
+            ...buildHermitPromptContext(target.root),
             ...gitContext.promptContext,
           },
           onRoleSwitchRequest,
@@ -556,14 +626,14 @@ program
 
 program
   .command("heartbeat-daemon")
-  .description("Run heartbeat turns for all roles on a repeating interval until stopped.")
+  .description("Run role heartbeats on a repeating interval and a combined daily strategic-review sweep when due.")
   .option("--no-git-checkpoints", DISABLE_GIT_CHECKPOINTS_OPTION_DESCRIPTION)
   .option(
     "--interval <duration>",
     'Delay between heartbeat cycles. Use a whole number followed by ms, s, m, or h (for example "30m" or "1h").',
     DEFAULT_HEARTBEAT_DAEMON_INTERVAL,
   )
-  .option("--continue", "Continue the most recent persisted heartbeat session for each role.")
+  .option("--continue", "Continue the most recent persisted heartbeat or strategic-review session for each target.")
   .action(async (options: { interval: string; continue?: boolean; gitCheckpoints?: boolean }) => {
     assertProviderAwareModelConfigured();
     const root = resolveWorkspaceRoot();
@@ -578,7 +648,7 @@ program
       }
       keepRunning = false;
       console.log(
-        `[${formatDaemonTimestamp()}] Received ${signal}. Stopping heartbeat daemon after the current role finishes.`,
+        `[${formatDaemonTimestamp()}] Received ${signal}. Stopping heartbeat daemon after the current cycle target finishes.`,
       );
     };
 
@@ -587,7 +657,7 @@ program
 
     try {
       console.log(
-        `[${formatDaemonTimestamp()}] Heartbeat daemon started. Running all role heartbeats every ${formatHeartbeatDaemonDuration(intervalMs)}.`,
+        `[${formatDaemonTimestamp()}] Heartbeat daemon started. Running role heartbeats every ${formatHeartbeatDaemonDuration(intervalMs)} and a combined daily strategic-review sweep when due.`,
       );
 
       while (keepRunning) {
@@ -604,30 +674,70 @@ program
         }
 
         firstCycle = false;
+        await ensureWorkspaceScaffold(root);
+        const roles: RoleDefinition[] = [];
+        for (const roleId of roleIds) {
+          const role = await loadRole(root, roleId);
+          await ensureWorkspaceScaffold(root, role);
+          roles.push(role);
+        }
+        const strategicReviewSweepDue = await shouldRunStrategicReviewSweep(root, roles);
+        const cycleLabel = strategicReviewSweepDue ? "strategic review" : "heartbeat";
+        const targetIds = strategicReviewSweepDue ? resolveHeartbeatDaemonTargetIds(roleIds) : roleIds;
         console.log(
-          `[${formatDaemonTimestamp()}] Starting heartbeat cycle for ${roleIds.length} role(s): ${roleIds.join(", ")}.`,
+          strategicReviewSweepDue
+            ? `[${formatDaemonTimestamp()}] Starting combined strategic-review sweep for Hermit plus ${roleIds.length} role(s): ${roleIds.join(", ")}.`
+            : `[${formatDaemonTimestamp()}] Starting heartbeat cycle for ${roleIds.length} role(s): ${roleIds.join(", ")}.`,
         );
 
         const cycle = await runHeartbeatCycle({
-          roleIds,
+          roleIds: targetIds,
           isCancelled: () => !keepRunning,
           runRoleHeartbeat: async (roleId) => {
-            const role = await loadRole(root, roleId);
-            console.log(`[${formatDaemonTimestamp()}] Running heartbeat for ${roleId}.`);
+            if (roleId === HERMIT_ROLE_ID) {
+              console.log(`[${formatDaemonTimestamp()}] Running Hermit strategic review.`);
+              await runStrategicReviewForHermit({
+                root,
+                ...(options.continue !== undefined ? { continueRecent: options.continue } : {}),
+                ...(options.gitCheckpoints !== undefined ? { gitCheckpointsEnabled: options.gitCheckpoints } : {}),
+              });
+              console.log(`[${formatDaemonTimestamp()}] Finished Hermit strategic review.`);
+              return;
+            }
+
+            const role = roles.find((entry) => entry.id === roleId);
+            if (!role) {
+              throw new Error(`Failed to load role ${roleId} for daemon cycle.`);
+            }
+            console.log(
+              strategicReviewSweepDue
+                ? `[${formatDaemonTimestamp()}] Running strategic review for ${roleId}.`
+                : `[${formatDaemonTimestamp()}] Running heartbeat for ${roleId}.`,
+            );
             await runHeartbeatForRole({
               root,
               role,
               promptContext: buildRolePromptContext(root, role),
               ...(options.continue !== undefined ? { continueRecent: options.continue } : {}),
+              automaticStrategicReview: false,
+              ...(strategicReviewSweepDue ? { strategicReview: true } : {}),
               ...(options.gitCheckpoints !== undefined ? { gitCheckpointsEnabled: options.gitCheckpoints } : {}),
             });
-            console.log(`[${formatDaemonTimestamp()}] Finished heartbeat for ${roleId}.`);
+            console.log(
+              strategicReviewSweepDue
+                ? `[${formatDaemonTimestamp()}] Finished strategic review for ${roleId}.`
+                : `[${formatDaemonTimestamp()}] Finished heartbeat for ${roleId}.`,
+            );
           },
         });
 
         for (const failure of cycle.failures) {
+          const targetLabel =
+            failure.roleId === HERMIT_ROLE_ID
+              ? "Hermit strategic review"
+              : `${cycleLabel} for ${failure.roleId}`;
           console.error(
-            `[${formatDaemonTimestamp()}] Heartbeat failed for ${failure.roleId}: ${getErrorMessage(failure.error)}`,
+            `[${formatDaemonTimestamp()}] ${targetLabel} failed: ${getErrorMessage(failure.error)}`,
           );
         }
 
@@ -639,7 +749,7 @@ program
         const completedCount = cycle.successfulRoleIds.length;
         const failedCount = cycle.failures.length;
         console.log(
-          `[${formatDaemonTimestamp()}] Heartbeat cycle finished in ${formatHeartbeatDaemonDuration(cycle.completedAtMs - cycle.startedAtMs)}. Completed ${completedCount} role(s), failed ${failedCount}. Next cycle in ${formatHeartbeatDaemonDuration(waitMs)}.`,
+          `[${formatDaemonTimestamp()}] ${strategicReviewSweepDue ? "Strategic-review sweep" : "Heartbeat cycle"} finished in ${formatHeartbeatDaemonDuration(cycle.completedAtMs - cycle.startedAtMs)}. Completed ${completedCount} target(s), failed ${failedCount}. Next cycle in ${formatHeartbeatDaemonDuration(waitMs)}.`,
         );
 
         await sleepUntilNextHeartbeat(waitMs, () => keepRunning);

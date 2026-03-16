@@ -253,7 +253,7 @@ This short command also runs inside the included sandbox profile.
 
 Leave this tab open too.
 
-You should see log lines with timestamps. By default, the daemon runs all role heartbeats once every hour and keeps going until you stop it.
+You should see log lines with timestamps. By default, the daemon runs role heartbeats once every hour and triggers a combined daily strategic-review sweep for Hermit plus all roles when one is due.
 
 ## 11. Start the Explorer in a Third Terminal Tab
 

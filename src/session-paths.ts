@@ -1,9 +1,10 @@
 import path from "node:path";
 
-import type { RoleDefinition } from "./types.js";
 import type { SessionHistoryType } from "./session-types.js";
+import type { RoleDefinition } from "./types.js";
 
-const HERMIT_SESSION_DIRECTORY = path.join(".hermit", "sessions", "hermit");
+const HERMIT_INTERACTIVE_SESSION_DIRECTORY = path.join(".hermit", "sessions", "hermit");
+const HERMIT_HEARTBEAT_SESSION_DIRECTORY = path.join(".hermit", "sessions", "hermit-heartbeat");
 
 export function resolvePersistedSessionDirectory(
   role: RoleDefinition,
@@ -16,8 +17,15 @@ export function resolvePersistedSessionDirectory(
   return role.sessionsDir;
 }
 
+export function resolveHermitSessionDirectory(root: string, historyType: SessionHistoryType = "interactive"): string {
+  return path.join(
+    root,
+    historyType === "heartbeat" ? HERMIT_HEARTBEAT_SESSION_DIRECTORY : HERMIT_INTERACTIVE_SESSION_DIRECTORY,
+  );
+}
+
 export function resolveBootstrapSessionDirectory(root: string): string {
-  return path.join(root, HERMIT_SESSION_DIRECTORY);
+  return resolveHermitSessionDirectory(root);
 }
 
 export function resolveRoleSkillPaths(role: RoleDefinition): string[] {

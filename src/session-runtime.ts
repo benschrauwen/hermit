@@ -10,10 +10,10 @@ import {
 } from "@mariozechner/pi-coding-agent";
 
 import { createCustomTools, createHermitTools } from "./agent-tools.js";
-import { DEFAULT_THINKING_LEVEL, HERMIT_ROLE_ID } from "./constants.js";
+import { DEFAULT_THINKING_LEVEL, HERMIT_ROLE_ID, HERMIT_ROLE_ROOT } from "./constants.js";
 import { resolveConfiguredModel } from "./model-auth.js";
 import { PromptLibrary } from "./prompt-library.js";
-import { resolveBootstrapSessionDirectory, resolvePersistedSessionDirectory, resolveRoleSkillPaths, resolveSharedSkillPaths } from "./session-paths.js";
+import { resolveHermitSessionDirectory, resolvePersistedSessionDirectory, resolveRoleSkillPaths, resolveSharedSkillPaths } from "./session-paths.js";
 import type { RoleSwitchRequest, SessionHistoryType } from "./session-types.js";
 import { TelemetryRecorder } from "./telemetry-recorder.js";
 import type { PromptContext, RoleDefinition, TelemetrySessionContext, WorkspaceInitializationState } from "./types.js";
@@ -150,6 +150,7 @@ export async function createHermitSession(options: {
   promptContext: PromptContext;
   persist: boolean;
   continueRecent?: boolean;
+  sessionHistoryType?: SessionHistoryType;
   bootstrapMode?: boolean;
   telemetryCommandName?: string;
   telemetryContext?: Partial<TelemetrySessionContext>;
@@ -167,7 +168,7 @@ export async function createHermitSession(options: {
   const promptLibrary = await PromptLibrary.loadForWorkspace(options.root);
   const promptContext = enrichPromptContextWithCurrentTime({
     roleId: HERMIT_ROLE_ID,
-    roleRoot: ".",
+    roleRoot: HERMIT_ROLE_ROOT,
     ...options.promptContext,
   });
   const baseSystemPrompt = await promptLibrary.renderSystemPrompt(promptContext);
@@ -180,7 +181,7 @@ export async function createHermitSession(options: {
     root: options.root,
     systemPrompt,
     skillPaths: resolveSharedSkillPaths(options.root),
-    sessionsDir: resolveBootstrapSessionDirectory(options.root),
+    sessionsDir: resolveHermitSessionDirectory(options.root, options.sessionHistoryType),
     persist: options.persist,
     continueRecent: options.continueRecent,
     customTools: createHermitTools(options.root, {

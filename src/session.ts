@@ -3,6 +3,7 @@ export type { InteractiveChatSession, RoleSwitchRequest, SessionHistoryType } fr
 export {
   DEFAULT_CHAT_OPENING_PROMPT,
   DEFAULT_HEARTBEAT_PROMPT,
+  HERMIT_STRATEGIC_REVIEW_PROMPT,
   ONBOARDING_CHAT_OPENING_PROMPT,
   STRATEGIC_REVIEW_HEARTBEAT_PROMPT,
   resolveInitialChatPrompt,
@@ -10,6 +11,7 @@ export {
 
 export {
   resolveBootstrapSessionDirectory,
+  resolveHermitSessionDirectory,
   resolvePersistedSessionDirectory,
   resolveRoleSkillPaths,
   resolveSharedSkillPaths,

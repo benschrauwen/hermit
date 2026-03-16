@@ -25,6 +25,7 @@ Code handles the deterministic infrastructure that should not depend on model im
 - `inbox/` holds uncategorized incoming user files until an agent routes them to the right durable location or removes them as temporary drops.
 - `prompts/` holds shared prompt files and shared templates.
 - `agents/` holds one directory per role.
+- `.hermit/` holds Hermit's own runtime state, including chat and heartbeat session history, telemetry, last-role state, and Hermit's shared `agent/record.md` and `agent/inbox.md` for framework stewardship.
 
 ### Per role
 
@@ -66,7 +67,7 @@ flowchart TD
 - `chat` starts an interactive session. Resolution order: `--role`, inferred role from the current directory under `agents/`, last used chat role from `.hermit/state/last-role.txt`, then `Hermit`. The Hermit fallback applies even when roles exist. Bootstrap mode is enabled only when the resolved target is `Hermit` and no roles are configured. Interactive chat supports runtime role switching through the `switch_role` tool.
 - `ask` runs a one-shot prompt in a role-backed session. Resolution: `--role`, inferred role from cwd, then single-role auto-selection. No last-role fallback, no Hermit fallback. Errors when no role can be resolved.
 - `heartbeat` runs one persisted role-backed upkeep turn. Uses the same resolution as `ask`. Strategic review is selected when `--strategic-review` is passed or when `last_strategic_review` in `agent/record.md` is missing or older than 24 hours. The review behavior itself is prompt-driven; the runtime only selects which prompt to use.
-- `heartbeat-daemon` loops over all configured roles on a fixed interval, delegating a normal `heartbeat` run per role.
+- `heartbeat-daemon` runs normal role heartbeats on a fixed interval. When any strategic review is due, it runs one combined strategic-review sweep for `Hermit` plus all configured roles, with one separate session per target.
 - `ingest transcript` places a transcript into the matched entity's evidence directory (or the role's unmatched directory), then runs the role's ingest session. When the transcript is stored as unmatched, the ingest session does not run.
 - `telemetry report` aggregates local telemetry into Markdown and JSON reports, including session outcome counts.
 - `doctor` validates shared workspace structure plus the selected role contract. `doctor --context` also prints the rendered system-prompt file breakdown and char counts for the selected role.
@@ -118,6 +119,8 @@ Skills:
 Session history:
 
 - Hermit interactive: `.hermit/sessions/hermit`
+- Hermit heartbeat: `.hermit/sessions/hermit-heartbeat`
+- Hermit review state: `.hermit/agent/record.md` and `.hermit/agent/inbox.md`
 - Role interactive: `agents/<role-id>/.role-agent/sessions`
 - Role heartbeat: `agents/<role-id>/.role-agent/heartbeat-sessions`
 
