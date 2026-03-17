@@ -12,6 +12,8 @@
 
 Hermit's home page at https://hermit-ai.com/ is built and maintained by the hermit that lives in the "website" branch.
 
+Share your own usecase in https://github.com/benschrauwen/hermit/discussions/categories/show-and-tell
+
 [Architecture](docs/architecture.md) · [Observability](docs/observability.md) · [License](LICENSE)
 
 ## Get Started
