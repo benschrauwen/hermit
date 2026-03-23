@@ -24,10 +24,6 @@ export function resolveHermitSessionDirectory(root: string, historyType: Session
   );
 }
 
-export function resolveBootstrapSessionDirectory(root: string): string {
-  return resolveHermitSessionDirectory(root);
-}
-
 export function resolveRoleSkillPaths(role: RoleDefinition): string[] {
   return [role.sharedSkillsDir, role.roleSkillsDir];
 }

@@ -88,11 +88,7 @@ async function resolveSessionContext(options: { role?: string }): Promise<{
     root,
     roleId,
     role,
-    promptContext: {
-      workspaceRoot: root,
-      roleId,
-      roleRoot: path.relative(root, role.roleDir) || ".",
-    },
+    promptContext: buildRolePromptContext(root, role),
   };
 }
 

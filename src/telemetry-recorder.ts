@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import type { CheckpointOutcome } from "./git.js";
-import { createTelemetryEventCommon } from "./telemetry-events.js";
+import { createTelemetryEventCommon, utcTelemetryDatePathSegments } from "./telemetry-events.js";
 import type { StoredTelemetryEvent } from "./telemetry-events.js";
 import { getNumber, getString, isRecord } from "./type-guards.js";
 import type { TelemetrySessionContext } from "./types.js";
@@ -84,13 +84,6 @@ async function ensureParentDirectory(filePath: string): Promise<void> {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
 }
 
-function datePathParts(timestamp: Date): string[] {
-  const year = String(timestamp.getUTCFullYear());
-  const month = String(timestamp.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(timestamp.getUTCDate()).padStart(2, "0");
-  return [year, month, day];
-}
-
 export class TelemetryRecorder {
   private readonly sessionId: string;
   private readonly filePath: string;
@@ -127,7 +120,7 @@ export class TelemetryRecorder {
       ".hermit",
       "telemetry",
       "events",
-      ...datePathParts(startedAt),
+      ...utcTelemetryDatePathSegments(startedAt),
       `${sessionId}.jsonl`,
     );
     await ensureParentDirectory(filePath);

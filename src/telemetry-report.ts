@@ -2,13 +2,15 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import { parseDuration } from "./duration.js";
-import type {
-  CompactionTelemetryEvent,
-  RetryTelemetryEvent,
-  SessionEndTelemetryEvent,
-  StoredTelemetryEvent,
-  ToolEndTelemetryEvent,
-  TurnEndTelemetryEvent,
+import { isMissingPathError } from "./fs-utils.js";
+import {
+  utcTelemetryDatePathSegments,
+  type CompactionTelemetryEvent,
+  type RetryTelemetryEvent,
+  type SessionEndTelemetryEvent,
+  type StoredTelemetryEvent,
+  type ToolEndTelemetryEvent,
+  type TurnEndTelemetryEvent,
 } from "./telemetry-events.js";
 import type { TelemetryReport, TelemetryToolReport, TelemetryTurnReport } from "./types.js";
 
@@ -66,14 +68,6 @@ function keepCompletedSessionEvents(events: StoredTelemetryEvent[]): StoredTelem
   return events.filter((event) => completedSessionIds.has(event.sessionId));
 }
 
-function utcDayParts(date: Date): [string, string, string] {
-  return [
-    String(date.getUTCFullYear()),
-    String(date.getUTCMonth() + 1).padStart(2, "0"),
-    String(date.getUTCDate()).padStart(2, "0"),
-  ];
-}
-
 function startOfUtcDay(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }
@@ -87,7 +81,7 @@ async function listTelemetryEventFiles(root: string, since: Date, until: Date): 
     day.getTime() <= startOfUtcDay(until).getTime();
     day = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate() + 1))
   ) {
-    const dayDir = path.join(eventsDir, ...utcDayParts(day));
+    const dayDir = path.join(eventsDir, ...utcTelemetryDatePathSegments(day));
     try {
       const entries = await fs.readdir(dayDir, { withFileTypes: true });
       for (const entry of entries) {
@@ -96,7 +90,7 @@ async function listTelemetryEventFiles(root: string, since: Date, until: Date): 
         }
       }
     } catch (error) {
-      if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      if (isMissingPathError(error)) {
         continue;
       }
       throw error;

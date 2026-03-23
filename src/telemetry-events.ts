@@ -140,3 +140,12 @@ export function createTelemetryEventCommon(
     model: formatModelName(context),
   };
 }
+
+/** UTC `YYYY/MM/DD` path segments under `.hermit/telemetry/events/`. */
+export function utcTelemetryDatePathSegments(date: Date): string[] {
+  return [
+    String(date.getUTCFullYear()),
+    String(date.getUTCMonth() + 1).padStart(2, "0"),
+    String(date.getUTCDate()).padStart(2, "0"),
+  ];
+}

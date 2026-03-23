@@ -12,7 +12,6 @@ import {
   loadImageAttachments,
   ONBOARDING_CHAT_OPENING_PROMPT,
   renderTerminalMarkdown,
-  resolveBootstrapSessionDirectory,
   resolveHermitSessionDirectory,
   resolveRoleSkillPaths,
   resolvePersistedSessionDirectory,
@@ -168,7 +167,7 @@ describe("heartbeat session helpers", () => {
   });
 
   it("stores Hermit chat history outside role-local directories", () => {
-    expect(resolveBootstrapSessionDirectory("/tmp/workspace")).toBe("/tmp/workspace/.hermit/sessions/hermit");
+    expect(resolveHermitSessionDirectory("/tmp/workspace")).toBe("/tmp/workspace/.hermit/sessions/hermit");
     expect(resolveHermitSessionDirectory("/tmp/workspace", "heartbeat")).toBe(
       "/tmp/workspace/.hermit/sessions/hermit-heartbeat",
     );

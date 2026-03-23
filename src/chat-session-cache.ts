@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import { HERMIT_ROLE_ID } from "./constants.js";
 import { formatErrorMessage, isMissingPathError } from "./fs-utils.js";
 import { listRoleIds, loadRole } from "./roles.js";
-import { resolveBootstrapSessionDirectory, resolvePersistedSessionDirectory, type InteractiveChatSession } from "./session.js";
+import { resolveHermitSessionDirectory, resolvePersistedSessionDirectory, type InteractiveChatSession } from "./session.js";
 
 async function directoryHasEntries(directoryPath: string): Promise<boolean> {
   try {
@@ -19,7 +19,7 @@ async function directoryHasEntries(directoryPath: string): Promise<boolean> {
 
 export async function snapshotPreexistingInteractiveSessionKeys(root: string): Promise<Set<string>> {
   const keys = new Set<string>();
-  if (await directoryHasEntries(resolveBootstrapSessionDirectory(root))) {
+  if (await directoryHasEntries(resolveHermitSessionDirectory(root))) {
     keys.add(HERMIT_ROLE_ID);
   }
 

@@ -10,7 +10,6 @@ export {
 } from "./session-prompts.js";
 
 export {
-  resolveBootstrapSessionDirectory,
   resolveHermitSessionDirectory,
   resolvePersistedSessionDirectory,
   resolveRoleSkillPaths,

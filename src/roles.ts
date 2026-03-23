@@ -143,12 +143,6 @@ export async function loadEntityDefs(root: string): Promise<EntityDefsLoadResult
   }
 }
 
-/** @deprecated Use loadEntityDefs(root).entities */
-export async function loadEntityDefinitions(root: string): Promise<RoleEntityDefinition[]> {
-  const defs = await loadEntityDefs(root);
-  return defs.entities;
-}
-
 function parseEntityDefinitions(value: unknown): RoleEntityDefinition[] {
   if (!Array.isArray(value)) {
     throw new Error("Invalid role manifest field: entities");
