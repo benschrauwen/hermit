@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createHeartbeatDaemonController,
   formatHeartbeatDaemonDuration,
   parseHeartbeatDaemonInterval,
+  planHeartbeatDaemonCycle,
   resolveHeartbeatDaemonDelay,
   resolveHeartbeatDaemonTargetIds,
   runHeartbeatCycle,
@@ -46,6 +48,29 @@ describe("resolveHeartbeatDaemonTargetIds", () => {
 
   it("avoids duplicating Hermit when it is already present", () => {
     expect(resolveHeartbeatDaemonTargetIds(["Hermit", "role-a"])).toEqual(["Hermit", "role-a"]);
+  });
+});
+
+describe("planHeartbeatDaemonCycle", () => {
+  it("waits when no roles are configured and no strategic review is due", () => {
+    expect(planHeartbeatDaemonCycle([], false)).toEqual({
+      mode: "wait",
+      targetIds: [],
+    });
+  });
+
+  it("runs a Hermit-only strategic review when no roles are configured but a review is due", () => {
+    expect(planHeartbeatDaemonCycle([], true)).toEqual({
+      mode: "strategic-review",
+      targetIds: ["Hermit"],
+    });
+  });
+
+  it("keeps normal role heartbeats when roles are configured", () => {
+    expect(planHeartbeatDaemonCycle(["role-a", "role-b"], false)).toEqual({
+      mode: "heartbeat",
+      targetIds: ["role-a", "role-b"],
+    });
   });
 });
 
@@ -100,5 +125,37 @@ describe("runHeartbeatCycle", () => {
     expect(attempted).toEqual(["role-a"]);
     expect(result.successfulRoleIds).toEqual(["role-a"]);
     expect(result.failures).toEqual([]);
+  });
+});
+
+describe("createHeartbeatDaemonController", () => {
+  it("aborts the active session when the daemon stops", async () => {
+    const steps: string[] = [];
+    const controller = createHeartbeatDaemonController();
+
+    controller.setActiveAbort(async () => {
+      steps.push("aborted");
+    });
+
+    expect(controller.stop()).toEqual({
+      requested: true,
+      abortedActiveSession: true,
+    });
+    await Promise.resolve();
+    expect(steps).toEqual(["aborted"]);
+    expect(controller.isRunning()).toBe(false);
+  });
+
+  it("only stops once", () => {
+    const controller = createHeartbeatDaemonController();
+
+    expect(controller.stop()).toEqual({
+      requested: true,
+      abortedActiveSession: false,
+    });
+    expect(controller.stop()).toEqual({
+      requested: false,
+      abortedActiveSession: false,
+    });
   });
 });

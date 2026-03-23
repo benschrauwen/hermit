@@ -16,6 +16,22 @@ export interface HeartbeatCycleResult {
   failures: HeartbeatCycleFailure[];
 }
 
+export interface HeartbeatDaemonCyclePlan {
+  mode: "wait" | "heartbeat" | "strategic-review";
+  targetIds: string[];
+}
+
+export interface HeartbeatDaemonStopResult {
+  requested: boolean;
+  abortedActiveSession: boolean;
+}
+
+export interface HeartbeatDaemonController {
+  isRunning(): boolean;
+  setActiveAbort(abortActiveSession?: (() => Promise<void>) | undefined): void;
+  stop(): HeartbeatDaemonStopResult;
+}
+
 export function parseHeartbeatDaemonInterval(value: string): number {
   return parseDuration(value);
 }
@@ -47,6 +63,61 @@ export function resolveHeartbeatDaemonDelay(intervalMs: number, startedAtMs: num
 
 export function resolveHeartbeatDaemonTargetIds(roleIds: string[]): string[] {
   return [HERMIT_ROLE_ID, ...roleIds.filter((roleId) => roleId !== HERMIT_ROLE_ID)];
+}
+
+export function planHeartbeatDaemonCycle(roleIds: string[], strategicReviewSweepDue: boolean): HeartbeatDaemonCyclePlan {
+  if (roleIds.length === 0) {
+    if (strategicReviewSweepDue) {
+      return {
+        mode: "strategic-review",
+        targetIds: [HERMIT_ROLE_ID],
+      };
+    }
+
+    return {
+      mode: "wait",
+      targetIds: [],
+    };
+  }
+
+  return {
+    mode: strategicReviewSweepDue ? "strategic-review" : "heartbeat",
+    targetIds: strategicReviewSweepDue ? resolveHeartbeatDaemonTargetIds(roleIds) : roleIds,
+  };
+}
+
+export function createHeartbeatDaemonController(options: {
+  onAbortError?: (error: unknown) => void;
+} = {}): HeartbeatDaemonController {
+  let keepRunning = true;
+  let activeAbort: (() => Promise<void>) | undefined;
+
+  return {
+    isRunning(): boolean {
+      return keepRunning;
+    },
+    setActiveAbort(abortActiveSession?: (() => Promise<void>) | undefined): void {
+      activeAbort = abortActiveSession;
+    },
+    stop(): HeartbeatDaemonStopResult {
+      if (!keepRunning) {
+        return { requested: false, abortedActiveSession: false };
+      }
+
+      keepRunning = false;
+      const abortActiveSession = activeAbort;
+      if (abortActiveSession) {
+        void abortActiveSession().catch((error) => {
+          options.onAbortError?.(error);
+        });
+      }
+
+      return {
+        requested: true,
+        abortedActiveSession: abortActiveSession !== undefined,
+      };
+    },
+  };
 }
 
 export async function runHeartbeatCycle(options: {
