@@ -63,20 +63,22 @@ security add-generic-password -s "nono" -a "anthropic_api_key" -w "ANTHROPIC_KEY
 security add-generic-password -s "nono" -a "google_api_key" -w "GOOGLE_KEY" -U
 ```
 
-Start Hermit in a safe, sandboxed environment:
+Start Hermit in a safe, sandboxed workspace console:
 
 ```bash
 npm start
 ```
 
-In separate Terminal tabs, you will usually also want:
+This single command starts the explorer, launches the heartbeat daemon in the top pane, and opens the interactive chat UI below it.
+
+If you want the pieces separately instead:
 
 ```bash
 npm run heartbeat-daemon
 npm run explorer
 ```
 
-By default `npm start` and `npm run heartbeat-daemon` run inside the included `nono` sandbox profile. In an empty workspace, that first session bootstraps the initial role and starts shaping the application around the responsibility you describe.
+By default `npm start`, `npm run heartbeat-daemon`, and `npm run explorer` run inside the included `nono` sandbox profile. In an empty workspace, that first `npm start` session bootstraps the initial role and starts shaping the application around the responsibility you describe.
 
 ## How The App Gets Built
 
@@ -115,19 +117,19 @@ git rebase main
 ### Safe Defaults
 
 ```bash
-npm start                                         # open the last active role in the sandbox
-npm run heartbeat-daemon                          # run role heartbeats hourly and a daily strategic-review sweep when due
-npm run explorer                                  # launch the workspace UI as a normal local server
+npm start                                         # start explorer, heartbeat daemon, and chat in one sandboxed TUI
+npm run heartbeat-daemon                          # run only the background heartbeat loop
+npm run explorer                                  # launch only the workspace UI server
 ```
 
-`heartbeat` runs a single background turn for a role. `heartbeat-daemon` is the built-in replacement for an external cron job: it runs normal role heartbeats on the configured interval (default `1h`), and when any strategic review becomes due it runs one combined strategic-review sweep for `Hermit` plus all configured roles as separate sessions. Automated runs use separate persisted session histories so they stay distinct from normal interactive chat history. When `--strategic-review` is passed, or when the last strategic review is more than 24 hours old, the role heartbeat command runs a full strategic review instead of normal task advancement. That review now follows an explicit `evidence -> hypothesis -> test -> re-evaluate hypothesis` loop and tracks open experiments in `agent/record.md`, using git history when useful to verify what the agent actually changed. Hermit keeps its own strategic-review state under `.hermit/agent/record.md`.
+`heartbeat` runs a single background turn for a role. `heartbeat-daemon` is the built-in replacement for an external cron job: it runs normal role heartbeats on the configured interval (default `1h`), and when any strategic review becomes due it runs one combined strategic-review sweep for `Hermit` plus all configured roles as separate sessions. Automated runs use separate persisted session histories so they stay distinct from normal interactive chat history. Interactive chat turns now checkpoint git per prompt round instead of only on process exit, and heartbeat turns skip themselves while an interactive turn is actively running so the repo does not get mutated by both paths at once. When `--strategic-review` is passed, or when the last strategic review is more than 24 hours old, the role heartbeat command runs a full strategic review instead of normal task advancement. That review now follows an explicit `evidence -> hypothesis -> test -> re-evaluate hypothesis` loop and tracks open experiments in `agent/record.md`, using git history when useful to verify what the agent actually changed. Hermit keeps its own strategic-review state under `.hermit/agent/record.md`.
 
 ### Advanced Raw Commands
 
 Use these when you explicitly want to bypass the sandbox or call the raw CLI directly.
 
 ```bash
-npm run start:unsafe                              # open the last active role without the sandbox
+npm run start:unsafe                              # start explorer, heartbeat daemon, and chat without the sandbox
 npm run heartbeat-daemon:unsafe                   # run the daemon without the sandbox
 npm run cli -- chat --role <role-id>              # raw interactive CLI
 npm run cli -- ask --role <role-id> "Review the top open deals"
@@ -225,7 +227,7 @@ You only need one supported provider key to get started. Hermit will auto-pick t
 
 ## Sandboxing With `nono`
 
-Hermit runs local agents with read/write access to your workspace, so sandboxing is the default and recommended mode for the agent processes. [`nono`](https://github.com/always-further/nono) adds kernel-enforced filesystem boundaries on macOS and Linux, can inject secrets from the system keychain, and lets you keep Hermit confined to this repo plus the runtime paths it needs. The explorer intentionally runs outside `nono` as a normal local web server.
+Hermit runs local agents with read/write access to your workspace, so sandboxing is the default and recommended mode for the agent processes. [`nono`](https://github.com/always-further/nono) adds kernel-enforced filesystem boundaries on macOS and Linux, can inject secrets from the system keychain, and lets you keep Hermit confined to this repo plus the runtime paths it needs. The default `npm start` flow now keeps the explorer, heartbeat daemon, and chat together inside that same sandboxed session.
 
 This repo includes an example profile at `examples/nono/hermit.json`. It grants:
 
@@ -239,6 +241,7 @@ The default short commands already use this profile:
 ```bash
 npm start
 npm run heartbeat-daemon
+npm run explorer
 ```
 
 If you want to bypass the sandbox entirely, use the `:unsafe` commands instead:

@@ -104,6 +104,7 @@ describe("runHeartbeatCycle", () => {
       "done:role-c",
     ]);
     expect(result.successfulRoleIds).toEqual(["role-a", "role-c"]);
+    expect(result.skippedRoleIds).toEqual([]);
     expect(result.failures).toHaveLength(1);
     expect(result.failures[0]?.roleId).toBe("role-b");
     expect(result.completedAtMs).toBeGreaterThan(result.startedAtMs);
@@ -124,6 +125,23 @@ describe("runHeartbeatCycle", () => {
 
     expect(attempted).toEqual(["role-a"]);
     expect(result.successfulRoleIds).toEqual(["role-a"]);
+    expect(result.skippedRoleIds).toEqual([]);
+    expect(result.failures).toEqual([]);
+  });
+
+  it("tracks skipped turns separately", async () => {
+    const result = await runHeartbeatCycle({
+      roleIds: ["role-a", "role-b"],
+      runRoleHeartbeat: async (roleId) => {
+        if (roleId === "role-b") {
+          return "skipped";
+        }
+        return "success";
+      },
+    });
+
+    expect(result.successfulRoleIds).toEqual(["role-a"]);
+    expect(result.skippedRoleIds).toEqual(["role-b"]);
     expect(result.failures).toEqual([]);
   });
 });

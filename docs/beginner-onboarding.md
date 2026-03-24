@@ -16,11 +16,11 @@ The best way to think about it is simple: you describe the job, and Hermit start
 
 ## What Hermit Does Once Installed
 
-After install, most people run three things:
+After install, most people start with one command:
 
-- `npm start` gives you the main chat where you talk to Hermit
-- `npm run heartbeat-daemon` runs background upkeep on a schedule
-- `npm run explorer` gives you a local web UI to browse the workspace
+- `npm start` opens the combined workspace screen with the explorer, the heartbeat daemon, and the main chat together
+
+You can still run `npm run heartbeat-daemon` or `npm run explorer` separately when you explicitly want only one part of the system.
 
 On a fresh setup, the first conversation usually defines your first agent. Hermit then starts shaping the workspace around that role by creating the files and structure it needs to do the work well.
 

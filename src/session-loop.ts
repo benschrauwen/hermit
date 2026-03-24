@@ -9,6 +9,7 @@ import { loadImageAttachments } from "./session-attachments.js";
 import { attachConsoleStreaming, formatEntryDesignator, formatUserPromptEcho, type StreamingHandle } from "./session-terminal.js";
 import type { InteractiveChatSession, RoleSwitchRequest } from "./session-types.js";
 import type { TelemetryRecorder } from "./telemetry-recorder.js";
+import { formatWorkspaceTurnOwner, runInteractiveSessionTurn } from "./turn-control.js";
 
 const ANSI_DIM = "\x1b[90m";
 const ANSI_RESET = "\x1b[0m";
@@ -42,9 +43,11 @@ export async function runOneShotPrompt(
 
 export async function runChatLoop(
   options: {
+    root: string;
     initialSession: InteractiveChatSession;
     initialPrompt?: string;
     initialImages?: string[];
+    gitCheckpointsEnabled?: boolean;
     onRoleSwitch?: (request: RoleSwitchRequest, previousRoleLabel: string) => Promise<InteractiveChatSession>;
   },
 ): Promise<void> {
@@ -67,9 +70,11 @@ function isExitCommand(input: string): boolean {
 
 async function runReadlineChatLoop(
   options: {
+    root: string;
     initialSession: InteractiveChatSession;
     initialPrompt?: string;
     initialImages?: string[];
+    gitCheckpointsEnabled?: boolean;
     onRoleSwitch?: (request: RoleSwitchRequest, previousRoleLabel: string) => Promise<InteractiveChatSession>;
   },
 ): Promise<void> {
@@ -113,8 +118,21 @@ async function runReadlineChatLoop(
   }
 
   async function promptActiveSession(prompt: string, imagePaths: string[] = []): Promise<void> {
-    await activeSession.session.prompt(prompt, {
-      images: await loadImageAttachments(imagePaths),
+    let waitingNoticePrinted = false;
+    await runInteractiveSessionTurn({
+      root: options.root,
+      roleId: activeSession.activeRoleLabel,
+      session: activeSession.session,
+      prompt,
+      imagePaths,
+      ...(options.gitCheckpointsEnabled !== undefined ? { gitCheckpointsEnabled: options.gitCheckpointsEnabled } : {}),
+      onWaitForTurn: (owner) => {
+        if (waitingNoticePrinted) {
+          return;
+        }
+        waitingNoticePrinted = true;
+        process.stdout.write(`${ANSI_DIM}Waiting for ${formatWorkspaceTurnOwner(owner)} to finish.${ANSI_RESET}\n`);
+      },
     });
     await switchRolesIfRequested();
     streaming.clearStatus();
@@ -146,9 +164,11 @@ async function runReadlineChatLoop(
 
 async function runTuiChatLoop(
   options: {
+    root: string;
     initialSession: InteractiveChatSession;
     initialPrompt?: string;
     initialImages?: string[];
+    gitCheckpointsEnabled?: boolean;
     onRoleSwitch?: (request: RoleSwitchRequest, previousRoleLabel: string) => Promise<InteractiveChatSession>;
   },
 ): Promise<void> {
@@ -194,8 +214,21 @@ async function runTuiChatLoop(
   }
 
   async function promptActiveSession(prompt: string, imagePaths: string[] = []): Promise<void> {
-    await activeSession.session.prompt(prompt, {
-      images: await loadImageAttachments(imagePaths),
+    let waitingStatusShown = false;
+    await runInteractiveSessionTurn({
+      root: options.root,
+      roleId: activeSession.activeRoleLabel,
+      session: activeSession.session,
+      prompt,
+      imagePaths,
+      ...(options.gitCheckpointsEnabled !== undefined ? { gitCheckpointsEnabled: options.gitCheckpointsEnabled } : {}),
+      onWaitForTurn: (owner) => {
+        if (waitingStatusShown) {
+          return;
+        }
+        waitingStatusShown = true;
+        chatUi.showStatus(`Waiting for ${formatWorkspaceTurnOwner(owner)} to finish`);
+      },
     });
     await switchRolesIfRequested();
     chatUi.clearStatus();

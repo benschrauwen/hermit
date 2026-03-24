@@ -7,8 +7,8 @@
   "scripts": {
     "check": "tsc -p tsconfig.json --noEmit",
     "postinstall": "./scripts/with-local-npm.sh npm --prefix explorer install",
-    "start": "./scripts/with-local-npm.sh ./scripts/with-provider-env.sh nono run --profile ./examples/nono/hermit.json --allow-cwd --allow-command npm -- npm run cli -- chat",
-    "start:unsafe": "./scripts/with-provider-env.sh npm run cli -- chat",
+    "start": "./scripts/with-local-npm.sh ./scripts/with-provider-env.sh nono run --profile ./examples/nono/hermit.json --allow-cwd --allow-command npm --allow-bind 4321 -- npm run cli -- start",
+    "start:unsafe": "./scripts/with-local-npm.sh ./scripts/with-provider-env.sh npm run cli -- start",
     "cli": "node --import tsx src/cli.ts",
     "test": "vitest run",
     "test:watch": "vitest",

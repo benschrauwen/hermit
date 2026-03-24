@@ -69,6 +69,17 @@ vi.mock("../src/session-chat-ui.js", () => ({
   attachChatTuiStreaming: () => () => {},
 }));
 
+vi.mock("../src/turn-control.js", () => ({
+  formatWorkspaceTurnOwner: (owner?: { kind?: string; roleId?: string }) =>
+    owner?.roleId ? `${owner.kind ?? "turn"} for ${owner.roleId}` : owner?.kind ?? "turn",
+  runInteractiveSessionTurn: async (options: {
+    session: { prompt: (prompt: string) => Promise<void> };
+    prompt: string;
+  }) => {
+    await options.session.prompt(options.prompt);
+  },
+}));
+
 import { runChatLoop } from "../src/session-loop.js";
 
 import type { InteractiveChatSession, RoleSwitchRequest } from "../src/session-types.js";
@@ -133,6 +144,7 @@ describe("runChatLoop role switching", () => {
     const onRoleSwitch = vi.fn(async () => switchedSession);
 
     await runChatLoop({
+      root: "/tmp/hermit",
       initialSession,
       initialPrompt: "Resume the intake workflow.",
       onRoleSwitch,
@@ -156,6 +168,7 @@ describe("runChatLoop role switching", () => {
     const onRoleSwitch = vi.fn(async () => switchedSession);
 
     await runChatLoop({
+      root: "/tmp/hermit",
       initialSession,
       initialPrompt: "Pick up where we left off.",
       onRoleSwitch,

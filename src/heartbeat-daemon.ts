@@ -13,6 +13,7 @@ export interface HeartbeatCycleResult {
   startedAtMs: number;
   completedAtMs: number;
   successfulRoleIds: string[];
+  skippedRoleIds: string[];
   failures: HeartbeatCycleFailure[];
 }
 
@@ -122,12 +123,13 @@ export function createHeartbeatDaemonController(options: {
 
 export async function runHeartbeatCycle(options: {
   roleIds: string[];
-  runRoleHeartbeat: (roleId: string) => Promise<void>;
+  runRoleHeartbeat: (roleId: string) => Promise<"success" | "skipped" | void>;
   isCancelled?: () => boolean;
   now?: () => number;
 }): Promise<HeartbeatCycleResult> {
   const now = options.now ?? Date.now;
   const successfulRoleIds: string[] = [];
+  const skippedRoleIds: string[] = [];
   const failures: HeartbeatCycleFailure[] = [];
   const startedAtMs = now();
 
@@ -137,7 +139,11 @@ export async function runHeartbeatCycle(options: {
     }
 
     try {
-      await options.runRoleHeartbeat(roleId);
+      const result = await options.runRoleHeartbeat(roleId);
+      if (result === "skipped") {
+        skippedRoleIds.push(roleId);
+        continue;
+      }
       successfulRoleIds.push(roleId);
     } catch (error) {
       failures.push({ roleId, error });
@@ -148,6 +154,7 @@ export async function runHeartbeatCycle(options: {
     startedAtMs,
     completedAtMs: now(),
     successfulRoleIds,
+    skippedRoleIds,
     failures,
   };
 }

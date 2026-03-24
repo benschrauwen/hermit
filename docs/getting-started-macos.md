@@ -20,9 +20,7 @@ By the end of this guide, you will have:
 - Installed Hermit's packages
 - Created one provider API key
 - Saved that key into your Mac's Keychain
-- Started Hermit safely
-- Started `heartbeat-daemon` in a second Terminal tab
-- Started the explorer in a third Terminal tab
+- Started Hermit safely in one Terminal tab
 - Opened the explorer in your browser
 
 ## Before You Start
@@ -232,96 +230,37 @@ This short command already starts Hermit inside the included sandbox profile.
 
 Leave this Terminal tab open. This is your main Hermit tab where you talk to the AI.
 
-## 10. Start `heartbeat-daemon` in a Second Terminal Tab
+## 10. Open the Explorer in Your Browser
 
-The daemon is the background loop that runs heartbeats for all configured roles on a schedule.
+`npm start` now launches the explorer for you inside the same sandboxed session as the chat and heartbeat daemon.
 
-1. Press `Command + T` to open a new Terminal tab.
-2. Run:
-
-```bash
-cd ~/Projects/hermit
-```
-
-3. Then run:
-
-```bash
-npm run heartbeat-daemon
-```
-
-This short command also runs inside the included sandbox profile.
-
-Leave this tab open too.
-
-You should see log lines with timestamps. By default, the daemon runs role heartbeats once every hour and triggers a combined daily strategic-review sweep for Hermit plus all roles when one is due.
-
-## 11. Start the Explorer in a Third Terminal Tab
-
-The explorer is the local web UI for viewing the workspace in your browser.
-
-1. Press `Command + T` again to open a third Terminal tab.
-2. Run:
-
-```bash
-cd ~/Projects/hermit
-```
-
-3. Then run:
-
-```bash
-npm run explorer
-```
-
-This command does not use `nono`. That is intentional. The explorer runs as a normal local web server so you can open it in your browser.
-
-Leave this tab open.
-
-The first time it starts, it may need a little time to build. When it is ready, Terminal will print a local web address.
-
-Usually that address is:
+The first time it starts, it may need a little time to build. When it is ready, open your browser and visit:
 
 ```text
 http://localhost:4321
 ```
 
-## 12. Open the Explorer in Your Browser
+If that does not load, use the exact local URL shown in the `npm start` Terminal tab.
 
-Once the explorer command is running:
+## 11. What You Should Have Running
 
-1. Look at the third Terminal tab
-2. Find the local URL it printed
-3. Open Safari, Chrome, or another browser
-4. Paste the URL into the address bar
-5. Press `Return`
+At this point you should have:
 
-If you are unsure, try:
+1. One Terminal tab running `npm start`
+2. One browser tab open to the explorer
 
-```text
-http://localhost:4321
-```
+Inside the Terminal tab, the top pane shows the heartbeat daemon and the bottom pane is the interactive chat UI.
 
-If that does not load, use the exact address shown in Terminal.
+## 12. How To Stop Everything
 
-## 13. What You Should Have Running
+To stop Hermit:
 
-At this point you should have three Terminal tabs open:
-
-1. Hermit chat
-2. `heartbeat-daemon`
-3. Explorer
-
-And one browser tab open to the explorer.
-
-## 14. How To Stop Everything
-
-To stop any of the running commands:
-
-1. Click that Terminal tab
+1. Click the Terminal tab running `npm start`
 2. Press `Control + C`
 
-Do that once per tab.
+That one keypress cleanly stops the explorer, cancels live AI sessions, and exits the combined workspace screen.
 
-## 15. The Next Time You Want To Use Hermit
+## 13. The Next Time You Want To Use Hermit
 
 After the first setup, you do not need to reinstall everything.
 
@@ -329,25 +268,17 @@ Next time:
 
 1. Open Terminal
 2. Run `cd ~/Projects/hermit`
-3. Start Hermit again in one tab
-4. Start `heartbeat-daemon` in a second tab
-5. Start the explorer in a third tab
+3. Run `npm start`
+4. Open `http://localhost:4321` in your browser
 
-These are the three commands you will reuse:
-
-```bash
-npm start
-```
+If you ever want to run only one piece on its own, you can still use:
 
 ```bash
 npm run heartbeat-daemon
-```
-
-```bash
 npm run explorer
 ```
 
-## 16. Read This Next
+## 14. Read This Next
 
 Once Hermit is running, read [`docs/beginner-onboarding.md`](beginner-onboarding.md).
 

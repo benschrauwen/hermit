@@ -45,8 +45,10 @@ import {
 } from "./session.js";
 import { assertProviderAwareModelConfigured } from "./model-auth.js";
 import { generateTelemetryReport, renderTelemetryReportSummary, writeTelemetryReport } from "./telemetry.js";
+import { acquireWorkspaceTurnLock, formatWorkspaceTurnOwner, readWorkspaceTurnLock, tryAcquireWorkspaceTurnLock } from "./turn-control.js";
 import type { RoleDefinition } from "./types.js";
 import { ensureWorkspaceScaffold } from "./workspace.js";
+import { runWorkspaceStartLoop } from "./workspace-start.js";
 
 async function resolveRoleContext(explicitRoleId?: string): Promise<{ root: string; roleId: string }> {
   const inferred = inferRootAndRoleFromCwd(process.cwd());
@@ -289,6 +291,11 @@ interface HeartbeatRunOptions {
   automaticStrategicReview?: boolean;
 }
 
+interface HeartbeatExecutionResult {
+  status: "ran" | "skipped";
+  lockOwner?: Awaited<ReturnType<typeof readWorkspaceTurnLock>>;
+}
+
 async function resolveHeartbeatPrompt(role: RoleDefinition, options: HeartbeatRunOptions): Promise<string> {
   if (options.prompt) {
     return options.prompt;
@@ -314,51 +321,69 @@ async function runHeartbeatForRole(options: {
   gitCheckpointsEnabled?: boolean;
   isCancelled?: () => boolean;
   registerActiveAbort?: (abortActiveSession?: (() => Promise<void>) | undefined) => void;
-}): Promise<void> {
-  await withGitCheckpoint({
-    root: options.root,
+}): Promise<HeartbeatExecutionResult> {
+  const turnLock = await tryAcquireWorkspaceTurnLock(options.root, {
+    kind: "heartbeat",
     commandName: "heartbeat",
     roleId: options.role.id,
-    ...(options.gitCheckpointsEnabled !== undefined ? { gitCheckpointsEnabled: options.gitCheckpointsEnabled } : {}),
-    run: async (gitContext) => {
-      const { session, telemetry, modelLabel } = await createRoleSession({
-        root: options.root,
-        role: options.role,
-        persist: true,
-        continueRecent: Boolean(options.continueRecent),
-        sessionHistoryType: "heartbeat",
-        telemetryCommandName: "heartbeat",
-        telemetryContext: gitContext.telemetryContext,
-        promptContext: {
-          ...options.promptContext,
-          ...gitContext.promptContext,
-        },
-      });
-
-      const abortActiveSession = async () => {
-        await session.abort();
-      };
-      options.registerActiveAbort?.(abortActiveSession);
-
-      try {
-        if (options.isCancelled?.()) {
-          throw createAbortError("Heartbeat daemon aborted the active role session.");
-        }
-
-        const heartbeatPrompt = await resolveHeartbeatPrompt(options.role, {
-          ...(options.prompt !== undefined ? { prompt: options.prompt } : {}),
-          ...(options.strategicReview !== undefined ? { strategicReview: options.strategicReview } : {}),
-          ...(options.automaticStrategicReview !== undefined
-            ? { automaticStrategicReview: options.automaticStrategicReview }
-            : {}),
-        });
-        await runOneShotPrompt(session, heartbeatPrompt, [], telemetry, options.role.id, modelLabel);
-        return telemetry;
-      } finally {
-        options.registerActiveAbort?.(undefined);
-      }
-    },
   });
+  if (!turnLock) {
+    return {
+      status: "skipped",
+      lockOwner: await readWorkspaceTurnLock(options.root),
+    };
+  }
+
+  try {
+    await withGitCheckpoint({
+      root: options.root,
+      commandName: "heartbeat",
+      roleId: options.role.id,
+      ...(options.gitCheckpointsEnabled !== undefined ? { gitCheckpointsEnabled: options.gitCheckpointsEnabled } : {}),
+      run: async (gitContext) => {
+        const { session, telemetry, modelLabel } = await createRoleSession({
+          root: options.root,
+          role: options.role,
+          persist: true,
+          continueRecent: Boolean(options.continueRecent),
+          sessionHistoryType: "heartbeat",
+          telemetryCommandName: "heartbeat",
+          telemetryContext: gitContext.telemetryContext,
+          promptContext: {
+            ...options.promptContext,
+            ...gitContext.promptContext,
+          },
+        });
+
+        const abortActiveSession = async () => {
+          await session.abort();
+        };
+        options.registerActiveAbort?.(abortActiveSession);
+
+        try {
+          if (options.isCancelled?.()) {
+            throw createAbortError("Heartbeat daemon aborted the active role session.");
+          }
+
+          const heartbeatPrompt = await resolveHeartbeatPrompt(options.role, {
+            ...(options.prompt !== undefined ? { prompt: options.prompt } : {}),
+            ...(options.strategicReview !== undefined ? { strategicReview: options.strategicReview } : {}),
+            ...(options.automaticStrategicReview !== undefined
+              ? { automaticStrategicReview: options.automaticStrategicReview }
+              : {}),
+          });
+          await runOneShotPrompt(session, heartbeatPrompt, [], telemetry, options.role.id, modelLabel);
+          return telemetry;
+        } finally {
+          options.registerActiveAbort?.(undefined);
+        }
+      },
+    });
+
+    return { status: "ran" };
+  } finally {
+    await turnLock.release();
+  }
 }
 
 async function runStrategicReviewForHermit(options: {
@@ -367,44 +392,62 @@ async function runStrategicReviewForHermit(options: {
   gitCheckpointsEnabled?: boolean;
   isCancelled?: () => boolean;
   registerActiveAbort?: (abortActiveSession?: (() => Promise<void>) | undefined) => void;
-}): Promise<void> {
-  await withGitCheckpoint({
-    root: options.root,
+}): Promise<HeartbeatExecutionResult> {
+  const turnLock = await tryAcquireWorkspaceTurnLock(options.root, {
+    kind: "heartbeat",
     commandName: "heartbeat",
     roleId: HERMIT_ROLE_ID,
-    ...(options.gitCheckpointsEnabled !== undefined ? { gitCheckpointsEnabled: options.gitCheckpointsEnabled } : {}),
-    run: async (gitContext) => {
-      const { session, telemetry, modelLabel } = await createHermitSession({
-        root: options.root,
-        persist: true,
-        continueRecent: Boolean(options.continueRecent),
-        sessionHistoryType: "heartbeat",
-        bootstrapMode: false,
-        telemetryCommandName: "heartbeat",
-        telemetryContext: gitContext.telemetryContext,
-        promptContext: {
-          ...buildHermitPromptContext(options.root),
-          ...gitContext.promptContext,
-        },
-      });
-
-      const abortActiveSession = async () => {
-        await session.abort();
-      };
-      options.registerActiveAbort?.(abortActiveSession);
-
-      try {
-        if (options.isCancelled?.()) {
-          throw createAbortError("Heartbeat daemon aborted the active Hermit strategic-review session.");
-        }
-
-        await runOneShotPrompt(session, HERMIT_STRATEGIC_REVIEW_PROMPT, [], telemetry, HERMIT_ROLE_ID, modelLabel);
-        return telemetry;
-      } finally {
-        options.registerActiveAbort?.(undefined);
-      }
-    },
   });
+  if (!turnLock) {
+    return {
+      status: "skipped",
+      lockOwner: await readWorkspaceTurnLock(options.root),
+    };
+  }
+
+  try {
+    await withGitCheckpoint({
+      root: options.root,
+      commandName: "heartbeat",
+      roleId: HERMIT_ROLE_ID,
+      ...(options.gitCheckpointsEnabled !== undefined ? { gitCheckpointsEnabled: options.gitCheckpointsEnabled } : {}),
+      run: async (gitContext) => {
+        const { session, telemetry, modelLabel } = await createHermitSession({
+          root: options.root,
+          persist: true,
+          continueRecent: Boolean(options.continueRecent),
+          sessionHistoryType: "heartbeat",
+          bootstrapMode: false,
+          telemetryCommandName: "heartbeat",
+          telemetryContext: gitContext.telemetryContext,
+          promptContext: {
+            ...buildHermitPromptContext(options.root),
+            ...gitContext.promptContext,
+          },
+        });
+
+        const abortActiveSession = async () => {
+          await session.abort();
+        };
+        options.registerActiveAbort?.(abortActiveSession);
+
+        try {
+          if (options.isCancelled?.()) {
+            throw createAbortError("Heartbeat daemon aborted the active Hermit strategic-review session.");
+          }
+
+          await runOneShotPrompt(session, HERMIT_STRATEGIC_REVIEW_PROMPT, [], telemetry, HERMIT_ROLE_ID, modelLabel);
+          return telemetry;
+        } finally {
+          options.registerActiveAbort?.(undefined);
+        }
+      },
+    });
+
+    return { status: "ran" };
+  } finally {
+    await turnLock.release();
+  }
 }
 
 function formatDaemonTimestamp(date = new Date()): string {
@@ -413,6 +456,10 @@ function formatDaemonTimestamp(date = new Date()): string {
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function formatSkippedHeartbeatMessage(targetLabel: string, owner: Awaited<ReturnType<typeof readWorkspaceTurnLock>>): string {
+  return `Skipping ${targetLabel} because ${formatWorkspaceTurnOwner(owner)} is active.`;
 }
 
 async function sleepUntilNextHeartbeat(ms: number, isRunning: () => boolean): Promise<void> {
@@ -505,6 +552,89 @@ const program = new Command();
 program.name("hermit").description("Local file-first runtime for autonomous applications").version("0.1.0");
 
 program
+  .command("start")
+  .description("Open the combined workspace screen with explorer, heartbeat daemon, and interactive chat.")
+  .option("--no-git-checkpoints", DISABLE_GIT_CHECKPOINTS_OPTION_DESCRIPTION)
+  .option("--role <id>", "Role ID to run.")
+  .option("--continue", "Continue the most recent persisted chat and heartbeat sessions for this workspace.")
+  .option(
+    "--interval <duration>",
+    'Delay between heartbeat cycles. Use a whole number followed by ms, s, m, or h (for example "30m" or "1h").',
+    DEFAULT_HEARTBEAT_DAEMON_INTERVAL,
+  )
+  .option("--image <path>", "Attach image(s) to the initial prompt.", (value, previous: string[] = []) => [...previous, value], [])
+  .option("--prompt <text>", "Optional initial prompt before the interactive loop starts.")
+  .action(
+    async (options: {
+      role?: string;
+      continue?: boolean;
+      interval: string;
+      image?: string[];
+      prompt?: string;
+      gitCheckpoints?: boolean;
+    }) => {
+      assertProviderAwareModelConfigured();
+      const inferred = inferRootAndRoleFromCwd(process.cwd());
+      const lastRoleId =
+        options.role === undefined && inferred.roleId === undefined
+          ? await readLastUsedChatRole(inferred.root)
+          : undefined;
+      const resolved = await resolveChatSession(inferred.root, {
+        ...(options.role !== undefined ? { explicitRoleId: options.role } : {}),
+        ...(inferred.roleId !== undefined ? { inferredRoleId: inferred.roleId } : {}),
+        ...(lastRoleId !== undefined ? { lastRoleId } : {}),
+      });
+      const initialRoleId = resolved.kind === "role" ? resolved.role.id : HERMIT_ROLE_ID;
+      await writeLastUsedChatRole(resolved.root, initialRoleId);
+      await withGitCheckpoint({
+        root: resolved.root,
+        commandName: "chat",
+        roleId: initialRoleId,
+        gitCheckpointsEnabled: false,
+        run: async (gitContext) => {
+          const telemetry = new TelemetryCollection();
+          const sessionCache = new InteractiveSessionCache(
+            Boolean(options.continue),
+            await snapshotPreexistingInteractiveSessionKeys(resolved.root),
+          );
+
+          const getOrCreateSession = async (target: ChatSessionTarget) => {
+            return sessionCache.getOrCreate(getChatSessionKey(target), async (continueRecent) => {
+              const session = await buildInteractiveChatSession(target, gitContext, continueRecent);
+              telemetry.add(session.telemetry);
+              return session;
+            });
+          };
+
+          const initialEntry = await getOrCreateSession(resolved);
+          const initialPrompt = resolveInitialChatPrompt({
+            workspaceState: initialEntry.session.workspaceState,
+            ...(options.prompt !== undefined ? { initialPrompt: options.prompt } : {}),
+            ...(initialEntry.continuedFromPersistedSession ? { continueRecent: true } : {}),
+          });
+
+          await runWorkspaceStartLoop({
+            root: resolved.root,
+            heartbeatInterval: options.interval,
+            ...(options.continue !== undefined ? { continueHeartbeatSessions: options.continue } : {}),
+            ...(options.gitCheckpoints !== undefined ? { gitCheckpointsEnabled: options.gitCheckpoints } : {}),
+            initialSession: initialEntry.session,
+            ...(initialPrompt !== undefined ? { initialPrompt } : {}),
+            initialImages: collectImagePaths(options.image),
+            onRoleSwitch: async (request) => {
+              const nextTarget = await resolveChatSession(resolved.root, { explicitRoleId: request.roleId });
+              await writeLastUsedChatRole(resolved.root, request.roleId);
+              return (await getOrCreateSession(nextTarget)).session;
+            },
+          });
+
+          return telemetry;
+        },
+      });
+    },
+  );
+
+program
   .command("chat")
   .description("Open an interactive chat session.")
   .option("--no-git-checkpoints", DISABLE_GIT_CHECKPOINTS_OPTION_DESCRIPTION)
@@ -537,7 +667,7 @@ program
         root: resolved.root,
         commandName: "chat",
         roleId: initialRoleId,
-        ...(options.gitCheckpoints !== undefined ? { gitCheckpointsEnabled: options.gitCheckpoints } : {}),
+        gitCheckpointsEnabled: false,
         run: async (gitContext) => {
           const telemetry = new TelemetryCollection();
           const sessionCache = new InteractiveSessionCache(
@@ -561,9 +691,11 @@ program
           });
 
           await runChatLoop({
+            root: resolved.root,
             initialSession: initialEntry.session,
             ...(initialPrompt !== undefined ? { initialPrompt } : {}),
             initialImages: collectImagePaths(options.image),
+            ...(options.gitCheckpoints !== undefined ? { gitCheckpointsEnabled: options.gitCheckpoints } : {}),
             onRoleSwitch: async (request) => {
               const nextTarget = await resolveChatSession(resolved.root, { explicitRoleId: request.roleId });
               await writeLastUsedChatRole(resolved.root, request.roleId);
@@ -595,12 +727,31 @@ program
     ) => {
       assertProviderAwareModelConfigured();
       const { root, role, promptContext } = await resolveSessionContext(options);
-      await withGitCheckpoint({
+      let waitingNoticePrinted = false;
+      const turnLock = await acquireWorkspaceTurnLock(
         root,
-        commandName: "ask",
-        roleId: role.id,
-        ...(options.gitCheckpoints !== undefined ? { gitCheckpointsEnabled: options.gitCheckpoints } : {}),
-        run: async (gitContext) => {
+        {
+          kind: "ask",
+          commandName: "ask",
+          roleId: role.id,
+        },
+        {
+          onWait: (owner) => {
+            if (waitingNoticePrinted) {
+              return;
+            }
+            waitingNoticePrinted = true;
+            console.log(`Waiting for ${formatWorkspaceTurnOwner(owner)} to finish.`);
+          },
+        },
+      );
+      try {
+        await withGitCheckpoint({
+          root,
+          commandName: "ask",
+          roleId: role.id,
+          ...(options.gitCheckpoints !== undefined ? { gitCheckpointsEnabled: options.gitCheckpoints } : {}),
+          run: async (gitContext) => {
           const { session, telemetry, modelLabel } = await createRoleSession({
             root,
             role,
@@ -613,17 +764,20 @@ program
             },
           });
 
-          await runOneShotPrompt(
-            session,
-            promptParts.join(" "),
-            collectImagePaths(options.image),
-            telemetry,
-            role.id,
-            modelLabel,
-          );
-          return telemetry;
-        },
-      });
+            await runOneShotPrompt(
+              session,
+              promptParts.join(" "),
+              collectImagePaths(options.image),
+              telemetry,
+              role.id,
+              modelLabel,
+            );
+            return telemetry;
+          },
+        });
+      } finally {
+        await turnLock.release();
+      }
     },
   );
 
@@ -645,7 +799,7 @@ program
     }) => {
       assertProviderAwareModelConfigured();
       const { root, role } = await resolveSessionContext(options);
-      await runHeartbeatForRole({
+      const result = await runHeartbeatForRole({
         root,
         role,
         promptContext: buildRolePromptContext(root, role),
@@ -654,6 +808,9 @@ program
         ...(options.strategicReview !== undefined ? { strategicReview: options.strategicReview } : {}),
         ...(options.gitCheckpoints !== undefined ? { gitCheckpointsEnabled: options.gitCheckpoints } : {}),
       });
+      if (result.status === "skipped") {
+        console.log(formatSkippedHeartbeatMessage(`heartbeat for ${role.id}`, result.lockOwner));
+      }
     },
   );
 
@@ -741,15 +898,21 @@ program
           runRoleHeartbeat: async (roleId) => {
             if (roleId === HERMIT_ROLE_ID) {
               console.log(`[${formatDaemonTimestamp()}] Running Hermit strategic review.`);
-              await runStrategicReviewForHermit({
+              const result = await runStrategicReviewForHermit({
                 root,
                 ...(options.continue !== undefined ? { continueRecent: options.continue } : {}),
                 ...(options.gitCheckpoints !== undefined ? { gitCheckpointsEnabled: options.gitCheckpoints } : {}),
                 isCancelled: () => !daemonController.isRunning(),
                 registerActiveAbort: (abortActiveSession) => daemonController.setActiveAbort(abortActiveSession),
               });
+              if (result.status === "skipped") {
+                console.log(
+                  `[${formatDaemonTimestamp()}] ${formatSkippedHeartbeatMessage("Hermit strategic review", result.lockOwner)}`,
+                );
+                return "skipped";
+              }
               console.log(`[${formatDaemonTimestamp()}] Finished Hermit strategic review.`);
-              return;
+              return "success";
             }
 
             const role = roles.find((entry) => entry.id === roleId);
@@ -761,7 +924,7 @@ program
                 ? `[${formatDaemonTimestamp()}] Running strategic review for ${roleId}.`
                 : `[${formatDaemonTimestamp()}] Running heartbeat for ${roleId}.`,
             );
-            await runHeartbeatForRole({
+            const result = await runHeartbeatForRole({
               root,
               role,
               promptContext: buildRolePromptContext(root, role),
@@ -772,11 +935,21 @@ program
               isCancelled: () => !daemonController.isRunning(),
               registerActiveAbort: (abortActiveSession) => daemonController.setActiveAbort(abortActiveSession),
             });
+            if (result.status === "skipped") {
+              console.log(
+                `[${formatDaemonTimestamp()}] ${formatSkippedHeartbeatMessage(
+                  strategicReviewSweepDue ? `strategic review for ${roleId}` : `heartbeat for ${roleId}`,
+                  result.lockOwner,
+                )}`,
+              );
+              return "skipped";
+            }
             console.log(
               strategicReviewSweepDue
                 ? `[${formatDaemonTimestamp()}] Finished strategic review for ${roleId}.`
                 : `[${formatDaemonTimestamp()}] Finished heartbeat for ${roleId}.`,
             );
+            return "success";
           },
         });
 
@@ -800,9 +973,10 @@ program
 
         const waitMs = resolveHeartbeatDaemonDelay(intervalMs, cycle.startedAtMs, cycle.completedAtMs);
         const completedCount = cycle.successfulRoleIds.length;
+        const skippedCount = cycle.skippedRoleIds.length;
         const failedCount = cycle.failures.length;
         console.log(
-          `[${formatDaemonTimestamp()}] ${cyclePlan.mode === "strategic-review" ? "Strategic-review sweep" : "Heartbeat cycle"} finished in ${formatHeartbeatDaemonDuration(cycle.completedAtMs - cycle.startedAtMs)}. Completed ${completedCount} target(s), failed ${failedCount}. Next cycle in ${formatHeartbeatDaemonDuration(waitMs)}.`,
+          `[${formatDaemonTimestamp()}] ${cyclePlan.mode === "strategic-review" ? "Strategic-review sweep" : "Heartbeat cycle"} finished in ${formatHeartbeatDaemonDuration(cycle.completedAtMs - cycle.startedAtMs)}. Completed ${completedCount} target(s), skipped ${skippedCount}, failed ${failedCount}. Next cycle in ${formatHeartbeatDaemonDuration(waitMs)}.`,
         );
 
         await sleepUntilNextHeartbeat(waitMs, () => daemonController.isRunning());
