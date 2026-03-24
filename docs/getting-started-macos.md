@@ -226,7 +226,7 @@ Now start Hermit:
 npm start
 ```
 
-This short command already starts Hermit inside the included sandbox profile.
+This short command already starts Hermit inside the included sandbox profile at `nono/hermit.json`.
 
 Leave this Terminal tab open. This is your main Hermit tab where you talk to the AI.
 

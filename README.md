@@ -219,7 +219,7 @@ You only need one supported provider key to get started. Hermit will auto-pick t
 
 Hermit runs local agents with read/write access to your workspace, so sandboxing is the default and recommended mode for the agent processes. [`nono`](https://github.com/always-further/nono) adds kernel-enforced filesystem boundaries on macOS and Linux, can inject secrets from the system keychain, and lets you keep Hermit confined to this repo plus the runtime paths it needs. The default `npm start` flow now keeps the explorer, heartbeat daemon, and chat together inside that same sandboxed session.
 
-This repo includes an example profile at `examples/nono/hermit.json`. It grants:
+This repo includes its default `nono` profile at `nono/hermit.json`. It grants:
 
 - Read/write access to the current workspace
 - Read access to common Git config paths
@@ -245,7 +245,7 @@ Those commands accept supported provider API key env vars from your environment.
 
 ### Opening up network access
 
-The default profile already includes a small set of common provider hosts. To permit additional hosts, add them to the `proxy_allow` list in `examples/nono/hermit.json`:
+The default profile already includes a small set of common provider hosts. To permit additional hosts, add them to the `proxy_allow` list in `nono/hermit.json`:
 
 ```json
 "network": {
@@ -256,7 +256,7 @@ The default profile already includes a small set of common provider hosts. To pe
 To go unhinged and allow all outbound traffic for a single run without editing the profile, pass `--network-profile open`:
 
 ```bash
-nono run --profile ./examples/nono/hermit.json --network-profile open --allow-cwd -- npm run start:unsafe
+nono run --profile ./nono/hermit.json --network-profile open --allow-cwd -- npm run start:unsafe
 ```
 
 Use `--network-profile developer` as a middle ground that permits package-registry and common dev-tool traffic while still blocking arbitrary hosts. Replace `npm run start:unsafe` with another `:unsafe` command when needed.

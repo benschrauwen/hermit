@@ -7,18 +7,18 @@
   "scripts": {
     "check": "tsc -p tsconfig.json --noEmit",
     "postinstall": "./scripts/with-local-npm.sh npm --prefix explorer install",
-    "start": "./scripts/with-local-npm.sh ./scripts/with-provider-env.sh nono run --profile ./examples/nono/hermit.json --allow-cwd --allow-command npm --allow-bind 4321 -- npm run cli -- start",
+    "start": "./scripts/with-local-npm.sh ./scripts/with-provider-env.sh nono run --profile ./nono/hermit.json --allow-cwd --allow-command npm --allow-bind 4321 -- npm run cli -- start",
     "start:unsafe": "./scripts/with-local-npm.sh ./scripts/with-provider-env.sh npm run cli -- start",
     "cli": "node --import tsx src/cli.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "heartbeat-daemon": "./scripts/with-local-npm.sh ./scripts/with-provider-env.sh nono run --profile ./examples/nono/hermit.json --allow-cwd --allow-command npm -- npm run cli -- heartbeat-daemon",
+    "heartbeat-daemon": "./scripts/with-local-npm.sh ./scripts/with-provider-env.sh nono run --profile ./nono/hermit.json --allow-cwd --allow-command npm -- npm run cli -- heartbeat-daemon",
     "heartbeat-daemon:unsafe": "./scripts/with-provider-env.sh npm run cli -- heartbeat-daemon",
-    "explorer": "./scripts/with-local-npm.sh ./scripts/with-provider-env.sh nono run --profile ./examples/nono/hermit.json --allow-cwd --allow-command npm --allow-bind 4321 -- env NODE_OPTIONS='--import tsx' WORKSPACE_ROOT=\"$(pwd)\" ASTRO_TELEMETRY_DISABLED=1 npm --prefix explorer run dev",
+    "explorer": "./scripts/with-local-npm.sh ./scripts/with-provider-env.sh nono run --profile ./nono/hermit.json --allow-cwd --allow-command npm --allow-bind 4321 -- env NODE_OPTIONS='--import tsx' WORKSPACE_ROOT=\"$(pwd)\" ASTRO_TELEMETRY_DISABLED=1 npm --prefix explorer run dev",
     "explorer:unsafe": "./scripts/with-local-npm.sh env NODE_OPTIONS='--import tsx' WORKSPACE_ROOT=\"$(pwd)\" npm --prefix explorer run dev",
-    "explorer:build": "./scripts/with-local-npm.sh ./scripts/with-provider-env.sh nono run --profile ./examples/nono/hermit.json --allow-cwd --allow-command npm -- env NODE_OPTIONS='--import tsx' WORKSPACE_ROOT=\"$(pwd)\" ASTRO_TELEMETRY_DISABLED=1 npm --prefix explorer run build",
-    "explorer:preview": "./scripts/with-local-npm.sh ./scripts/with-provider-env.sh nono run --profile ./examples/nono/hermit.json --allow-cwd --allow-command npm --allow-bind 4321 -- env NODE_OPTIONS='--import tsx' WORKSPACE_ROOT=\"$(pwd)\" ASTRO_TELEMETRY_DISABLED=1 npm --prefix explorer run preview"
+    "explorer:build": "./scripts/with-local-npm.sh ./scripts/with-provider-env.sh nono run --profile ./nono/hermit.json --allow-cwd --allow-command npm -- env NODE_OPTIONS='--import tsx' WORKSPACE_ROOT=\"$(pwd)\" ASTRO_TELEMETRY_DISABLED=1 npm --prefix explorer run build",
+    "explorer:preview": "./scripts/with-local-npm.sh ./scripts/with-provider-env.sh nono run --profile ./nono/hermit.json --allow-cwd --allow-command npm --allow-bind 4321 -- env NODE_OPTIONS='--import tsx' WORKSPACE_ROOT=\"$(pwd)\" ASTRO_TELEMETRY_DISABLED=1 npm --prefix explorer run preview"
   },
   "keywords": [
     "hermit",
