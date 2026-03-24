@@ -7,4 +7,4 @@ This folder is a **reference example** for the entity-setup skill. It shows a fu
 - **Product** – shared catalog entity (prefixed-slug, `products/`)
 - **Deal** – operating entity with owner, stage, value; lifecycle dirs and `include_in_initialization` (prefixed-slug, `deals/`)
 
-Use it when designing entity-defs for a sales workspace: copy or adapt `entities.md` into `entity-defs/entities.md` and the type folders under `entity-defs/<type>/` as needed. Do not treat this directory as live workspace data.
+Use it when designing entity defs for a sales workspace: copy or adapt `entities.md` into `workspace/entity-defs/entities.md` and the type folders under `workspace/entity-defs/<type>/` as needed. Do not treat this directory as live workspace data.

@@ -6,17 +6,17 @@ description: Define Hermit entity schema, templates, and starter records.
 # Entity Setup
 
 Use when:
-- You are adding or redesigning entity types in `entity-defs/` and `entities/`.
+- You are adding or redesigning entity types in the workspace root `entity-defs/` and `entities/`.
 
 Do not use when:
 - You are editing one known record.
 - The main problem is role design. Use `role-setup`.
 
 Contract:
-- `entity-defs/entities.md`: schema.
-- `entity-defs/<type>/`: templates referenced by `files:`.
-- `entities/`: canonical instance data.
-- `inbox/`: temporary intake only. Durable evidence belongs with the entity.
+- workspace `entity-defs/entities.md`: schema.
+- workspace `entity-defs/<type>/`: templates referenced by `files:`.
+- workspace `entities/`: canonical instance data.
+- workspace `inbox/`: temporary intake only. Durable evidence belongs with the entity.
 
 Rules:
 - Put schema in YAML frontmatter under `entities:`.
@@ -50,17 +50,17 @@ ID strategy:
 - `year-sequence-slug`: high-volume records where chronology matters.
 
 Build order:
-1. Update `entity-defs/entities.md`.
-2. Create every template referenced in `files:` under `entity-defs/<type>/`.
+1. Update the workspace `entity-defs/entities.md`.
+2. Create every template referenced in `files:` under the workspace `entity-defs/<type>/`.
 3. Create shared or lifecycle directories only if the workflow needs them.
 4. Create one sample record to verify pathing and template shape.
 5. If a role manages the entity, update that role after the schema is real.
-6. If user-dropped files are part of the workflow, define where they go after leaving `inbox/`.
+6. If user-dropped files are part of the workflow, define where they go after leaving the workspace `inbox/`.
 
 Bootstrap rules:
 - Start with the smallest useful set of entity types.
 - Reuse existing naming and field patterns in non-empty workspaces.
-- For a blank workspace, create `entities/`, `entity-defs/`, `agents/`, `skills/`, `prompts/`, and `inbox/`.
+- For a blank workspace, create the workspace `entities/`, `entity-defs/`, `agents/`, `skills/`, `prompts/`, and `inbox/` directories.
 - During first-role bootstrap, write the schema, templates, and starter records directly. Role-scoped `create_<entity>_record` tools may not exist yet.
 
 Schema skeleton:

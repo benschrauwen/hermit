@@ -13,7 +13,7 @@
 ## Choose The Layer
 
 - `prompts/` for shared operating guidance.
-- `{{roleRoot}}/prompts/` or `{{roleRoot}}/AGENTS.md` for role-local behavior.
+- `{{workspaceRoot}}/{{roleRoot}}/prompts/` or `{{workspaceRoot}}/{{roleRoot}}/AGENTS.md` for role-local behavior.
 - `src/` for deterministic runtime behavior, validation, scaffolding, or tool wiring.
 - `entity-defs/` for default canonical structure.
 - Explorer renderers for clearer read-only views.
@@ -27,7 +27,7 @@
 4. Make the narrowest fix that addresses the root cause without weakening the file-first model.
 5. If a contract changes, update adjacent docs, templates, manifests, or tests in the same pass.
 6. Validate with the best available checks.
-7. Capture unfinished follow-ups in `{{roleRoot}}/agent/inbox.md` or `{{roleRoot}}/agent/record.md`.
+7. Capture unfinished follow-ups in `{{workspaceRoot}}/{{roleRoot}}/agent/inbox.md` or `{{workspaceRoot}}/{{roleRoot}}/agent/record.md`.
 
 ## Automation Bias
 
@@ -36,7 +36,7 @@
 - Use telemetry, retries, slow turns, and repeated corrections as evidence that a manual workflow should become code.
 - Prefer automation that is easy to rerun and easy to check with tests, fixtures, sample inputs, explicit smoke checks, or other clear correctness signals.
 - After automating, monitor whether the code stays correct as surrounding systems evolve. If likely to drift, add the lightest useful regression check instead of trusting it indefinitely.
-- Choose a durable home for repeated-work code: `skills/` for shared reusable agent workflows, `{{roleRoot}}/skills/` for role-local reusable workflows, and `src/` when the behavior should become deterministic runtime capability.
+- Choose a durable home for repeated-work code: `{{workspaceRoot}}/skills/` for workspace-shared reusable agent workflows, `{{workspaceRoot}}/{{roleRoot}}/skills/` for role-local reusable workflows, the framework repo `skills/` for built-in reusable Hermit workflows, and `src/` when the behavior should become deterministic runtime capability.
 - Leave automation as a plain script only when it is narrow, low-discovery, and not worth turning into a skill or runtime feature yet.
 
 ## Guardrails

@@ -18,6 +18,7 @@ import {
   resolveSharedSkillPaths,
   resolveInitialChatPrompt,
 } from "../src/session.js";
+import { resolveFrameworkRoot } from "../src/runtime-paths.js";
 import type { RoleDefinition } from "../src/types.js";
 
 describe("loadImageAttachments", () => {
@@ -135,6 +136,7 @@ describe("heartbeat session helpers", () => {
     id: "role-a",
     name: "Role A",
     description: "Primary role",
+    frameworkRoot: resolveFrameworkRoot(),
     roleDir: "/tmp/workspace/agents/role-a",
     root: "/tmp/workspace",
     entitiesDir: "/tmp/workspace/entities",
@@ -161,6 +163,7 @@ describe("heartbeat session helpers", () => {
 
   it("adds shared and role-local skill directories to the session loader", () => {
     expect(resolveRoleSkillPaths(role)).toEqual([
+      path.join(resolveFrameworkRoot(), "skills"),
       "/tmp/workspace/skills",
       "/tmp/workspace/agents/role-a/skills",
     ]);
@@ -174,20 +177,22 @@ describe("heartbeat session helpers", () => {
   });
 
   it("loads only shared skills during Hermit chat", () => {
-    expect(resolveSharedSkillPaths("/tmp/workspace")).toEqual(["/tmp/workspace/skills"]);
+    expect(resolveSharedSkillPaths("/tmp/workspace")).toEqual([
+      path.join(resolveFrameworkRoot(), "skills"),
+      "/tmp/workspace/skills",
+    ]);
   });
 
   it("uses a backlog-focused default prompt for heartbeat turns", () => {
     expect(DEFAULT_HEARTBEAT_PROMPT).toContain("GTD backlog");
-    expect(DEFAULT_HEARTBEAT_PROMPT).toContain("shared `inbox/` directory");
+    expect(DEFAULT_HEARTBEAT_PROMPT).toContain("shared workspace inbox directory");
     expect(DEFAULT_HEARTBEAT_PROMPT).toContain("Do not infer or resurrect tasks");
     expect(DEFAULT_HEARTBEAT_PROMPT).toContain("If no clearly worthwhile step exists");
   });
 
   it("uses a strategic-review prompt for Hermit framework upkeep", () => {
-    expect(HERMIT_STRATEGIC_REVIEW_PROMPT).toContain(".hermit/agent/record.md");
-    expect(HERMIT_STRATEGIC_REVIEW_PROMPT).toContain("prompts/35-strategic-reflection.md");
-    expect(HERMIT_STRATEGIC_REVIEW_PROMPT).toContain("prompts/90-self-improvement.md");
+    expect(HERMIT_STRATEGIC_REVIEW_PROMPT).toContain("Hermit agent record and inbox under the workspace root");
+    expect(HERMIT_STRATEGIC_REVIEW_PROMPT).toContain("strategic reflection and self-improvement guidance already loaded");
   });
 });
 

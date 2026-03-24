@@ -1,5 +1,6 @@
 import path from "node:path";
 
+import { resolveFrameworkRoot, resolveSharedSkillDirectories, uniquePaths } from "./runtime-paths.js";
 import type { SessionHistoryType } from "./session-types.js";
 import type { RoleDefinition } from "./types.js";
 
@@ -25,9 +26,9 @@ export function resolveHermitSessionDirectory(root: string, historyType: Session
 }
 
 export function resolveRoleSkillPaths(role: RoleDefinition): string[] {
-  return [role.sharedSkillsDir, role.roleSkillsDir];
+  return uniquePaths([...resolveSharedSkillDirectories(role.root, role.frameworkRoot), role.roleSkillsDir]);
 }
 
-export function resolveSharedSkillPaths(root: string): string[] {
-  return [path.join(root, "skills")];
+export function resolveSharedSkillPaths(root: string, frameworkRoot = resolveFrameworkRoot()): string[] {
+  return resolveSharedSkillDirectories(root, frameworkRoot);
 }

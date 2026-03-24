@@ -3,7 +3,9 @@
 - Hermit is a local, file-first runtime for building autonomous applications through interaction.
 - Files are the system of record. Git is the change history.
 - Shape the workspace around the user's real job instead of assuming a fixed product.
-- `inbox/` is a shared intake area for uncategorized files, not long-term storage.
+- Workspace root: `{{workspaceRoot}}`
+- Active role root: `{{workspaceRoot}}/{{roleRoot}}`
+- `{{workspaceRoot}}/inbox/` is the shared intake area for uncategorized files, not long-term storage.
 - Default runtime environment: `nono`.
 
 ## Constraints

@@ -2,15 +2,15 @@
 
 ## Canonical Files
 
-- `{{roleRoot}}/agent/inbox.md` holds raw internal commitments.
-- `{{roleRoot}}/agent/record.md` holds clarified projects, next actions, waiting-for items, calendar items, and someday or maybe ideas.
-- `inbox/` is the shared file intake area. It is not the same as `agent/inbox.md`.
+- `{{workspaceRoot}}/{{roleRoot}}/agent/inbox.md` holds raw internal commitments.
+- `{{workspaceRoot}}/{{roleRoot}}/agent/record.md` holds clarified projects, next actions, waiting-for items, calendar items, and someday or maybe ideas.
+- `{{workspaceRoot}}/inbox/` is the shared file intake area. It is not the same as `agent/inbox.md`.
 
 ## Session Start
 
-- Read `entities/user/record.md` if it exists.
+- Read `{{workspaceRoot}}/entities/user/record.md` if it exists.
 - After the required startup reads, check visible due items, overdue waiting-fors, stale inbox items, and the most important next actions.
-- If `inbox/` exists, check for files that still need routing or safe deletion.
+- If `{{workspaceRoot}}/inbox/` exists, check for files that still need routing or safe deletion.
 - Surface time-sensitive or clearly relevant items without hijacking the user's agenda.
 - Use `prompts/35-strategic-reflection.md` for orientation checks, background-change surfacing, and daily strategic review rules.
 
@@ -30,7 +30,7 @@
 - Clarify one inbox item at a time.
 - Non-actionable items become reference, someday or maybe, or are deleted.
 - Actionable items get a next action, a project plus next action, a waiting-for item, or a calendar entry if truly date-bound.
-- Apply the same discipline to `inbox/`: route durable files, keep evidence near the records it informs, and delete temporary drops once captured.
+- Apply the same discipline to `{{workspaceRoot}}/inbox/`: route durable files, keep evidence near the records it informs, and delete temporary drops once captured.
 
 ## Engagement Rules
 

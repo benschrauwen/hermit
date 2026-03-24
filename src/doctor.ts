@@ -6,6 +6,7 @@ import process from "node:process";
 import { getProviderAwareModelDiagnostics } from "./model-auth.js";
 import { SHARED_ROOT_DIRECTORIES } from "./constants.js";
 import { PromptLibrary } from "./prompt-library.js";
+import { resolveSharedPromptTemplateCandidates } from "./runtime-paths.js";
 import { loadRole, validateRoleManifest } from "./roles.js";
 import { scanEntities } from "./workspace.js";
 
@@ -292,7 +293,11 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
 
   for (const agentFile of role.agentFiles) {
     const agentFilePath = path.join(role.roleDir, agentFile);
-    const templatePath = path.join(role.sharedPromptsDir, "templates", "agent", path.basename(agentFilePath));
+    const templatePath = resolveSharedPromptTemplateCandidates(
+      role.root,
+      path.join("templates", "agent", path.basename(agentFilePath)),
+      role.frameworkRoot,
+    )[0];
     const placeholderCandidates = await loadTemplatePlaceholderCandidates(templatePath, templatePlaceholderCache);
     try {
       await fs.access(agentFilePath);

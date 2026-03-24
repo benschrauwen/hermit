@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import { HERMIT_ROLE_ID } from "./constants.js";
+import { resolveFrameworkRoot, resolveSharedPromptDirectories } from "./runtime-paths.js";
 import type { PromptContext, RoleDefinition } from "./types.js";
 
 interface PromptSource {
@@ -22,23 +23,24 @@ interface RenderedPromptPart extends PromptPartBreakdown {
 
 export class PromptLibrary {
   private constructor(
-    private readonly sharedPromptsDir: string,
+    private readonly sharedPromptDirectories: string[],
     private readonly sharedPromptContents: PromptSource[],
     private readonly agentsContent: string,
     private readonly role?: RoleDefinition,
   ) {}
 
   static async load(role: RoleDefinition): Promise<PromptLibrary> {
-    const sharedPromptContents = await this.loadSharedPrompts(role.sharedPromptsDir);
+    const sharedPromptDirectories = resolveSharedPromptDirectories(role.root, role.frameworkRoot);
+    const sharedPromptContents = await this.loadSharedPrompts(sharedPromptDirectories);
     const agentsContent = await fs.readFile(role.agentsFile, "utf8");
 
-    return new PromptLibrary(role.sharedPromptsDir, sharedPromptContents, agentsContent, role);
+    return new PromptLibrary(sharedPromptDirectories, sharedPromptContents, agentsContent, role);
   }
 
-  static async loadForWorkspace(root: string, agentsContent = ""): Promise<PromptLibrary> {
-    const sharedPromptsDir = path.join(root, "prompts");
-    const sharedPromptContents = await this.loadSharedPrompts(sharedPromptsDir);
-    return new PromptLibrary(sharedPromptsDir, sharedPromptContents, agentsContent);
+  static async loadForWorkspace(root: string, agentsContent = "", frameworkRoot = resolveFrameworkRoot()): Promise<PromptLibrary> {
+    const sharedPromptDirectories = resolveSharedPromptDirectories(root, frameworkRoot);
+    const sharedPromptContents = await this.loadSharedPrompts(sharedPromptDirectories);
+    return new PromptLibrary(sharedPromptDirectories, sharedPromptContents, agentsContent);
   }
 
   async renderSystemPrompt(
@@ -67,7 +69,9 @@ export class PromptLibrary {
   }
 
   async renderSharedPromptDirectory(directoryName: string, context: PromptContext): Promise<string> {
-    const contents = await PromptLibrary.loadMarkdownFiles(path.join(this.sharedPromptsDir, directoryName));
+    const contents = await PromptLibrary.loadLayeredMarkdownFiles(
+      this.sharedPromptDirectories.map((directory) => path.join(directory, directoryName)),
+    );
     return contents.map((entry) => this.renderTemplate(entry.content, context)).join("\n\n");
   }
 
@@ -101,12 +105,20 @@ export class PromptLibrary {
     return template.replaceAll(/\{\{(\w+)\}\}/g, (_match, key: string) => values[key] ?? "");
   }
 
-  private static async loadSharedPrompts(sharedPromptsDir: string): Promise<PromptSource[]> {
-    return this.loadMarkdownFiles(sharedPromptsDir);
+  private static async loadSharedPrompts(sharedPromptDirectories: string[]): Promise<PromptSource[]> {
+    return this.loadLayeredMarkdownFiles(sharedPromptDirectories);
   }
 
   private static async loadMarkdownFiles(directory: string): Promise<PromptSource[]> {
-    const entries = await fs.readdir(directory);
+    let entries: string[] = [];
+    try {
+      entries = await fs.readdir(directory);
+    } catch (error) {
+      if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+        return [];
+      }
+      throw error;
+    }
     const promptFileNames = entries.filter((f) => f.endsWith(".md")).sort();
     return Promise.all(
       promptFileNames.map(async (fileName) => ({
@@ -115,6 +127,16 @@ export class PromptLibrary {
         content: await fs.readFile(path.join(directory, fileName), "utf8"),
       })),
     );
+  }
+
+  private static async loadLayeredMarkdownFiles(directories: string[]): Promise<PromptSource[]> {
+    const layeredContents = new Map<string, PromptSource>();
+    for (const directory of directories) {
+      for (const source of await this.loadMarkdownFiles(directory)) {
+        layeredContents.set(source.fileName, source);
+      }
+    }
+    return [...layeredContents.values()].sort((left, right) => left.fileName.localeCompare(right.fileName));
   }
 
   private async buildSystemPromptParts(

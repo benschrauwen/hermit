@@ -8,8 +8,8 @@ import type { AgentSession } from "@mariozechner/pi-coding-agent";
 import {
   createCheckpoint,
   getRepoState,
-  shouldCheckpoint,
-  shouldCheckpointForOutcome,
+  listCheckpointRoots,
+  shouldCheckpointAfterTurn,
   type CheckpointOutcome,
 } from "./git.js";
 import { loadImageAttachments } from "./session-attachments.js";
@@ -234,11 +234,11 @@ export async function runCheckpointedTurn(options: {
     sessionId,
     ...(options.roleId !== undefined ? { roleId: options.roleId } : {}),
   };
+  const checkpointRoots = listCheckpointRoots(options.root);
 
-  const beforeState = await getRepoState(options.root);
-  if (shouldCheckpoint(beforeState, gitCheckpointsEnabled)) {
-    await createCheckpoint(options.root, { ...checkpointMeta, phase: "before" });
-  }
+  const beforeStates = new Map(
+    await Promise.all(checkpointRoots.map(async (root) => [root, await getRepoState(root)] as const)),
+  );
 
   let outcome: CheckpointOutcome = "success";
   try {
@@ -247,9 +247,15 @@ export async function runCheckpointedTurn(options: {
     outcome = isAbortError(error) ? "aborted" : "failed";
     throw error;
   } finally {
-    const afterState = await getRepoState(options.root);
-    if (shouldCheckpointForOutcome(afterState, outcome, gitCheckpointsEnabled)) {
-      await createCheckpoint(options.root, { ...checkpointMeta, phase: "after", outcome });
+    const afterStates = new Map(
+      await Promise.all(checkpointRoots.map(async (root) => [root, await getRepoState(root)] as const)),
+    );
+    for (const root of checkpointRoots) {
+      const beforeState = beforeStates.get(root);
+      const afterState = afterStates.get(root);
+      if (shouldCheckpointAfterTurn(beforeState, afterState, outcome, gitCheckpointsEnabled)) {
+        await createCheckpoint(root, { ...checkpointMeta, phase: "after", outcome });
+      }
     }
   }
 }

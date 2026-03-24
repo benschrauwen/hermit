@@ -1,6 +1,6 @@
 ---
 name: entity-query
-description: Query `entities/` with helper scripts before manually reading many records.
+description: Query the workspace `entities/` tree with helper scripts before manually reading many records.
 ---
 
 # Entity Query
@@ -34,6 +34,6 @@ Key flags:
 - `inventory-entities.ts`: `--type`, `--directory`, `--group-by type|directory|top-level`, `--top`, `--format text|json`
 
 Notes:
-- Run from the workspace root or pass `--root /absolute/path/to/workspace`.
-- These scripts scan `entities/` for `record.md`.
+- Run from the workspace root. In the default nested setup that is `workspace/`. Otherwise pass `--root /absolute/path/to/workspace`.
+- These scripts scan the workspace `entities/` tree for `record.md`.
 - Frontmatter fields like `id`, `type`, `name`, `status`, `owner`, and `updated_at` are used when present.

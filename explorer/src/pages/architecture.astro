@@ -2,11 +2,11 @@
 import path from "node:path";
 import { promises as fs } from "node:fs";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import { getWorkspaceRoot } from "../lib/workspace.js";
+import { getFrameworkRoot } from "../lib/workspace.js";
 import { marked } from "marked";
 
-const root = getWorkspaceRoot();
-const filePath = path.join(root, "docs", "architecture.md");
+const frameworkRoot = getFrameworkRoot();
+const filePath = path.join(frameworkRoot, "docs", "architecture.md");
 
 marked.setOptions({ gfm: true });
 const raw = await fs.readFile(filePath, "utf8").catch(() => "");

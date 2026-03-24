@@ -85,6 +85,7 @@ export interface RoleDefinition {
   id: string;
   name: string;
   description: string;
+  frameworkRoot: string;
   roleDir: string;
   root: string;
   entitiesDir: string;

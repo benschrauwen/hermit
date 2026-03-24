@@ -13,6 +13,7 @@ import { createCustomTools, createHermitTools } from "./agent-tools.js";
 import { DEFAULT_THINKING_LEVEL, HERMIT_ROLE_ID, HERMIT_ROLE_ROOT } from "./constants.js";
 import { resolveConfiguredModel } from "./model-auth.js";
 import { PromptLibrary } from "./prompt-library.js";
+import { resolveCommonAncestor, resolveFrameworkRoot } from "./runtime-paths.js";
 import { resolveHermitSessionDirectory, resolvePersistedSessionDirectory, resolveRoleSkillPaths, resolveSharedSkillPaths } from "./session-paths.js";
 import type { RoleSwitchRequest, SessionHistoryType } from "./session-types.js";
 import { TelemetryRecorder } from "./telemetry-recorder.js";
@@ -52,7 +53,7 @@ function enrichPromptContextWithCurrentTime(promptContext: PromptContext): Promp
 }
 
 interface SessionCoreOptions {
-  root: string;
+  executionRoot: string;
   systemPrompt: string;
   skillPaths: string[];
   sessionsDir: string;
@@ -68,7 +69,7 @@ async function createSessionCore(options: SessionCoreOptions): Promise<{
   modelLabel: string;
 }> {
   const loader = new DefaultResourceLoader({
-    cwd: options.root,
+    cwd: options.executionRoot,
     noExtensions: true,
     additionalSkillPaths: options.skillPaths,
     noPromptTemplates: true,
@@ -82,18 +83,18 @@ async function createSessionCore(options: SessionCoreOptions): Promise<{
   const { model } = resolveConfiguredModel(authStorage, modelRegistry);
 
   const sessionManager = !options.persist
-    ? SessionManager.inMemory(options.root)
+    ? SessionManager.inMemory(options.executionRoot)
     : options.continueRecent
-      ? SessionManager.continueRecent(options.root, options.sessionsDir)
-      : SessionManager.create(options.root, options.sessionsDir);
+      ? SessionManager.continueRecent(options.executionRoot, options.sessionsDir)
+      : SessionManager.create(options.executionRoot, options.sessionsDir);
 
   const { session } = await createAgentSession({
-    cwd: options.root,
+    cwd: options.executionRoot,
     authStorage,
     modelRegistry,
     model,
     thinkingLevel: DEFAULT_THINKING_LEVEL,
-    tools: createCodingTools(options.root),
+    tools: createCodingTools(options.executionRoot),
     customTools: options.customTools,
     resourceLoader: loader,
     sessionManager,
@@ -121,9 +122,10 @@ export async function createRoleSession(options: SessionOptions): Promise<{
   const promptLibrary = await PromptLibrary.load(options.role);
   const promptContext = enrichPromptContextWithCurrentTime(options.promptContext);
   const systemPrompt = await promptLibrary.renderSystemPrompt(promptContext, options.additionalRolePrompts);
+  const executionRoot = resolveCommonAncestor(options.role.frameworkRoot, options.root);
 
   const { session, telemetry, modelLabel } = await createSessionCore({
-    root: options.root,
+    executionRoot,
     systemPrompt,
     skillPaths: resolveRoleSkillPaths(options.role),
     sessionsDir: resolvePersistedSessionDirectory(options.role, options.sessionHistoryType),
@@ -165,7 +167,8 @@ export async function createHermitSession(options: {
   await ensureWorkspaceScaffold(options.root);
 
   const workspaceState = await getWorkspaceChatInitializationState(options.root);
-  const promptLibrary = await PromptLibrary.loadForWorkspace(options.root);
+  const frameworkRoot = resolveFrameworkRoot();
+  const promptLibrary = await PromptLibrary.loadForWorkspace(options.root, "", frameworkRoot);
   const promptContext = enrichPromptContextWithCurrentTime({
     roleId: HERMIT_ROLE_ID,
     roleRoot: HERMIT_ROLE_ROOT,
@@ -176,11 +179,12 @@ export async function createHermitSession(options: {
     ? await promptLibrary.renderSharedPromptDirectory(BOOTSTRAP_PROMPTS_DIRECTORY, promptContext)
     : "";
   const systemPrompt = [baseSystemPrompt, bootstrapOverlay].filter(Boolean).join("\n\n");
+  const executionRoot = resolveCommonAncestor(frameworkRoot, options.root);
 
   const { session, telemetry, modelLabel } = await createSessionCore({
-    root: options.root,
+    executionRoot,
     systemPrompt,
-    skillPaths: resolveSharedSkillPaths(options.root),
+    skillPaths: resolveSharedSkillPaths(options.root, frameworkRoot),
     sessionsDir: resolveHermitSessionDirectory(options.root, options.sessionHistoryType),
     persist: options.persist,
     continueRecent: options.continueRecent,

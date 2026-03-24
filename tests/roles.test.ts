@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -10,7 +10,7 @@ import {
   validateRoleManifest,
   writeLastUsedChatRole,
 } from "../src/roles.js";
-import { seedRoleWorkspace } from "./test-helpers.js";
+import { repoRoot, seedRoleWorkspace } from "./test-helpers.js";
 
 function replaceInFile(filePath: string, oldText: string, newText: string): void {
   const original = readFileSync(filePath, "utf8");
@@ -132,12 +132,26 @@ describe("roles explorer renderers", () => {
     const root = mkdtempSync(path.join(tmpdir(), "roles-agent-template-missing-"));
     roots.push(root);
     seedRoleWorkspace(root, ["role-a"]);
+    const frameworkRoot = mkdtempSync(path.join(tmpdir(), "roles-framework-"));
+    roots.push(frameworkRoot);
+    cpSync(path.join(repoRoot, "prompts"), path.join(frameworkRoot, "prompts"), { recursive: true });
 
-    rmSync(path.join(root, "prompts", "templates", "agent", "record.md"));
+    const originalFrameworkRoot = process.env.HERMIT_FRAMEWORK_ROOT;
+    process.env.HERMIT_FRAMEWORK_ROOT = frameworkRoot;
+    try {
+      rmSync(path.join(root, "prompts", "templates", "agent", "record.md"));
+      rmSync(path.join(frameworkRoot, "prompts", "templates", "agent", "record.md"));
 
-    await expect(validateRoleManifest(root, "role-a")).rejects.toThrow(
-      "Role role-a is missing shared agent template: prompts/templates/agent/record.md",
-    );
+      await expect(validateRoleManifest(root, "role-a")).rejects.toThrow(
+        "Role role-a is missing shared agent template: prompts/templates/agent/record.md",
+      );
+    } finally {
+      if (originalFrameworkRoot === undefined) {
+        delete process.env.HERMIT_FRAMEWORK_ROOT;
+      } else {
+        process.env.HERMIT_FRAMEWORK_ROOT = originalFrameworkRoot;
+      }
+    }
   });
 });
 

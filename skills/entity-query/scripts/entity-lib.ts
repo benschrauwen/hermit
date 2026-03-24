@@ -2,6 +2,7 @@
 import matter from "gray-matter";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { assertSplitWorkspaceLayout, resolveWorkspaceRootFromCwd } from "../../../src/runtime-paths.js";
 
 export interface ParsedArgs {
   _: string[];
@@ -164,8 +165,10 @@ export function getNumberFlag(args: ParsedArgs, name: string, fallback: number):
 }
 
 export function resolveWorkspaceRoot(args: ParsedArgs): string {
-  const configured = getStringFlag(args, "root", process.cwd()) ?? process.cwd();
-  return path.resolve(configured);
+  const configured = getStringFlag(args, "root");
+  const workspaceRoot = configured ? path.resolve(configured) : resolveWorkspaceRootFromCwd(process.cwd());
+  assertSplitWorkspaceLayout(workspaceRoot);
+  return workspaceRoot;
 }
 
 export function printJson(value: unknown): void {

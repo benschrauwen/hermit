@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { loadRole } from "../src/roles.js";
+import { resolveFrameworkRoot } from "../src/runtime-paths.js";
 import {
   appendLine,
   copyTranscriptIntoRoleEntity,
@@ -42,7 +43,7 @@ describe("workspace", () => {
     expect(sharedPaths.skillsDir).toBe(path.join(tmpRoot, "skills"));
     expect(sharedPaths.inboxDir).toBe(path.join(tmpRoot, "inbox"));
     expect(rolePaths.roleDir).toBe(path.join(tmpRoot, "agents", "role-a"));
-    expect(rolePaths.sharedSkillsDir).toBe(path.join(tmpRoot, "skills"));
+    expect(rolePaths.sharedSkillsDir).toBe(path.join(resolveFrameworkRoot(), "skills"));
     expect(rolePaths.roleSkillsDir).toBe(path.join(tmpRoot, "agents", "role-a", "skills"));
     expect(rolePaths.sessionsDir).toBe(path.join(tmpRoot, "agents", "role-a", ".role-agent", "sessions"));
   });

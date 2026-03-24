@@ -10,6 +10,7 @@ const slugify = slugifyImport as unknown as (
 
 import { ENTITY_SEQUENCE_WIDTH, HERMIT_ROLE_ID, HERMIT_ROLE_ROOT, SHARED_ROOT_DIRECTORIES } from "./constants.js";
 import { fileExists, formatErrorMessage, isMissingPathError } from "./fs-utils.js";
+import { resolveFrameworkRoot, resolveSharedPromptTemplateCandidates } from "./runtime-paths.js";
 import { getRootPaths, getRolePaths, listRoleIds } from "./roles.js";
 import { renderBulletList, renderTemplate, renderTemplateString, renderYamlList } from "./template-library.js";
 import type {
@@ -73,8 +74,15 @@ export function makeSlug(value: string): string {
   });
 }
 
-function getSharedPromptTemplatePath(root: string, relativePath: string): string {
-  return path.join(root, "prompts", relativePath);
+async function getSharedPromptTemplatePath(workspaceRoot: string, relativePath: string, frameworkRoot = resolveFrameworkRoot()): Promise<string> {
+  for (const candidate of resolveSharedPromptTemplateCandidates(workspaceRoot, relativePath, frameworkRoot)) {
+    if (await fileExists(candidate)) {
+      return candidate;
+    }
+  }
+
+  return resolveSharedPromptTemplateCandidates(workspaceRoot, relativePath, frameworkRoot).at(-1)
+    ?? path.join(frameworkRoot, "prompts", relativePath);
 }
 
 function joinFieldValues(input: Record<string, unknown>, fieldNames: string[]): string {
@@ -85,11 +93,12 @@ function joinFieldValues(input: Record<string, unknown>, fieldNames: string[]): 
 }
 
 async function renderSharedPromptTemplate(
-  root: string,
+  workspaceRoot: string,
   relativeTemplatePath: string,
   values: Record<string, string>,
+  frameworkRoot = resolveFrameworkRoot(),
 ): Promise<string> {
-  return renderTemplate(getSharedPromptTemplatePath(root, relativeTemplatePath), values);
+  return renderTemplate(await getSharedPromptTemplatePath(workspaceRoot, relativeTemplatePath, frameworkRoot), values);
 }
 
 function buildFieldContext(input: Record<string, unknown>): Record<string, string> {
@@ -233,7 +242,7 @@ async function renderEntityTemplate(
 }
 
 async function ensureAgentFiles(
-  root: string,
+  workspaceRoot: string,
   agentRoot: string,
   values: {
     roleId: string;
@@ -263,7 +272,7 @@ async function ensureAgentFiles(
       if (!(await fileExists(filePath))) {
         await fs.writeFile(
           filePath,
-          await renderSharedPromptTemplate(root, file.template, {
+          await renderSharedPromptTemplate(workspaceRoot, file.template, {
             ...values,
             updatedAt: new Date().toISOString(),
             sourceRefsYaml: renderYamlList(["workspace default scaffold"]),

@@ -9,23 +9,38 @@ Code handles the deterministic infrastructure that should not depend on model im
 ## Invariants
 
 - Canonical state lives in files. Agents are the writers; code provides structure and plumbing.
-- Roles, prompts, skills, templates, and entity definitions are loaded from the workspace at runtime.
+- Roles, entity definitions, and durable state are loaded from the workspace at runtime; built-in prompts, templates, and built-in skills are loaded from the framework repo.
 - Domain structure stays in markdown and frontmatter; deterministic mechanics stay in code.
 - The explorer is intentionally read-only. Agents manage application state; the explorer renders it.
 - Telemetry is local and append-only.
 
 ## Workspace Model
 
-### Shared root
+Hermit uses a split layout by default:
 
-- `entities/` holds canonical entity records, including role-managed entities.
-- `entity-defs/entities.md` defines entity types and optional explorer renderer config.
-- `entity-defs/` also holds entity templates and optional renderer modules.
-- `skills/` holds shared pi skills.
-- `inbox/` holds uncategorized incoming user files until an agent routes them to the right durable location or removes them as temporary drops.
-- `prompts/` holds shared prompt files and shared templates.
-- `agents/` holds one directory per role.
-- `.hermit/` holds Hermit's own runtime state, including chat and heartbeat session history, telemetry, last-role state, and Hermit's shared `agent/record.md` and `agent/inbox.md` for framework stewardship.
+- the framework repo holds Hermit's runtime code, built-in prompts, built-in templates, explorer code, docs, and built-in skills
+- the workspace repo lives at `./workspace` under the framework checkout unless `HERMIT_WORKSPACE_ROOT` overrides it
+
+On first run from the framework checkout, Hermit creates `./workspace`, initializes it as a git repo, and scaffolds the required workspace directories there.
+The framework repo ignores `./workspace/`, so app-state changes stay out of framework pull requests by default.
+
+### Workspace root
+
+- `workspace/entities/` holds canonical entity records, including role-managed entities.
+- `workspace/entity-defs/entities.md` defines entity types and optional explorer renderer config.
+- `workspace/entity-defs/` also holds entity templates and optional renderer modules.
+- `workspace/skills/` holds workspace-local shared pi skills.
+- `workspace/inbox/` holds uncategorized incoming user files until an agent routes them to the right durable location or removes them as temporary drops.
+- `workspace/prompts/` holds workspace prompt overrides and shared template overrides.
+- `workspace/agents/` holds one directory per role.
+- `workspace/.hermit/` holds Hermit's own runtime state, including chat and heartbeat session history, telemetry, last-role state, and Hermit's shared `agent/record.md` and `agent/inbox.md` for framework stewardship.
+
+### Framework root
+
+- `src/`, `explorer/`, `docs/`, tests, scripts, and package metadata define the Hermit runtime itself.
+- `prompts/` holds built-in shared prompts plus built-in agent templates.
+- `skills/` holds built-in framework skills.
+- Framework PR and update workflows use normal `git` and `gh` commands, typically guided by the built-in framework-maintenance skill.
 
 ### Per role
 
@@ -39,9 +54,9 @@ Each `agents/<role-id>/` directory contains:
 - `.role-agent/sessions/` for persisted interactive sessions
 - `.role-agent/heartbeat-sessions/` for persisted heartbeat sessions
 
-Role-owned entities live under `entities/`, not under `agents/<role-id>/`. The runtime distinguishes shared versus role-managed entities by the directory roots declared in `entity-defs/entities.md`.
+Role-owned entities live under `workspace/entities/`, not under `workspace/agents/<role-id>/`. The runtime distinguishes shared versus role-managed entities by the directory roots declared in `workspace/entity-defs/entities.md`.
 
-Runtime scaffolding and `doctor` hard-require `entities/`, `agents/`, `entity-defs/`, `skills/`, and `inbox/`. Role sessions also require `prompts/`, `AGENTS.md`, shared agent templates, and any prompt or renderer files referenced by the role.
+Runtime scaffolding and `doctor` hard-require `workspace/entities/`, `workspace/agents/`, `workspace/entity-defs/`, `workspace/skills/`, and `workspace/inbox/`. Role sessions also require `workspace/prompts/`, `AGENTS.md`, shared agent templates, and any prompt or renderer files referenced by the role.
 
 ## Runtime Flow
 
@@ -64,7 +79,7 @@ flowchart TD
 
 ## Command Surface
 
-- `chat` starts an interactive session. Resolution order: `--role`, inferred role from the current directory under `agents/`, last used chat role from `.hermit/state/last-role.txt`, then `Hermit`. The Hermit fallback applies even when roles exist. Bootstrap mode is enabled only when the resolved target is `Hermit` and no roles are configured. Interactive chat supports runtime role switching through the `switch_role` tool.
+- `chat` starts an interactive session. Resolution order: `--role`, inferred role from the current directory under `workspace/agents/`, last used chat role from `.hermit/state/last-role.txt`, then `Hermit`. The Hermit fallback applies even when roles exist. Bootstrap mode is enabled only when the resolved target is `Hermit` and no roles are configured. Interactive chat supports runtime role switching through the `switch_role` tool.
 - `ask` runs a one-shot prompt in a role-backed session. Resolution: `--role`, inferred role from cwd, then single-role auto-selection. No last-role fallback, no Hermit fallback. Errors when no role can be resolved.
 - `heartbeat` runs one persisted role-backed upkeep turn. Uses the same resolution as `ask`. Strategic review is selected when `--strategic-review` is passed or when `last_strategic_review` in `agent/record.md` is missing or older than 24 hours. The review behavior itself is prompt-driven; the runtime only selects which prompt to use.
 - `heartbeat-daemon` runs normal role heartbeats on a fixed interval. When any strategic review is due, it runs one combined strategic-review sweep for `Hermit` plus all configured roles, with one separate session per target.
@@ -155,7 +170,7 @@ Thinking level: `ROLE_AGENT_THINKING_LEVEL` env var, default `medium`.
 
 `ensureWorkspaceScaffold()` creates shared root directories and role-local directories. For existing roles, it backfills `agent/record.md` and `agent/inbox.md` from `prompts/templates/agent/*.md` when missing.
 
-The shared `inbox/` directory is a transient intake area, not a canonical store. Agents are expected to triage new files dropped there into the correct entity or role directories, preserve source references when those files change canonical understanding, and remove one-off temporary files once their contents are safely captured elsewhere.
+The shared `workspace/inbox/` directory is a transient intake area, not a canonical store. Agents are expected to triage new files dropped there into the correct entity or role directories, preserve source references when those files change canonical understanding, and remove one-off temporary files once their contents are safely captured elsewhere.
 
 `createRoleEntityRecord()` renders declared entity files, computes a deterministic ID, and writes without overwriting unless forced.
 
@@ -176,18 +191,19 @@ Pipeline:
 
 `chat`, `ask`, and `heartbeat` run inside `withGitCheckpoint()`. `heartbeat-daemon` does not checkpoint as one process; each delegated heartbeat has its own checkpoint wrapper.
 
-- Before the command: checkpoint if the repo is dirty.
-- After the command: checkpoint if the repo is dirty and the command outcome policy allows it.
+- Before the command: checkpoint each distinct git repo involved in the turn if that repo is dirty.
+- After the command: checkpoint each distinct git repo involved in the turn if that repo is dirty and the command outcome policy allows it.
 - Command outcomes are tracked as `success`, `aborted`, or `failed` and recorded in checkpoint metadata and telemetry.
 - Dirty detection: `git status --porcelain=v1 --untracked-files=all`.
 - Checkpoints stage and commit the full changed file set, including untracked files.
-- No path allowlist. No automatic rollback.
+- No path allowlist inside a single repo. The framework/workspace split is the structural safety boundary.
+- No automatic rollback.
 
 ## Validation
 
 `doctor` is a structural validator. Checks:
 
-- Required shared root directories (`entities`, `agents`, `entity-defs`, `skills`, `inbox`)
+- Required workspace-root directories (`workspace/entities`, `workspace/agents`, `workspace/entity-defs`, `workspace/skills`, `workspace/inbox`)
 - Role manifest loading and directory identity
 - `AGENTS.md` presence and linked markdown files
 - Required shared agent templates and transcript ingest prompts
@@ -219,14 +235,14 @@ No per-role entity routes.
 
 ### Renderers
 
-`entity-defs/entities.md` may declare detail-level or file-level renderers under `explorer.renderers`. Modules are loaded dynamically from `entity-defs/` and can replace the full detail body or a specific file section. Without a declared renderer, the explorer uses the default markdown renderer.
+`workspace/entity-defs/entities.md` may declare detail-level or file-level renderers under `explorer.renderers`. Modules are loaded dynamically from `workspace/entity-defs/` and can replace the full detail body or a specific file section. Without a declared renderer, the explorer uses the default markdown renderer.
 
 ## Extension Surface
 
 Extensions are file-driven:
 
-- Add a role: create `agents/<role-id>/role.md`, `AGENTS.md`, role prompts, and role skills.
-- Add an entity type: update `entity-defs/entities.md` and add templates.
-- Add explorer customization: place renderer modules under `entity-defs/` and reference them.
+- Add a role: create `workspace/agents/<role-id>/role.md`, `AGENTS.md`, role prompts, and role skills.
+- Add an entity type: update `workspace/entity-defs/entities.md` and add templates.
+- Add explorer customization: place renderer modules under `workspace/entity-defs/` and reference them.
 
 No code changes required for standard role and entity additions.

@@ -6,19 +6,19 @@ description: Define Hermit roles, including `role.md`, `AGENTS.md`, prompts, and
 # Role Setup
 
 Use when:
-- You are creating or redesigning `agents/<role-id>/`.
+- You are creating or redesigning a role under the workspace root `agents/<role-id>/`.
 
 Do not use when:
 - The main work is entity design. Use `entity-setup`.
 - You are making a small edit to an existing prompt with no role contract change.
 
 Contract:
-- `agents/<role-id>/role.md`: manifest only.
-- `agents/<role-id>/AGENTS.md`: operating standard, startup context, entity context, prompt index.
-- `agents/<role-id>/prompts/`: recurring dense subdomains.
-- `agents/<role-id>/skills/`: optional reusable role-local workflows.
+- workspace `agents/<role-id>/role.md`: manifest only.
+- workspace `agents/<role-id>/AGENTS.md`: operating standard, startup context, entity context, prompt index.
+- workspace `agents/<role-id>/prompts/`: recurring dense subdomains.
+- workspace `agents/<role-id>/skills/`: optional reusable role-local workflows.
 - `prompts/templates/agent/record.md` and `prompts/templates/agent/inbox.md`: shared templates.
-- `inbox/`: shared file drop zone. Not the same as `agent/inbox.md`.
+- workspace `inbox/`: shared file drop zone. Not the same as `agent/inbox.md`.
 
 Decide for each role:
 - owned domain and job

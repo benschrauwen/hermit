@@ -2,13 +2,14 @@
 import path from "node:path";
 import { promises as fs } from "node:fs";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import { countEntitiesByDefinition, getWorkspaceRoot, listRoleIds, loadEntityDefs } from "../lib/workspace.js";
+import { countEntitiesByDefinition, getFrameworkRoot, getWorkspaceRoot, listRoleIds, loadEntityDefs } from "../lib/workspace.js";
 import { marked } from "marked";
 
 const root = getWorkspaceRoot();
+const frameworkRoot = getFrameworkRoot();
 
 marked.setOptions({ gfm: true });
-const readmePath = path.join(root, "README.md");
+const readmePath = path.join(frameworkRoot, "README.md");
 const readmeRaw = await fs.readFile(readmePath, "utf8").catch((error) => {
   const code = error && typeof error === "object" && "code" in error ? (error as NodeJS.ErrnoException).code : undefined;
   if (code === "ENOENT") {

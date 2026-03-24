@@ -45,6 +45,7 @@ coverage/
 
 # Hermit runtime artifacts
 .hermit/
+/workspace/
 
 # Cursor / plan artifacts (optional; remove if you want to track plans)
 .cursor/plans/

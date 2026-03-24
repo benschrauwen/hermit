@@ -8,9 +8,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   createCheckpoint,
   getRepoState,
+  isGitRepository,
   listChangedFiles,
-  shouldCheckpoint,
-  shouldCheckpointForOutcome,
+  shouldCheckpointAfterTurn,
 } from "../src/git.js";
 
 const testsDir = path.dirname(fileURLToPath(import.meta.url));
@@ -88,6 +88,7 @@ describe("git runtime helpers", () => {
 
     writeFile(root, "docs/architecture.md", "# Architecture\n\nCheckpoint me.\n");
     writeFile(root, "misc/extra.txt", "extra\n");
+    rmSync(path.join(root, "agents", "role-a", "AGENTS.md"));
 
     const checkpoint = await createCheckpoint(root, {
       commandName: "heartbeat",
@@ -98,7 +99,7 @@ describe("git runtime helpers", () => {
     });
 
     expect(checkpoint?.checkpointSha).toMatch(/^[a-f0-9]{40}$/);
-    expect(checkpoint?.changedFiles).toEqual(["docs/architecture.md", "misc/extra.txt"]);
+    expect(checkpoint?.changedFiles).toEqual(["agents/role-a/AGENTS.md", "docs/architecture.md", "misc/extra.txt"]);
 
     const latestCommit = runGit(root, ["log", "-1", "--pretty=%s%n%b"]);
     expect(latestCommit).toContain("chore(checkpoint): after heartbeat role-a");
@@ -112,13 +113,24 @@ describe("git runtime helpers", () => {
     expect(status).toBe("");
   });
 
+  it("does not treat a nested folder inside another repo as its own repository", async () => {
+    const root = createGitWorkspace();
+    roots.push(root);
+    const nestedWorkspace = path.join(root, "workspace");
+    mkdirSync(nestedWorkspace, { recursive: true });
+
+    expect(await isGitRepository(root)).toBe(true);
+    expect(await isGitRepository(nestedWorkspace)).toBe(false);
+    expect(await listChangedFiles(nestedWorkspace)).toEqual([]);
+  });
+
   it("only checkpoints when enabled and the repository is dirty", () => {
-    expect(shouldCheckpoint(undefined)).toBe(false);
-    expect(shouldCheckpoint({ dirty: false })).toBe(false);
-    expect(shouldCheckpoint({ dirty: true })).toBe(true);
-    expect(shouldCheckpoint({ dirty: true }, false)).toBe(false);
-    expect(shouldCheckpointForOutcome({ dirty: true }, "success")).toBe(true);
-    expect(shouldCheckpointForOutcome({ dirty: true }, "failed")).toBe(true);
-    expect(shouldCheckpointForOutcome({ dirty: true }, "aborted")).toBe(false);
+    expect(shouldCheckpointAfterTurn(undefined, undefined, "success")).toBe(false);
+    expect(shouldCheckpointAfterTurn({ dirty: false }, { dirty: false }, "success")).toBe(false);
+    expect(shouldCheckpointAfterTurn({ dirty: false }, { dirty: true }, "success")).toBe(true);
+    expect(shouldCheckpointAfterTurn({ dirty: false }, { dirty: true }, "failed")).toBe(true);
+    expect(shouldCheckpointAfterTurn({ dirty: true }, { dirty: true }, "success")).toBe(false);
+    expect(shouldCheckpointAfterTurn({ dirty: false }, { dirty: true }, "aborted")).toBe(false);
+    expect(shouldCheckpointAfterTurn({ dirty: false }, { dirty: true }, "success", false)).toBe(false);
   });
 });

@@ -5,7 +5,7 @@
 - Ask one high-value question at a time.
 - Default aggressively after 2-3 answers. Ask follow-ups only for role identity, core entities, or irreversible schema choices.
 - Start by identifying the first role and whether the context is personal or company use.
-- Create early anchors: `entities/user/record.md`, shared `inbox/`, and a minimal useful scaffold under `agents/<role-id>/`.
+- Create early anchors: `{{workspaceRoot}}/entities/user/record.md`, shared `{{workspaceRoot}}/inbox/`, and a minimal useful scaffold under `{{workspaceRoot}}/agents/<role-id>/`.
 - Seed canonical files from existing conversation and workspace evidence. Keep unknowns explicit.
 - Do not run a questionnaire just to fill the user record.
 - Start with one sharp role unless the user clearly needs multiple distinct lenses now.

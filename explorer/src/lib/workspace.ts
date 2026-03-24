@@ -1,7 +1,7 @@
 /**
  * Resolves the Hermit workspace root (repo root with agents/, entities/, etc.).
- * Use WORKSPACE_ROOT env when running explorer from repo root; otherwise
- * defaults to parent of explorer dir when cwd is explorer.
+ * Use WORKSPACE_ROOT env when running from the framework repo; otherwise
+ * defaults to a sibling workspace path when cwd is explorer.
  */
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -19,6 +19,18 @@ export type { EntityRecord, RoleDefinition, RoleEntityDefinition, RoleExplorerCo
 export function getWorkspaceRoot(): string {
   if (process.env.WORKSPACE_ROOT) {
     return path.resolve(process.env.WORKSPACE_ROOT);
+  }
+  const cwd = process.cwd();
+  const dir = path.basename(cwd);
+  if (dir === "explorer") {
+    return path.resolve(cwd, "..", "workspace");
+  }
+  return path.resolve(cwd, "workspace");
+}
+
+export function getFrameworkRoot(): string {
+  if (process.env.FRAMEWORK_ROOT) {
+    return path.resolve(process.env.FRAMEWORK_ROOT);
   }
   const cwd = process.cwd();
   const dir = path.basename(cwd);
@@ -46,10 +58,10 @@ async function loadRolesModule(root: string): Promise<RolesModule> {
   if (cached) {
     return cached;
   }
-  const rolesPath = path.resolve(root, "src", "roles.ts");
+  const rolesPath = path.resolve(getFrameworkRoot(), "src", "roles.ts");
   if (!existsSync(rolesPath)) {
     throw new Error(
-      `Workspace source not found at ${rolesPath}. Run the explorer from the workspace root so it can load TypeScript sources via tsx.`
+      `Framework source not found at ${rolesPath}. Run the explorer from the Hermit framework checkout so it can load TypeScript sources via tsx.`
     );
   }
   const pending = importWithNode(pathToFileURL(rolesPath).href).then((mod) => mod as RolesModule);
@@ -62,10 +74,10 @@ async function loadWorkspaceModule(root: string): Promise<WorkspaceModule> {
   if (cached) {
     return cached;
   }
-  const workspacePath = path.resolve(root, "src", "workspace.ts");
+  const workspacePath = path.resolve(getFrameworkRoot(), "src", "workspace.ts");
   if (!existsSync(workspacePath)) {
     throw new Error(
-      `Workspace source not found at ${workspacePath}. Run the explorer from the workspace root so it can load TypeScript sources via tsx.`
+      `Framework source not found at ${workspacePath}. Run the explorer from the Hermit framework checkout so it can load TypeScript sources via tsx.`
     );
   }
   const pending = importWithNode(pathToFileURL(workspacePath).href).then((mod) => mod as WorkspaceModule);

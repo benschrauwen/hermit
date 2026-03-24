@@ -11,7 +11,7 @@
 
 - Run once per day, usually via heartbeat, instead of normal task advancement.
 - Follow an explicit loop: `evidence -> hypothesis -> test -> re-evaluate hypothesis`.
-- Start with `## Strategic Experiments` in `{{roleRoot}}/agent/record.md` before proposing a new theory.
+- Start with `## Strategic Experiments` in `{{workspaceRoot}}/{{roleRoot}}/agent/record.md` before proposing a new theory.
 - Review `agent/record.md`, `agent/inbox.md`, recent strategic notes, current workspace state, recent git history or checkpoints when useful, and the latest telemetry reports.
 - Use raw evidence, not vibes.
 

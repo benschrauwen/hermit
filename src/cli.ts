@@ -9,7 +9,13 @@ import path from "node:path";
 import process from "node:process";
 
 import { printDoctorContext, runDoctor } from "./doctor.js";
-import { createCheckpoint, getRepoState, shouldCheckpoint, shouldCheckpointForOutcome, type CheckpointOutcome } from "./git.js";
+import {
+  createCheckpoint,
+  getRepoState,
+  listCheckpointRoots,
+  shouldCheckpointAfterTurn,
+  type CheckpointOutcome,
+} from "./git.js";
 import {
   createHeartbeatDaemonController,
   DEFAULT_HEARTBEAT_DAEMON_INTERVAL,
@@ -49,10 +55,12 @@ import { acquireWorkspaceTurnLock, formatWorkspaceTurnOwner, readWorkspaceTurnLo
 import type { RoleDefinition } from "./types.js";
 import { ensureWorkspaceScaffold } from "./workspace.js";
 import { runWorkspaceStartLoop } from "./workspace-start.js";
+import { ensureWorkspaceRepository, resolveFrameworkRoot } from "./runtime-paths.js";
 
 async function resolveRoleContext(explicitRoleId?: string): Promise<{ root: string; roleId: string }> {
   const inferred = inferRootAndRoleFromCwd(process.cwd());
   const root = inferred.root;
+  await ensureWorkspaceRepository(root);
   const roleId = explicitRoleId ?? inferred.roleId;
 
   if (roleId) {
@@ -63,8 +71,10 @@ async function resolveRoleContext(explicitRoleId?: string): Promise<{ root: stri
   return { root, roleId: resolved.role.id };
 }
 
-function resolveWorkspaceRoot(): string {
-  return inferRootAndRoleFromCwd(process.cwd()).root;
+async function resolveWorkspaceRoot(): Promise<string> {
+  const root = inferRootAndRoleFromCwd(process.cwd()).root;
+  await ensureWorkspaceRepository(root);
+  return root;
 }
 
 function collectImagePaths(values: string[] | undefined): string[] {
@@ -236,13 +246,14 @@ async function withGitCheckpoint(options: {
     sessionId,
     ...(options.roleId !== undefined ? { roleId: options.roleId } : {}),
   };
+  const checkpointRoots = listCheckpointRoots(options.root);
 
   const beforeState = await getRepoState(options.root);
-  const checkpointBefore = shouldCheckpoint(beforeState, gitCheckpointsEnabled)
-    ? await createCheckpoint(options.root, { ...checkpointMeta, phase: "before" })
-    : undefined;
+  const beforeStates = new Map(
+    await Promise.all(checkpointRoots.map(async (root) => [root, await getRepoState(root)] as const)),
+  );
 
-  const startState = checkpointBefore ? await getRepoState(options.root) : beforeState;
+  const startState = beforeState;
   const context: CommandGitContext = {
     sessionId,
     promptContext: {
@@ -251,13 +262,11 @@ async function withGitCheckpoint(options: {
       ...(startState?.headShortSha !== undefined ? { gitHeadShortSha: startState.headShortSha } : {}),
       ...(startState?.headSubject !== undefined ? { gitHeadSubject: startState.headSubject } : {}),
       ...(startState !== undefined ? { gitDirty: startState.dirty } : {}),
-      ...(checkpointBefore?.checkpointSha !== undefined ? { gitCheckpointBeforeSha: checkpointBefore.checkpointSha } : {}),
     },
     telemetryContext: {
       sessionId,
       ...(startState?.branch !== undefined ? { gitBranch: startState.branch } : {}),
       ...(startState?.headSha !== undefined ? { gitHeadAtStart: startState.headSha } : {}),
-      ...(checkpointBefore?.checkpointSha !== undefined ? { checkpointBeforeSha: checkpointBefore.checkpointSha } : {}),
     },
   };
 
@@ -269,10 +278,22 @@ async function withGitCheckpoint(options: {
     commandOutcome = isAbortError(error) ? "aborted" : "failed";
     throw error;
   } finally {
-    const afterState = await getRepoState(options.root);
-    const checkpointAfter = shouldCheckpointForOutcome(afterState, commandOutcome, gitCheckpointsEnabled)
-      ? await createCheckpoint(options.root, { ...checkpointMeta, phase: "after", outcome: commandOutcome })
-      : undefined;
+    const afterStates = new Map(
+      await Promise.all(checkpointRoots.map(async (root) => [root, await getRepoState(root)] as const)),
+    );
+    const checkpointAfterByRoot = new Map<string, Awaited<ReturnType<typeof createCheckpoint>>>();
+    for (const root of checkpointRoots) {
+      const beforeStateForRoot = beforeStates.get(root);
+      const afterState = afterStates.get(root);
+      checkpointAfterByRoot.set(
+        root,
+        shouldCheckpointAfterTurn(beforeStateForRoot, afterState, commandOutcome, gitCheckpointsEnabled)
+          ? await createCheckpoint(root, { ...checkpointMeta, phase: "after", outcome: commandOutcome })
+          : undefined,
+      );
+    }
+    const afterState = afterStates.get(options.root);
+    const checkpointAfter = checkpointAfterByRoot.get(options.root);
     const endHead = checkpointAfter ?? afterState;
 
     telemetry?.setGitSessionEndContext({
@@ -584,6 +605,7 @@ program
         ...(inferred.roleId !== undefined ? { inferredRoleId: inferred.roleId } : {}),
         ...(lastRoleId !== undefined ? { lastRoleId } : {}),
       });
+      await ensureWorkspaceRepository(resolved.root);
       const initialRoleId = resolved.kind === "role" ? resolved.role.id : HERMIT_ROLE_ID;
       await writeLastUsedChatRole(resolved.root, initialRoleId);
       await withGitCheckpoint({
@@ -614,7 +636,8 @@ program
           });
 
           await runWorkspaceStartLoop({
-            root: resolved.root,
+            workspaceRoot: resolved.root,
+            frameworkRoot: resolveFrameworkRoot(),
             heartbeatInterval: options.interval,
             ...(options.continue !== undefined ? { continueHeartbeatSessions: options.continue } : {}),
             ...(options.gitCheckpoints !== undefined ? { gitCheckpointsEnabled: options.gitCheckpoints } : {}),
@@ -826,7 +849,7 @@ program
   .option("--continue", "Continue the most recent persisted heartbeat or strategic-review session for each target.")
   .action(async (options: { interval: string; continue?: boolean; gitCheckpoints?: boolean }) => {
     assertProviderAwareModelConfigured();
-    const root = resolveWorkspaceRoot();
+    const root = await resolveWorkspaceRoot();
     const intervalMs = parseHeartbeatDaemonInterval(options.interval);
 
     const daemonController = createHeartbeatDaemonController({
@@ -1025,7 +1048,7 @@ telemetryCommand
   .option("--window <duration>", "Time window such as 24h, 7d, or 2w.", "7d")
   .option("--role <id>", "Optional role ID filter.")
   .action(async (options: { window: string; role?: string }) => {
-    const root = resolveWorkspaceRoot();
+    const root = await resolveWorkspaceRoot();
     const report = await generateTelemetryReport(root, {
       window: options.window,
       ...(options.role !== undefined ? { roleId: options.role } : {}),

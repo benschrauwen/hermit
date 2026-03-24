@@ -1,5 +1,8 @@
 import { execFile } from "node:child_process";
+import path from "node:path";
 import { promisify } from "node:util";
+
+import { assertSplitWorkspaceLayout, resolveFrameworkRoot, uniquePaths } from "./runtime-paths.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -31,7 +34,7 @@ export interface CheckpointResult extends GitHeadSummary {
   changedFiles: string[];
 }
 
-interface GitCommandResult {
+export interface GitCommandResult {
   stdout: string;
   stderr: string;
   exitCode: number;
@@ -79,7 +82,7 @@ function buildCheckpointMessage(metadata: CheckpointMetadata): [string, string] 
   return [subject, trailers];
 }
 
-async function runGit(
+export async function runGitCommand(
   root: string,
   args: string[],
   options: { allowFailure?: boolean } = {},
@@ -113,9 +116,18 @@ async function runGit(
   }
 }
 
-async function isGitRepository(root: string): Promise<boolean> {
-  const result = await runGit(root, ["rev-parse", "--is-inside-work-tree"], { allowFailure: true });
-  return result.exitCode === 0 && result.stdout.trim() === "true";
+export async function isGitRepository(root: string): Promise<boolean> {
+  const result = await runGitCommand(root, ["rev-parse", "--show-toplevel"], { allowFailure: true });
+  if (result.exitCode !== 0) {
+    return false;
+  }
+
+  return path.resolve(result.stdout.trim()) === path.resolve(root);
+}
+
+export function listCheckpointRoots(workspaceRoot: string, frameworkRoot = resolveFrameworkRoot()): string[] {
+  assertSplitWorkspaceLayout(workspaceRoot, frameworkRoot);
+  return uniquePaths([workspaceRoot, frameworkRoot]);
 }
 
 export async function getHeadSummary(root: string): Promise<GitHeadSummary | undefined> {
@@ -124,10 +136,10 @@ export async function getHeadSummary(root: string): Promise<GitHeadSummary | und
   }
 
   const [branchResult, headResult, shortHeadResult, subjectResult] = await Promise.all([
-    runGit(root, ["symbolic-ref", "--quiet", "--short", "HEAD"], { allowFailure: true }),
-    runGit(root, ["rev-parse", "--verify", "HEAD"], { allowFailure: true }),
-    runGit(root, ["rev-parse", "--short", "HEAD"], { allowFailure: true }),
-    runGit(root, ["log", "-1", "--pretty=%s"], { allowFailure: true }),
+    runGitCommand(root, ["symbolic-ref", "--quiet", "--short", "HEAD"], { allowFailure: true }),
+    runGitCommand(root, ["rev-parse", "--verify", "HEAD"], { allowFailure: true }),
+    runGitCommand(root, ["rev-parse", "--short", "HEAD"], { allowFailure: true }),
+    runGitCommand(root, ["log", "-1", "--pretty=%s"], { allowFailure: true }),
   ]);
 
   return {
@@ -149,7 +161,7 @@ export async function listChangedFiles(root: string): Promise<string[]> {
     return [];
   }
 
-  const result = await runGit(root, [
+  const result = await runGitCommand(root, [
     "status",
     "--porcelain=v1",
     "--untracked-files=all",
@@ -172,20 +184,17 @@ export async function getRepoState(root: string): Promise<RepoState | undefined>
   };
 }
 
-export function shouldCheckpoint(state: Pick<RepoState, "dirty"> | undefined, enabled = true): boolean {
-  return enabled && Boolean(state?.dirty);
-}
-
-export function shouldCheckpointForOutcome(
-  state: Pick<RepoState, "dirty"> | undefined,
+export function shouldCheckpointAfterTurn(
+  beforeState: Pick<RepoState, "dirty"> | undefined,
+  afterState: Pick<RepoState, "dirty"> | undefined,
   outcome: CheckpointOutcome,
   enabled = true,
 ): boolean {
-  if (outcome === "aborted") {
+  if (!enabled || outcome === "aborted") {
     return false;
   }
 
-  return shouldCheckpoint(state, enabled);
+  return !Boolean(beforeState?.dirty) && Boolean(afterState?.dirty);
 }
 
 export async function createCheckpoint(
@@ -201,19 +210,16 @@ export async function createCheckpoint(
     return undefined;
   }
 
-  await runGit(root, ["add", "--", ...changedFiles]);
+  await runGitCommand(root, ["add", "-A", "--", "."]);
 
   const [subject, trailers] = buildCheckpointMessage(metadata);
-  await runGit(root, [
+  await runGitCommand(root, [
     "commit",
     "--quiet",
-    "--only",
     "-m",
     subject,
     "-m",
     trailers,
-    "--",
-    ...changedFiles,
   ]);
 
   const head = await getHeadSummary(root);

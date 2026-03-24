@@ -37,7 +37,8 @@ const MIN_HEARTBEAT_HEIGHT = 1;
 const MIN_CHAT_HEIGHT = 4;
 
 export interface WorkspaceStartLoopOptions {
-  root: string;
+  workspaceRoot: string;
+  frameworkRoot: string;
   heartbeatInterval: string;
   continueHeartbeatSessions?: boolean;
   gitCheckpointsEnabled?: boolean;
@@ -760,7 +761,7 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
     try {
       let waitingStatusShown = false;
       await runInteractiveSessionTurn({
-        root: options.root,
+        root: options.workspaceRoot,
         roleId: activeSession.activeRoleLabel,
         session: activeSession.session,
         prompt,
@@ -791,12 +792,13 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
 
   try {
     explorerProcess = spawnManagedProcess({
-      cwd: options.root,
+      cwd: options.frameworkRoot,
       command: "npm",
       args: ["--prefix", "explorer", "run", "dev"],
       env: {
         NODE_OPTIONS: mergeNodeOptions(process.env.NODE_OPTIONS, "--import tsx"),
-        WORKSPACE_ROOT: options.root,
+        WORKSPACE_ROOT: options.workspaceRoot,
+        FRAMEWORK_ROOT: options.frameworkRoot,
         ASTRO_TELEMETRY_DISABLED: "1",
       },
       onText: (text) => {
@@ -821,7 +823,7 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
     });
 
     heartbeatProcess = spawnManagedProcess({
-      cwd: options.root,
+      cwd: options.frameworkRoot,
       command: "npm",
       args: [
         "run",
@@ -833,6 +835,9 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
         ...(options.continueHeartbeatSessions ? ["--continue"] : []),
         ...(options.gitCheckpointsEnabled === false ? ["--no-git-checkpoints"] : []),
       ],
+      env: {
+        HERMIT_WORKSPACE_ROOT: options.workspaceRoot,
+      },
       onText: (text) => {
         ui.appendHeartbeatOutput(text);
       },

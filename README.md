@@ -71,6 +71,8 @@ npm start
 
 This single command starts the explorer, launches the heartbeat daemon in the top pane, and opens the interactive chat UI below it.
 
+On first run, Hermit automatically creates `./workspace`, initializes it as its own git repo, writes a workspace `.gitignore`, and scaffolds the directories it needs there.
+
 If you want the pieces separately instead:
 
 ```bash
@@ -85,32 +87,20 @@ By default `npm start`, `npm run heartbeat-daemon`, and `npm run explorer` run i
 - **You define the job in conversation** — start with a role like sales manager, vineyard operator, or household manager, and Hermit begins shaping the application around that responsibility.
 - **The role owns the function, you manage the role** — Hermit should run the job proactively inside its authority, while you set direction, review important decisions, and provide approval or real-world follow-through when needed.
 - **Hermit creates the operating model** — it establishes roles, prompts, workflows, and review loops for the work instead of assuming a fixed SaaS schema.
-- **Hermit writes the data layer as files** — entities, records, and supporting evidence live as markdown under `entities/` and `entity-defs/`.
-- **Hermit owns the app surface too** — the runtime, prompts, skills, and explorer UI all live in the same repo, so the agent can extend the system it operates.
+- **Hermit writes the data layer as files** — entities, records, and supporting evidence live as markdown under `workspace/entities/` and `workspace/entity-defs/`.
+- **Hermit owns the app surface too** — the runtime repo and workspace repo stay close enough that the agent can extend the system it operates without hiding state in a separate service.
 - **Every turn updates versioned app state** — session commands create git checkpoints, so the full application remains inspectable, diffable, and reversible.
 
 ## Recommended Git Workflow
 
-Because Hermit stores app state directly in files, it's best to start from a fresh branch off `main` before using it for a specific app or operating context. That keeps the evolving state in normal git history, separate from the runtime's own source changes.
+Hermit uses two repos by default:
 
-Create a fresh branch from `main`:
+- the **framework repo** is the Hermit checkout itself
+- the **workspace repo** is `./workspace`, created automatically on first start
 
-```bash
-git checkout main
-git pull
-git checkout -b my-app-state
-```
+That keeps `workspace/entities/`, `workspace/agents/`, `workspace/entity-defs/`, local `workspace/skills/`, and `workspace/.hermit/` state versioned without mixing them into framework pull requests. The framework repo ignores `./workspace/`, so user data does not get swept into framework changes.
 
-You can keep multiple app states in parallel by using separate branches, for example `sales-state`, `ops-state`, or `customer-a-state`. Each branch becomes an isolated snapshot and timeline of that app's files, prompts, entities, and role state.
-
-When `main` gets updates, switch to each app-state branch and rebase or merge the latest `main` into it:
-
-```bash
-git checkout main
-git pull
-git checkout my-app-state
-git rebase main
-```
+Hermit includes a built-in `framework-maintenance` skill with the full git and `gh` workflow for reviewing framework status, opening PRs, and pulling upstream changes. For app-state snapshots, branch inside `./workspace`.
 
 ## Commands
 
@@ -144,7 +134,7 @@ npm run cli -- telemetry report --window 7d       # aggregate local runtime tele
 ## Why It Feels Different
 
 - **The application is built, not pre-modeled** — you start with a runtime and a goal; Hermit creates the roles, schema, files, and workflows that fit the job.
-- **Single-directory architecture** — code, prompts, data, UI, and agent operating state live in one repo instead of being split across app code, a hidden memory layer, and an external database.
+- **Single checkout startup** — one `npm start` command from the Hermit checkout creates the nested workspace repo automatically and gets the system running.
 - **Autonomy with structure** — roles capture work, clarify it, and advance next actions through `heartbeat` and `heartbeat-daemon`, while strategic review regularly questions goals, structure, and process.
 - **File-first system of record** — durable state lives in readable markdown, not behind an ORM or opaque store.
 - **Git-native history** — session commands create checkpoint commits, so the entire application state sits in normal git history.
@@ -154,26 +144,26 @@ npm run cli -- telemetry report --window 7d       # aggregate local runtime tele
 
 ## Workspace Structure
 
-A Hermit app is a normal repository. These directories are the application:
+Hermit starts from the framework checkout and creates a nested workspace repo at `./workspace`. The workspace contains the application state:
 
-```
-inbox/             # shared drop zone for uncategorized incoming user files
-entities/
-  <entity-id>/     # entity data
-entity-defs/
-  entities.md      # entity schema and explorer config
-  <entity-id>/     # entity scaffold templates
-  renderers/       # custom explorer renderers
-skills/            # shared pi skills available to all roles
-agents/
-  <role-id>/
-    role.md        # role contract (manifest)
-    AGENTS.md      # prompt index
-    agent/         # operating state (record.md, inbox.md)
-    prompts/       # role-specific prompts
-    skills/        # role-specific pi skills
-prompts/           # shared prompt library
-explorer/          # read-only Astro workspace UI
+```text
+workspace/
+  inbox/             # shared drop zone for uncategorized incoming user files
+  entities/
+    <entity-id>/     # entity data
+  entity-defs/
+    entities.md      # entity schema and explorer config
+    <entity-id>/     # entity scaffold templates
+    renderers/       # custom explorer renderers
+  skills/            # shared workspace skills available to all roles
+  agents/
+    <role-id>/
+      role.md        # role contract (manifest)
+      AGENTS.md      # prompt index
+      agent/         # operating state (record.md, inbox.md)
+      prompts/       # role-specific prompts
+      skills/        # role-specific pi skills
+  prompts/           # shared workspace prompt overrides
 ```
 
 ## How Roles Work
@@ -187,16 +177,16 @@ Roles are how Hermit turns a broad job into an operator inside the app. Each rol
 
 Prompts are loaded from directories, not declared in the manifest. The runtime loads shared prompts from `prompts/`, appends the role's `AGENTS.md`, and appends any session-specific role prompt files (e.g. transcript ingest prompts). Role-local prompts live under `agents/<role-id>/prompts/` and are loaded on demand.
 
-Entity schema lives in `entity-defs/entities.md`, and entity starter templates and explorer renderers live under `entity-defs/`. The `agents/` directory is for behavior and agent state, while `entities/` and `entity-defs/` define app state and schema.
+Entity schema lives in `workspace/entity-defs/entities.md`, and entity starter templates and explorer renderers live under `workspace/entity-defs/`. The `workspace/agents/` directory is for behavior and agent state, while `workspace/entities/` and `workspace/entity-defs/` define app state and schema.
 
-The shared `inbox/` directory is the default intake area for uncategorized incoming files. Agents should process files dropped there, route durable material into the right role or entity directories, and remove temporary drop files once their contents are preserved elsewhere.
+The shared `workspace/inbox/` directory is the default intake area for uncategorized incoming files. Agents should process files dropped there, route durable material into the right role or entity directories, and remove temporary drop files once their contents are preserved elsewhere.
 
 The runtime stays generic. Roles define behavior through files, not code changes. Adding a new role:
 
 1. Create `agents/<role-id>/role.md`
 2. Add prompt catalog entries and prompt files
 3. Add `AGENTS.md` plus any role-local prompts or skills
-4. Update `entity-defs/entities.md` and add templates under `entity-defs/` when the role needs new entity types or explorer rendering
+4. Update `workspace/entity-defs/entities.md` and add templates under `workspace/entity-defs/` when the role needs new entity types or explorer rendering
 5. Run `npm run cli -- doctor --role <role-id>` to validate
 
 A role can own many responsibilities. Create another role when the work needs a different operating lens: a different operating model, personality, approach, or broad responsibility set that should be judged by a distinct operator. Do not create a new role for every task cluster; split when a new lens would make decisions clearer.
@@ -299,11 +289,11 @@ External coding agents can absolutely be useful, but once the core intelligence 
 
 In Hermit, "self-improve" means the runtime has built-in feedback loops for making the harness itself better over time. It records local telemetry for llm/tool calls, can aggregate that telemetry into reports, and runs recurring heartbeat turns that do more than advance tasks: they also perform strategic review on a roughly daily cadence to question whether the prompts, workflows, role setup, and operating structure are still serving the work well.
 
-So self-improvement here is practical and observable. Hermit can notice friction, review the evidence from its own runs, and then tighten prompts, skills, role definitions, or process structure inside the same repo. The goal is a system that gets better at operating by editing its own harness based on local evidence, not a black-box agent that claims to learn without leaving artifacts behind.
+So self-improvement here is practical and observable. Hermit can notice friction, review the evidence from its own runs, and then tighten prompts, skills, role definitions, or process structure in the framework repo while keeping user state in the workspace repo. The goal is a system that gets better at operating by editing its own harness based on local evidence, not a black-box agent that claims to learn without leaving artifacts behind.
 
 ### If it edits files in the background, how do I stay in control?
 
-It would be dangerous if those edits were opaque or hard to unwind. Hermit's answer is to keep the whole system inside normal Git workflows. The app state, prompts, role files, and runtime code all live in the repository, and session activity is checkpointed into versioned history instead of disappearing into a hidden store.
+It would be dangerous if those edits were opaque or hard to unwind. Hermit's answer is to keep the whole system inside normal Git workflows. The app state lives in the workspace repo, the runtime lives in the framework repo, and session activity is checkpointed into versioned history instead of disappearing into a hidden store.
 
 That means you can treat the agent like a very active collaborator rather than an untouchable automaton. You can ask what changed, inspect diffs, review the latest commits, ask it to explain why a file was edited, or tell it to revert something you do not like. Because the artifacts are just files in Git, recovery is not a special feature bolted onto the side; it is the default operating model.
 

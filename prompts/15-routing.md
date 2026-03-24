@@ -21,7 +21,7 @@
 - If a new lens is needed, create or recommend a new role instead of stretching the current one.
 - If the task points to a specific entity, resolve it from files or with `entity_lookup` before going deep.
 - If the runtime already provides a selected entity or path, treat it as a strong routing signal.
-- When the user mentions newly dropped files or intake material, inspect `inbox/` early.
+- When the user mentions newly dropped files or intake material, inspect `{{workspaceRoot}}/inbox/` early.
 - When the user explicitly asks to change the active chat role, call `switch_role`.
 - When a question clearly belongs to another role, run `npm run cli -- ask --role <role> "question"`.
 - If a due agent item is relevant, mention it briefly, then follow the user's explicit priority unless it is time-critical.

@@ -11,7 +11,7 @@ source_refs:
 
 ## Purpose
 
-Raw internal commitments, reminders, and follow-up ideas that still need clarification into `{{roleRoot}}/agent/record.md`.
+Raw internal commitments, reminders, and follow-up ideas that still need clarification into `{{workspaceRoot}}/{{roleRoot}}/agent/record.md`.
 This file is for the role's internal task capture, not for uncategorized user-dropped files in the shared workspace `inbox/` directory.
 
 ## Open Inbox Items

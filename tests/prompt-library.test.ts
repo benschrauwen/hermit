@@ -40,7 +40,7 @@ describe("PromptLibrary", () => {
         workspaceRoot: "/my/root",
       });
       expect(out).toContain("# Bootstrap Guidance");
-      expect(out).toContain("Create early anchors: `entities/user/record.md`, shared `inbox/`");
+      expect(out).toContain("Create early anchors: `/my/root/entities/user/record.md`, shared `/my/root/inbox/`");
       expect(out).toContain("# Extra Bootstrap");
       expect(out).toContain("Second overlay.");
     });
@@ -59,7 +59,7 @@ describe("PromptLibrary", () => {
         transcriptPath: "/path/to/transcript.md",
       });
       expect(out).toContain("# User Record");
-      expect(out).toContain("Keep the user's durable record in `entities/user/record.md`.");
+      expect(out).toContain("Keep the user's durable record in `/my/root/entities/user/record.md`.");
       expect(out).toContain("# User Communication");
       expect(out).toContain("Assume a non-technical audience unless the user clearly shows otherwise.");
       expect(out).toContain("# Routing Guidance");
@@ -84,7 +84,7 @@ describe("PromptLibrary", () => {
         gitDirty: false,
         gitCheckpointBeforeSha: "1234567890abcdef",
       });
-      expect(out).toContain("`agents/role-a/AGENTS.md`");
+      expect(out).toContain("`/my/root/agents/role-a/AGENTS.md`");
       expect(out).toContain("Current branch: `main`");
       expect(out).toContain("Current HEAD: `1234567` (`1234567890abcdef`)");
       expect(out).toContain("Before-checkpoint SHA: `1234567890abcdef`");
@@ -107,6 +107,25 @@ describe("PromptLibrary", () => {
         ["23-mode-transcript-ingest.md"],
       );
       expect(out).toContain("Preserve the transcript as raw evidence.");
+    });
+
+    it("lets workspace shared prompts override framework prompt files", async () => {
+      writeFileSync(
+        path.join(root, "prompts", "05-file-rules.md"),
+        "# Workspace Override\n\nUse the workspace prompt override.\n",
+      );
+
+      const role = await loadRole(root, "role-a");
+      const lib = await PromptLibrary.load(role);
+      const out = await lib.renderSystemPrompt({
+        workspaceRoot: "/my/root",
+        roleId: "role-a",
+        roleRoot: "agents/role-a",
+      });
+
+      expect(out).toContain("# Workspace Override");
+      expect(out).toContain("Use the workspace prompt override.");
+      expect(out).not.toContain("# File Rules");
     });
 
   });

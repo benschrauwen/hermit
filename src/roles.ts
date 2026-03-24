@@ -3,7 +3,8 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import { HERMIT_ROLE_ID } from "./constants.js";
-import { getErrorCode } from "./fs-utils.js";
+import { fileExists, getErrorCode } from "./fs-utils.js";
+import { resolveFrameworkRoot, resolveSharedPromptTemplateCandidates, resolveWorkspaceRootFromCwd } from "./runtime-paths.js";
 import type {
   RoleDefinition,
   RoleEntityDefinition,
@@ -292,6 +293,7 @@ export function getRootPaths(root: string): {
 }
 
 export function getRolePaths(root: string, roleId: string): {
+  frameworkRoot: string;
   roleDir: string;
   entitiesDir: string;
   agentsFile: string;
@@ -304,16 +306,18 @@ export function getRolePaths(root: string, roleId: string): {
   agentDir: string;
   sessionsDir: string;
 } {
+  const frameworkRoot = resolveFrameworkRoot();
   const rootPaths = getRootPaths(root);
   const roleDir = path.join(rootPaths.agentsDir, roleId);
   return {
+    frameworkRoot,
     roleDir,
     entitiesDir: rootPaths.entitiesDir,
     agentsFile: path.join(roleDir, ROLE_AGENTS_FILE),
     manifestFile: path.join(roleDir, ROLE_MANIFEST_FILE),
-    sharedPromptsDir: path.join(root, "prompts"),
+    sharedPromptsDir: path.join(frameworkRoot, "prompts"),
     rolePromptsDir: path.join(roleDir, "prompts"),
-    sharedSkillsDir: rootPaths.skillsDir,
+    sharedSkillsDir: path.join(frameworkRoot, "skills"),
     roleSkillsDir: path.join(roleDir, "skills"),
     entityDefsDir: path.join(root, "entity-defs"),
     agentDir: path.join(roleDir, "agent"),
@@ -384,6 +388,7 @@ export async function loadRole(root: string, roleId: string): Promise<RoleDefini
     id: manifestRoleId,
     name: asString(data.name, "name"),
     description: asString(data.description, "description"),
+    frameworkRoot: paths.frameworkRoot,
     root,
     roleDir: paths.roleDir,
     entitiesDir: paths.entitiesDir,
@@ -502,15 +507,32 @@ export async function resolveChatSession(root: string, options: {
 
 export function inferRootAndRoleFromCwd(cwd: string): { root: string; roleId?: string } {
   const normalized = path.resolve(cwd);
-  const segments = normalized.split(path.sep);
-  const agentsIndex = segments.lastIndexOf("agents");
+  const root = resolveWorkspaceRootFromCwd(normalized);
+  if (root === normalized) {
+    const segments = normalized.split(path.sep);
+    const agentsIndex = segments.lastIndexOf("agents");
+    if (agentsIndex === -1 || agentsIndex === segments.length - 1) {
+      return { root };
+    }
+
+    const roleId = segments[agentsIndex + 1];
+    const rootSegments = segments.slice(0, agentsIndex);
+    const inferredRoot = rootSegments.length === 0 ? path.sep : rootSegments.join(path.sep);
+    return roleId ? { root: inferredRoot, roleId } : { root: inferredRoot };
+  }
+
+  const relative = path.relative(root, normalized);
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+    return { root };
+  }
+
+  const segments = relative.split(path.sep);
+  const agentsIndex = segments.indexOf("agents");
   if (agentsIndex === -1 || agentsIndex === segments.length - 1) {
-    return { root: normalized };
+    return { root };
   }
 
   const roleId = segments[agentsIndex + 1];
-  const rootSegments = segments.slice(0, agentsIndex);
-  const root = rootSegments.length === 0 ? path.sep : rootSegments.join(path.sep);
   return roleId ? { root, roleId } : { root };
 }
 
@@ -546,9 +568,15 @@ export async function ensureRoleTemplatesExist(role: RoleDefinition): Promise<vo
   }
 
   for (const { filePath, errorMessage } of requiredFiles) {
-    try {
-      await fs.access(filePath);
-    } catch {
+    const candidatePaths = errorMessage.includes("shared agent template:")
+      ? resolveSharedPromptTemplateCandidates(
+          role.root,
+          path.relative(path.join(role.frameworkRoot, "prompts"), filePath),
+          role.frameworkRoot,
+        )
+      : [filePath];
+    const exists = await Promise.all(candidatePaths.map((candidate) => fileExists(candidate))).then((results) => results.some(Boolean));
+    if (!exists) {
       throw new Error(errorMessage);
     }
   }
