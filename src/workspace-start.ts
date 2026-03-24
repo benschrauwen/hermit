@@ -40,6 +40,7 @@ export interface WorkspaceStartLoopOptions {
   workspaceRoot: string;
   frameworkRoot: string;
   heartbeatInterval: string;
+  initialHeartbeatDelay?: string;
   continueHeartbeatSessions?: boolean;
   gitCheckpointsEnabled?: boolean;
   initialSession: InteractiveChatSession;
@@ -832,6 +833,7 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
         "heartbeat-daemon",
         "--interval",
         options.heartbeatInterval,
+        ...(options.initialHeartbeatDelay ? ["--initial-delay", options.initialHeartbeatDelay] : []),
         ...(options.continueHeartbeatSessions ? ["--continue"] : []),
         ...(options.gitCheckpointsEnabled === false ? ["--no-git-checkpoints"] : []),
       ],

@@ -569,6 +569,7 @@ function getChatSessionKey(target: ChatSessionTarget): string {
 }
 
 const program = new Command();
+const COMBINED_START_INITIAL_HEARTBEAT_DELAY = "10s";
 
 program.name("hermit").description("Local file-first runtime for autonomous applications").version("0.1.0");
 
@@ -639,6 +640,7 @@ program
             workspaceRoot: resolved.root,
             frameworkRoot: resolveFrameworkRoot(),
             heartbeatInterval: options.interval,
+            initialHeartbeatDelay: COMBINED_START_INITIAL_HEARTBEAT_DELAY,
             ...(options.continue !== undefined ? { continueHeartbeatSessions: options.continue } : {}),
             ...(options.gitCheckpoints !== undefined ? { gitCheckpointsEnabled: options.gitCheckpoints } : {}),
             initialSession: initialEntry.session,
@@ -846,11 +848,17 @@ program
     'Delay between heartbeat cycles. Use a whole number followed by ms, s, m, or h (for example "30m" or "1h").',
     DEFAULT_HEARTBEAT_DAEMON_INTERVAL,
   )
+  .option(
+    "--initial-delay <duration>",
+    "Delay before the first daemon cycle only. Recurring cycles still use --interval.",
+  )
   .option("--continue", "Continue the most recent persisted heartbeat or strategic-review session for each target.")
-  .action(async (options: { interval: string; continue?: boolean; gitCheckpoints?: boolean }) => {
+  .action(async (options: { interval: string; initialDelay?: string; continue?: boolean; gitCheckpoints?: boolean }) => {
     assertProviderAwareModelConfigured();
     const root = await resolveWorkspaceRoot();
     const intervalMs = parseHeartbeatDaemonInterval(options.interval);
+    const initialDelayMs =
+      options.initialDelay !== undefined ? parseHeartbeatDaemonInterval(options.initialDelay) : undefined;
 
     const daemonController = createHeartbeatDaemonController({
       onAbortError: (error) => {
@@ -878,10 +886,20 @@ program
 
     try {
       console.log(
-        `[${formatDaemonTimestamp()}] Heartbeat daemon started. Running role heartbeats every ${formatHeartbeatDaemonDuration(intervalMs)} and a combined daily strategic-review sweep when due.`,
+        `[${formatDaemonTimestamp()}] Heartbeat daemon started. Running role heartbeats every ${formatHeartbeatDaemonDuration(intervalMs)} and a combined daily strategic-review sweep when due.${initialDelayMs !== undefined ? ` First cycle in ${formatHeartbeatDaemonDuration(initialDelayMs)}.` : ""}`,
       );
 
       while (daemonController.isRunning()) {
+        if (initialDelayMs !== undefined && firstCycle) {
+          console.log(
+            `[${formatDaemonTimestamp()}] Waiting ${formatHeartbeatDaemonDuration(initialDelayMs)} before the first daemon cycle.`,
+          );
+          await sleepUntilNextHeartbeat(initialDelayMs, () => daemonController.isRunning());
+          if (!daemonController.isRunning()) {
+            break;
+          }
+        }
+
         await ensureWorkspaceScaffold(root);
         const roleIds = await listRoleIds(root);
         const roles: RoleDefinition[] = [];
