@@ -71,6 +71,10 @@ npm start
 
 This single command starts the explorer, launches the heartbeat daemon in the top pane, and opens the interactive chat UI below it.
 
+### Optional: Open The Explorer On Another Device
+
+If you want to open the explorer from another device, install the free [Tailscale](https://tailscale.com/) mesh VPN on both devices and sign in. When Tailscale is available, `npm start` will automatically publish the explorer into your tailnet and show the Tailscale URL in the console.
+
 On first run, Hermit automatically creates `./workspace`, initializes it as its own git repo, writes a workspace `.gitignore`, and scaffolds the directories it needs there.
 
 If you want the pieces separately instead:

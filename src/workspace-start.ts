@@ -19,6 +19,7 @@ import {
 
 import { createSessionStreamHandler, formatEntryDesignator, formatUserPromptEcho, type SessionOutputSink } from "./session-terminal.js";
 import type { InteractiveChatSession, RoleSwitchRequest } from "./session-types.js";
+import { readHermitTailscaleNotice, readHermitTailscaleUrl } from "./tailscale.js";
 import type { TelemetryRecorder } from "./telemetry-recorder.js";
 import { formatWorkspaceTurnOwner, runInteractiveSessionTurn } from "./turn-control.js";
 
@@ -351,6 +352,7 @@ class WorkspaceStartLayout implements Component, Focusable {
   private activeRoleLabel: string;
   private modelLabel: string;
   private explorerStatus = `starting on ${DEFAULT_EXPLORER_URL}`;
+  private tailscaleStatus: string | undefined;
 
   private _focused = false;
 
@@ -391,6 +393,16 @@ class WorkspaceStartLayout implements Component, Focusable {
     }
 
     this.explorerStatus = status;
+    this.tui.requestRender();
+  }
+
+  setTailscaleStatus(status: string | undefined): void {
+    const normalized = status?.trim() || undefined;
+    if (this.tailscaleStatus === normalized) {
+      return;
+    }
+
+    this.tailscaleStatus = normalized;
     this.tui.requestRender();
   }
 
@@ -436,9 +448,13 @@ class WorkspaceStartLayout implements Component, Focusable {
   }
 
   private renderHeartbeatPane(width: number, height: number): string[] {
+    const detail = [
+      `Explorer ${this.explorerStatus}`,
+      ...(this.tailscaleStatus ? [`Tailscale ${this.tailscaleStatus}`] : []),
+    ].join(" | ");
     const header = renderHeader(
       `${ANSI_BOLD}Heartbeat daemon${ANSI_RESET}`,
-      `Explorer ${this.explorerStatus}`,
+      detail,
       width,
     );
     const bodyHeight = Math.max(0, height - 1);
@@ -552,6 +568,10 @@ class WorkspaceStartTui implements SessionOutputSink {
 
   setExplorerStatus(status: string): void {
     this.layout.setExplorerStatus(status);
+  }
+
+  setTailscaleStatus(status: string | undefined): void {
+    this.layout.setTailscaleStatus(status);
   }
 
   setShutdownHandler(handler: () => Promise<void>): void {
@@ -793,6 +813,16 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
   ui.setShutdownHandler(requestShutdown);
   ui.appendSystemNotice(`Using model ${activeSession.modelLabel}.`);
   ui.setExplorerStatus(`starting on ${DEFAULT_EXPLORER_URL}`);
+  const tailscaleUrl = readHermitTailscaleUrl();
+  if (tailscaleUrl) {
+    ui.setTailscaleStatus(`up at ${tailscaleUrl}`);
+    ui.appendSystemNotice(`Tailscale up at ${tailscaleUrl}.`);
+  } else {
+    const tailscaleNotice = readHermitTailscaleNotice();
+    if (tailscaleNotice) {
+      ui.appendSystemNotice(tailscaleNotice);
+    }
+  }
 
   const onSignal = (signal: NodeJS.Signals) => {
     ui.requestShutdown(`Received ${signal}. Stopping Hermit and canceling live sessions...`);
