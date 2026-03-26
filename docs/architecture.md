@@ -164,6 +164,7 @@ Thinking level: `ROLE_AGENT_THINKING_LEVEL` env var, default `medium`.
 - `id_strategy`: `prefixed-slug`, `year-sequence-slug`, or `singleton`
 - `id_source_fields`, optional `id_prefix`, `name_template`
 - `fields` with per-field `key`, `label`, `type` (`string` or `string-array`), `description`, optional `required` and `defaultValue`
+- Optional `relationships` with per-relationship `source_field`, `target_type`, `edge_type`, and optional `reverse_edge_type`
 - `files` with per-file `path` and `template`
 - Optional `status_field`, `owner_field`, `include_in_initialization`, `extra_directories`
 - Optional `explorer.renderers` for detail-level and file-level custom rendering
@@ -175,6 +176,8 @@ The shared `workspace/inbox/` directory is a transient intake area, not a canoni
 `createRoleEntityRecord()` renders declared entity files, computes a deterministic ID, and writes without overwriting unless forced.
 
 Entity scanning is filesystem-based. A directory containing `record.md` is an entity leaf. Shared entity scanning excludes directory roots claimed by role entity definitions. Role entity scanning uses each definition's `scan_directories` or `create_directory`.
+
+Graph-style queries are a derived read model, not a second source of truth. The runtime can build an in-memory entity graph on demand by scanning the current markdown entities, loading relationship declarations from `entity-defs/entities.md`, and projecting typed edges from frontmatter references. Broken or mistyped references remain visible as diagnostics instead of silently rewriting the markdown store.
 
 ### Transcript ingest
 

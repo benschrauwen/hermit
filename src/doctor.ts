@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
+import { buildEntityGraph } from "./entity-graph.js";
 import { getProviderAwareModelDiagnostics } from "./model-auth.js";
 import { SHARED_ROOT_DIRECTORIES } from "./constants.js";
 import { PromptLibrary } from "./prompt-library.js";
@@ -313,10 +314,12 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
 
   const entities = await scanEntities(root, role);
   const seenIds = new Set<string>();
+  let hasDuplicateIds = false;
 
   for (const entity of entities) {
     if (seenIds.has(entity.id)) {
       addGeneralFinding(findings, "error", `Duplicate entity ID detected: ${entity.id}`);
+      hasDuplicateIds = true;
     }
     seenIds.add(entity.id);
 
@@ -343,6 +346,33 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
           addGeneralFinding(findings, "warning", `${requiredPath} is missing or unreadable.`);
         }
       }
+    }
+  }
+
+  if (!hasDuplicateIds) {
+    try {
+      const graph = await buildEntityGraph(root, role);
+      for (const reference of graph.brokenReferences) {
+        if (reference.reason === "missing-target") {
+          addGeneralFinding(
+            findings,
+            "warning",
+            `Broken relationship reference: ${reference.sourceId}.${reference.sourceField} (${reference.edgeType}) points to missing ${reference.expectedTargetType} ${reference.targetId}.`,
+          );
+          continue;
+        }
+        addGeneralFinding(
+          findings,
+          "warning",
+          `Broken relationship reference: ${reference.sourceId}.${reference.sourceField} (${reference.edgeType}) expected ${reference.expectedTargetType} ${reference.targetId} but found ${reference.actualTargetType ?? "unknown"}.`,
+        );
+      }
+    } catch (error) {
+      addGeneralFinding(
+        findings,
+        "warning",
+        error instanceof Error ? error.message : "Failed to build entity relationship graph.",
+      );
     }
   }
 

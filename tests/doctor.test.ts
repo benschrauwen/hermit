@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import path from "node:path";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 
 import { printDoctorContext, runDoctor } from "../src/doctor.js";
 import { loadRole } from "../src/roles.js";
 import { ensureWorkspaceScaffold } from "../src/workspace.js";
 import { seedRoleWorkspace, writeSharedEntityRecord } from "./test-helpers.js";
+
+function replaceInFile(filePath: string, oldText: string, newText: string): void {
+  const original = readFileSync(filePath, "utf8");
+  writeFileSync(filePath, original.replace(oldText, newText));
+}
 
 describe("runDoctor", () => {
   let consoleSpy: { log: ReturnType<typeof vi.spyOn> };
@@ -152,6 +157,62 @@ Owns real follow-through for the role.
       const logged = consoleSpy.log.mock.calls.map((c) => c[0] as string);
       expect(result).toBe(true);
       expect(logged.some((m) => m.includes("placeholder text"))).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("warns on broken relationship references without failing the workspace", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "doctor-relationship-broken-"));
+
+    try {
+      seedRoleWorkspace(root, ["role-a"]);
+      replaceInFile(
+        path.join(root, "entity-defs", "entities.md"),
+        `    files:
+      - path: record.md
+        template: item/record.md
+      - path: notes.md
+        template: item/notes.md
+`,
+        `    relationships:
+      - source_field: title
+        target_type: case
+        edge_type: references_case
+    files:
+      - path: record.md
+        template: item/record.md
+      - path: notes.md
+        template: item/notes.md
+`,
+      );
+
+      const role = await loadRole(root, "role-a");
+      await ensureWorkspaceScaffold(root, role);
+      writeSharedEntityRecord(root);
+
+      const itemDir = path.join(root, "entities", "items", "itm-widget");
+      mkdirSync(itemDir, { recursive: true });
+      writeFileSync(
+        path.join(itemDir, "record.md"),
+        `---
+id: itm-widget
+type: item
+name: Widget
+title: cs-2026-0001-missing
+updated_at: 2026-03-26T12:00:00.000Z
+---
+
+## Summary
+
+Points at a missing case through the title field.
+`,
+      );
+
+      const result = await runDoctor(root, "role-a");
+      const logged = consoleSpy.log.mock.calls.map((c) => c[0] as string);
+      expect(result).toBe(true);
+      expect(logged.some((m) => m.includes("Broken relationship reference: itm-widget.title (references_case) points to missing case cs-2026-0001-missing."))).toBe(true);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

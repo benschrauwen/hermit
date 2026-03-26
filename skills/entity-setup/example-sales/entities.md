@@ -58,6 +58,11 @@ entities:
         label: Email
         type: string
         description: Primary email.
+    relationships:
+      - source_field: company_id
+        target_type: company
+        edge_type: works_at
+        reverse_edge_type: employs
     files:
       - path: record.md
         template: person/record.md
@@ -140,6 +145,11 @@ entities:
         label: Summary
         type: string
         description: Short deal summary.
+    relationships:
+      - source_field: company_id
+        target_type: company
+        edge_type: account_for
+        reverse_edge_type: has_deal
     files:
       - path: record.md
         template: deal/record.md

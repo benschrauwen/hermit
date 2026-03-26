@@ -75,6 +75,36 @@ describe("loadRole", () => {
     );
   });
 
+  it("rejects relationship target types that are not defined", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "roles-relationship-target-"));
+    roots.push(root);
+    seedRoleWorkspace(root, ["role-a"]);
+
+    replaceInFile(
+      path.join(root, "entity-defs", "entities.md"),
+      `    files:
+      - path: record.md
+        template: item/record.md
+      - path: notes.md
+        template: item/notes.md
+`,
+      `    relationships:
+      - source_field: title
+        target_type: missing-type
+        edge_type: related_to
+    files:
+      - path: record.md
+        template: item/record.md
+      - path: notes.md
+        template: item/notes.md
+`,
+    );
+
+    await expect(validateRoleManifest(root, "role-a")).rejects.toThrow(
+      "Role role-a relationship item.title references unknown target type missing-type.",
+    );
+  });
+
   it("requires the manifest id to match the role directory name", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "roles-id-mismatch-"));
     roots.push(root);

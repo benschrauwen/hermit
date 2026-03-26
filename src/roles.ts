@@ -8,6 +8,7 @@ import { resolveFrameworkRoot, resolveSharedPromptTemplateCandidates, resolveWor
 import type {
   RoleDefinition,
   RoleEntityDefinition,
+  RoleEntityRelationshipDefinition,
   RoleExplorerConfig,
   RoleFieldDefinition,
   RoleResolution,
@@ -119,6 +120,53 @@ function parseFileDefinitions(value: unknown): Array<{ path: string; template: s
   });
 }
 
+function parseRelationshipDefinitions(
+  value: unknown,
+  fieldKeys: ReadonlySet<string>,
+  entityIndex: number,
+): RoleEntityRelationshipDefinition[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`Invalid role manifest field: entities[${entityIndex}].relationships`);
+  }
+
+  return value.map((entry, relationshipIndex) => {
+    const record = asObject(
+      entry,
+      `Invalid role relationship definition at entities[${entityIndex}].relationships[${relationshipIndex}]`,
+    );
+    const sourceField = asString(
+      record.source_field,
+      `entities[${entityIndex}].relationships[${relationshipIndex}].source_field`,
+    );
+    if (!fieldKeys.has(sourceField)) {
+      throw new Error(
+        `entities[${entityIndex}].relationships[${relationshipIndex}].source_field references unknown field ${sourceField}`,
+      );
+    }
+
+    const parsed: RoleEntityRelationshipDefinition = {
+      sourceField,
+      targetType: asString(
+        record.target_type,
+        `entities[${entityIndex}].relationships[${relationshipIndex}].target_type`,
+      ),
+      edgeType: asString(
+        record.edge_type,
+        `entities[${entityIndex}].relationships[${relationshipIndex}].edge_type`,
+      ),
+    };
+
+    if (record.reverse_edge_type !== undefined) {
+      parsed.reverseEdgeType = asString(
+        record.reverse_edge_type,
+        `entities[${entityIndex}].relationships[${relationshipIndex}].reverse_edge_type`,
+      );
+    }
+
+    return parsed;
+  });
+}
+
 const ENTITIES_FILE = "entities.md";
 
 export interface EntityDefsLoadResult {
@@ -206,6 +254,9 @@ function parseEntityDefinitions(value: unknown): RoleEntityDefinition[] {
         record.exclude_directory_names,
         `entities[${index}].exclude_directory_names`,
       );
+    }
+    if (Array.isArray(record.relationships)) {
+      parsed.relationships = parseRelationshipDefinitions(record.relationships, fieldKeys, index);
     }
     for (const fieldName of parsed.idSourceFields) {
       if (!fieldKeys.has(fieldName)) {
@@ -595,6 +646,16 @@ export async function validateRoleManifest(root: string, roleId: string): Promis
       throw new Error(
         `Role ${roleId} transcript_ingest references unknown entity type ${role.transcriptIngest.entityType}.`,
       );
+    }
+  }
+
+  for (const entity of role.entities) {
+    for (const relationship of entity.relationships ?? []) {
+      if (!entityTypes.has(relationship.targetType)) {
+        throw new Error(
+          `Role ${roleId} relationship ${entity.type}.${relationship.sourceField} references unknown target type ${relationship.targetType}.`,
+        );
+      }
     }
   }
 

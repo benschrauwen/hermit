@@ -112,6 +112,7 @@ function buildFieldContext(input: Record<string, unknown>): Record<string, strin
       const stringValues = value.map((entry) => String(entry));
       context[key] = stringValues.join(", ");
       context[`${key}BulletList`] = renderBulletList(stringValues, "- None.");
+      context[`${key}YamlList`] = renderYamlList(stringValues);
     }
   }
 

@@ -44,6 +44,13 @@ export interface RoleTemplateFileDefinition {
   template: string;
 }
 
+export interface RoleEntityRelationshipDefinition {
+  sourceField: string;
+  targetType: string;
+  edgeType: string;
+  reverseEdgeType?: string;
+}
+
 export interface RoleEntityDefinition {
   key: string;
   label: string;
@@ -60,6 +67,7 @@ export interface RoleEntityDefinition {
   includeInInitialization?: boolean;
   extraDirectories?: string[];
   fields: RoleFieldDefinition[];
+  relationships?: RoleEntityRelationshipDefinition[];
   files: RoleTemplateFileDefinition[];
 }
 
