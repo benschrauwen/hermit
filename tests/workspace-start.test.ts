@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { extractExplorerUrl, resolveWorkspaceStartLayout } from "../src/workspace-start.js";
+import { extractExplorerUrl, renderAnsiTextBlock, resolveWorkspaceStartLayout } from "../src/workspace-start.js";
 
 describe("resolveWorkspaceStartLayout", () => {
   it("reserves a larger lower pane for chat on standard terminals", () => {
@@ -29,5 +29,15 @@ describe("extractExplorerUrl", () => {
 
   it("returns undefined when no local URL is present", () => {
     expect(extractExplorerUrl("starting explorer...\n")).toBeUndefined();
+  });
+});
+
+describe("renderAnsiTextBlock", () => {
+  it("treats CR-based redraws as line replacement", () => {
+    expect(renderAnsiTextBlock("| Thinking\r\x1b[2K/ Thinking\r\x1b[2K- Thinking", 80)).toEqual(["- Thinking"]);
+  });
+
+  it("keeps completed heartbeat log lines after spinner redraws", () => {
+    expect(renderAnsiTextBlock("| Thinking\r\x1b[2K[done]\n", 80)).toEqual(["[done]", ""]);
   });
 });

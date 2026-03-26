@@ -26,6 +26,7 @@ const ANSI_BOLD = "\x1b[1m";
 const ANSI_DIM = "\x1b[90m";
 const ANSI_RESET = "\x1b[0m";
 const ANSI_BRIGHT_MAGENTA = "\x1b[95m";
+const ANSI_CONTROL_SEQUENCE_PATTERN = /\x1B(?:\[[0-?]*[ -/]*[@-~]|\][^\u0007]*(?:\u0007|\x1B\\))/y;
 
 const STATUS_SPINNER_FRAMES = ["|", "/", "-", "\\"] as const;
 const STATUS_SPINNER_INTERVAL_MS = 80;
@@ -104,22 +105,91 @@ function colorize(code: string, text: string): string {
   return `${code}${text}${ANSI_RESET}`;
 }
 
-function renderAnsiTextBlock(text: string, width: number): string[] {
+function matchAnsiControlSequence(text: string, index: number): string | undefined {
+  ANSI_CONTROL_SEQUENCE_PATTERN.lastIndex = index;
+  return ANSI_CONTROL_SEQUENCE_PATTERN.exec(text)?.[0];
+}
+
+function isEraseLineSequence(sequence: string): boolean {
+  return /^\x1b\[(?:0|2)?K$/.test(sequence);
+}
+
+function appendWrappedAnsiLine(target: string[], line: string, width: number): void {
+  if (line.length === 0) {
+    target.push("");
+    return;
+  }
+
+  target.push(...wrapTextWithAnsi(line, width));
+}
+
+export function renderAnsiTextBlock(text: string, width: number): string[] {
   if (!text) {
     return [];
   }
 
   const safeWidth = Math.max(1, width);
-  const normalizedText = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   const rendered: string[] = [];
+  let currentLine = "";
+  let carriageReturnPending = false;
 
-  for (const line of normalizedText.split("\n")) {
-    if (line.length === 0) {
-      rendered.push("");
+  for (let index = 0; index < text.length; ) {
+    const currentChar = text[index];
+
+    if (currentChar === "\r" && text[index + 1] === "\n") {
+      appendWrappedAnsiLine(rendered, currentLine, safeWidth);
+      currentLine = "";
+      carriageReturnPending = false;
+      index += 2;
       continue;
     }
 
-    rendered.push(...wrapTextWithAnsi(line, safeWidth));
+    const ansiSequence = currentChar === "\x1b" ? matchAnsiControlSequence(text, index) : undefined;
+    if (ansiSequence) {
+      if (isEraseLineSequence(ansiSequence)) {
+        currentLine = "";
+        carriageReturnPending = false;
+      } else {
+        if (carriageReturnPending) {
+          currentLine = "";
+          carriageReturnPending = false;
+        }
+        currentLine += ansiSequence;
+      }
+      index += ansiSequence.length;
+      continue;
+    }
+
+    if (currentChar === "\r") {
+      carriageReturnPending = true;
+      index += 1;
+      continue;
+    }
+
+    if (currentChar === "\n") {
+      appendWrappedAnsiLine(rendered, currentLine, safeWidth);
+      currentLine = "";
+      carriageReturnPending = false;
+      index += 1;
+      continue;
+    }
+
+    if (carriageReturnPending) {
+      // Heartbeat status redraws use CR-based line replacement.
+      currentLine = "";
+      carriageReturnPending = false;
+    }
+
+    currentLine += currentChar;
+    index += 1;
+  }
+
+  if (currentLine.length > 0) {
+    appendWrappedAnsiLine(rendered, currentLine, safeWidth);
+  }
+
+  if (text.endsWith("\n")) {
+    rendered.push("");
   }
 
   return rendered;
