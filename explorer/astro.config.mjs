@@ -10,6 +10,8 @@ export default defineConfig({
   publicDir: path.resolve(process.cwd(), '..', 'public'),
   vite: {
     server: {
+      // Allow Tailscale Serve, ngrok, etc. (Host header is not localhost).
+      allowedHosts: true,
       fs: {
         allow: [path.resolve(process.cwd(), '..')],
       },
