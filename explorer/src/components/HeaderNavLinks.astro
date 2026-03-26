@@ -1,0 +1,18 @@
+---
+interface Props {
+  roleId?: string;
+  roleName?: string;
+  /** Wider tap targets and block layout for the mobile drawer */
+  mobile?: boolean;
+}
+
+const { roleId, roleName, mobile } = Astro.props;
+const linkClass = mobile ? "nav-link nav-link--stacked" : "nav-link";
+---
+
+<a class={linkClass} href="/">Home</a>
+<a class={linkClass} href="/entities">Entities</a>
+<a class={linkClass} href="/agents">Agents</a>
+<a class={linkClass} href="/architecture">Architecture</a>
+<a class={linkClass} href="/license">License</a>
+{roleId && <a class={linkClass} href={`/agents/${roleId}`}>{roleName ?? roleId}</a>}

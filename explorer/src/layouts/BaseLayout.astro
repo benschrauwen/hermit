@@ -1,5 +1,6 @@
 ---
 import "../styles/global.css";
+import HeaderNavLinks from "../components/HeaderNavLinks.astro";
 
 interface Props {
   title: string;
@@ -19,17 +20,29 @@ const { title, roleId, roleName } = Astro.props;
   <body>
     <div class="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.10),_transparent_34%),linear-gradient(to_bottom,_#f8fafc,_#f1f5f9)]">
       <header class="sticky top-0 z-20 border-b border-white/10 bg-slate-950/90 backdrop-blur">
-        <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
-          <a href="/" class="text-sm font-semibold tracking-[0.12em] text-white no-underline">
+        <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
+          <a href="/" class="shrink-0 text-sm font-semibold tracking-[0.12em] text-white no-underline">
             HERMIT
           </a>
-          <nav class="flex flex-wrap items-center gap-2">
-            <a class="nav-link" href="/">Home</a>
-            <a class="nav-link" href="/entities">Entities</a>
-            <a class="nav-link" href="/agents">Agents</a>
-            <a class="nav-link" href="/architecture">Architecture</a>
-            <a class="nav-link" href="/license">License</a>
-            {roleId && (<a class="nav-link" href={`/agents/${roleId}`}>{roleName ?? roleId}</a>)}
+          <details class="relative md:hidden">
+            <summary
+              class="list-none cursor-pointer rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-slate-200 transition hover:bg-white/10 [&::-webkit-details-marker]:hidden"
+            >
+              <span class="sr-only">Open menu</span>
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" />
+              </svg>
+            </summary>
+            <div
+              class="absolute right-0 z-30 mt-2 min-w-[12rem] rounded-xl border border-white/10 bg-slate-950/95 p-2 shadow-lg backdrop-blur"
+            >
+              <nav class="flex flex-col gap-0.5">
+                <HeaderNavLinks roleId={roleId} roleName={roleName} mobile />
+              </nav>
+            </div>
+          </details>
+          <nav class="hidden items-center gap-2 md:flex" aria-label="Main">
+            <HeaderNavLinks roleId={roleId} roleName={roleName} />
           </nav>
         </div>
       </header>

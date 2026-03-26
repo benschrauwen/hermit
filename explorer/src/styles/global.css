@@ -49,6 +49,10 @@
     @apply rounded-full px-3 py-1.5 text-sm font-medium text-slate-300 no-underline transition hover:bg-white/10 hover:text-white;
   }
 
+  .nav-link--stacked {
+    @apply block w-full rounded-lg px-3 py-2.5 text-left;
+  }
+
   .page-shell {
     @apply mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10;
   }
