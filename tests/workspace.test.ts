@@ -1,23 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, writeFileSync, mkdirSync, readdirSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { loadRole } from "../src/roles.js";
 import { resolveFrameworkRoot } from "../src/runtime-paths.js";
 import {
-  appendLine,
-  copyTranscriptIntoRoleEntity,
-  copyTranscriptToRoleInbox,
   createRoleEntityRecord,
   ensureWorkspaceScaffold,
-  findCreatableRoleEntities,
   findEntityById,
-  findTranscriptEntityCandidates,
   getWorkspaceInitializationState,
   getWorkspacePaths,
   makeSlug,
-  resolveTranscriptEntity,
   scanEntities,
   writeFileSafely,
 } from "../src/workspace.js";
@@ -98,12 +92,11 @@ describe("workspace", () => {
     expect(state.roleEntityCounts.item).toBe(1);
   });
 
-  it("supports safe writes and append operations", async () => {
+  it("supports safe writes", async () => {
     const filePath = path.join(tmpRoot, "notes", "log.md");
     await writeFileSafely(filePath, "one");
     await expect(writeFileSafely(filePath, "two")).rejects.toThrow(/Refusing to overwrite/);
-    await appendLine(filePath, "two");
-    expect(readFileSync(filePath, "utf8")).toBe("one" + "two\n");
+    expect(readFileSync(filePath, "utf8")).toBe("one");
   });
 
   it("detects generic shared entities during scans", async () => {
@@ -237,7 +230,7 @@ describe("workspace", () => {
     expect(entities.map((entity) => entity.id)).toEqual(expect.arrayContaining(["shared-note", "itm-widget"]));
   });
 
-  it("finds entities by ID and filters creatable role entities", async () => {
+  it("finds entities by ID", async () => {
     const role = await loadRole(tmpRoot, "role-a");
     await ensureWorkspaceScaffold(tmpRoot, role);
     const caseEntity = await createRoleEntityRecord(
@@ -253,72 +246,7 @@ describe("workspace", () => {
       { sourceRefs: ["test"] },
     );
     const found = await findEntityById(tmpRoot, role, caseEntity.id);
-    const activeCases = await findCreatableRoleEntities(tmpRoot, role, "case");
     expect(found?.id).toBe(caseEntity.id);
-    expect(activeCases.map((entity) => entity.id)).toContain(caseEntity.id);
-  });
-
-  it("matches transcript candidates against the configured transcript capability", async () => {
-    const role = await loadRole(tmpRoot, "role-a");
-    await ensureWorkspaceScaffold(tmpRoot, role);
-    await createRoleEntityRecord(
-      role,
-      "case",
-      {
-        account: "Acme",
-        title: "Platform",
-        owner: "Taylor",
-        status: "active",
-        nextStep: "Review",
-      },
-      { sourceRefs: ["test"] },
-    );
-    await createRoleEntityRecord(
-      role,
-      "case",
-      {
-        account: "Acme",
-        title: "Expansion",
-        owner: "Taylor",
-        status: "active",
-        nextStep: "Review plan",
-      },
-      { sourceRefs: ["test"] },
-    );
-
-    const capability = role.transcriptIngest!;
-    const candidates = await findTranscriptEntityCandidates(tmpRoot, role, capability, "/tmp/acme-expansion-call.md");
-    expect(candidates.length).toBeGreaterThan(0);
-
-    const resolved = await resolveTranscriptEntity(tmpRoot, role, capability, undefined, "/tmp/acme-expansion-call.md");
-    expect(resolved?.name).toContain("Expansion");
-  });
-
-  it("copies transcript evidence into a role entity and inbox", async () => {
-    const role = await loadRole(tmpRoot, "role-a");
-    await ensureWorkspaceScaffold(tmpRoot, role);
-    const caseEntity = await createRoleEntityRecord(
-      role,
-      "case",
-      {
-        account: "Acme",
-        title: "Expansion",
-        owner: "Taylor",
-        status: "active",
-        nextStep: "Review",
-      },
-      { sourceRefs: ["test"] },
-    );
-    const sourcePath = path.join(tmpRoot, "call.md");
-    writeFileSync(sourcePath, "Transcript content");
-    const capability = role.transcriptIngest!;
-    const entity = (await findEntityById(tmpRoot, role, caseEntity.id))!;
-    const copied = await copyTranscriptIntoRoleEntity(capability, entity, sourcePath);
-    const inboxCopy = await copyTranscriptToRoleInbox(role, capability, sourcePath);
-    expect(readFileSync(copied, "utf8")).toBe("Transcript content");
-    expect(readFileSync(inboxCopy, "utf8")).toBe("Transcript content");
-    expect(copied).toContain("transcripts");
-    expect(inboxCopy).toContain("unmatched-transcripts");
   });
 
   it("supports a second role without changing core code", async () => {

@@ -30,6 +30,7 @@ export interface HeartbeatDaemonStopResult {
 export interface HeartbeatDaemonController {
   isRunning(): boolean;
   setActiveAbort(abortActiveSession?: (() => Promise<void>) | undefined): void;
+  onStop(listener: () => void): () => void;
   stop(): HeartbeatDaemonStopResult;
 }
 
@@ -92,6 +93,7 @@ export function createHeartbeatDaemonController(options: {
 } = {}): HeartbeatDaemonController {
   let keepRunning = true;
   let activeAbort: (() => Promise<void>) | undefined;
+  const stopListeners = new Set<() => void>();
 
   return {
     isRunning(): boolean {
@@ -100,12 +102,21 @@ export function createHeartbeatDaemonController(options: {
     setActiveAbort(abortActiveSession?: (() => Promise<void>) | undefined): void {
       activeAbort = abortActiveSession;
     },
+    onStop(listener: () => void): () => void {
+      stopListeners.add(listener);
+      return () => {
+        stopListeners.delete(listener);
+      };
+    },
     stop(): HeartbeatDaemonStopResult {
       if (!keepRunning) {
         return { requested: false, abortedActiveSession: false };
       }
 
       keepRunning = false;
+      for (const listener of stopListeners) {
+        listener();
+      }
       const abortActiveSession = activeAbort;
       if (abortActiveSession) {
         void abortActiveSession().catch((error) => {

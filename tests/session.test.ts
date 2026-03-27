@@ -6,18 +6,22 @@ import { tmpdir } from "node:os";
 import {
   DEFAULT_CHAT_OPENING_PROMPT,
   DEFAULT_HEARTBEAT_PROMPT,
+  HERMIT_STRATEGIC_REVIEW_PROMPT,
+  ONBOARDING_CHAT_OPENING_PROMPT,
+  resolveInitialChatPrompt,
+} from "../src/session-prompts.js";
+import {
+  loadImageAttachments,
+  resolveHermitSessionDirectory,
+  resolvePersistedSessionDirectory,
+  resolveRoleSkillPaths,
+  resolveSharedSkillPaths,
+} from "../src/session-runtime.js";
+import {
   formatActivityStatus,
   formatUserPromptEcho,
-  HERMIT_STRATEGIC_REVIEW_PROMPT,
-  loadImageAttachments,
-  ONBOARDING_CHAT_OPENING_PROMPT,
   renderTerminalMarkdown,
-  resolveHermitSessionDirectory,
-  resolveRoleSkillPaths,
-  resolvePersistedSessionDirectory,
-  resolveSharedSkillPaths,
-  resolveInitialChatPrompt,
-} from "../src/session.js";
+} from "../src/session-terminal.js";
 import { resolveFrameworkRoot } from "../src/runtime-paths.js";
 import type { RoleDefinition } from "../src/types.js";
 

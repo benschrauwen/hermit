@@ -3,7 +3,8 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import path from "node:path";
 import { tmpdir } from "node:os";
 
-import { TelemetryRecorder, generateTelemetryReport, renderTelemetryReportSummary, writeTelemetryReport } from "../src/telemetry.js";
+import { TelemetryRecorder } from "../src/telemetry-recorder.js";
+import { generateTelemetryReport, renderTelemetryReportSummary, writeTelemetryReport } from "../src/telemetry-report.js";
 
 function findTelemetryEventFiles(root: string): string[] {
   const yearDirs = readdirSync(path.join(root, ".hermit", "telemetry", "events"));

@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { HERMIT_ROLE_ID } from "./constants.js";
 import { resolveFrameworkRoot, resolveSharedPromptDirectories } from "./runtime-paths.js";
+import { renderTemplateString } from "./template-library.js";
 import type { PromptContext, RoleDefinition } from "./types.js";
 
 interface PromptSource {
@@ -12,13 +13,33 @@ interface PromptSource {
 }
 
 export interface PromptPartBreakdown {
-  kind: "shared" | "agents" | "role-prompt";
+  kind: "shared" | "agents";
   sourcePath: string;
   renderedChars: number;
 }
 
 interface RenderedPromptPart extends PromptPartBreakdown {
   content: string;
+}
+
+function buildPromptTemplateContext(context: PromptContext, role?: RoleDefinition): Record<string, string> {
+  return {
+    workspaceRoot: context.workspaceRoot,
+    roleId: context.roleId ?? role?.id ?? HERMIT_ROLE_ID,
+    roleRoot: context.roleRoot ?? (role ? path.relative(context.workspaceRoot, role.roleDir) || "." : "."),
+    entityId: context.entityId ?? "not-selected",
+    entityPath: context.entityPath ?? "not-selected",
+    currentDateTimeIso: context.currentDateTimeIso ?? "unknown",
+    currentLocalDateTime: context.currentLocalDateTime ?? "unknown",
+    currentTimeZone: context.currentTimeZone ?? "unknown",
+    gitBranch: context.gitBranch ?? "unknown",
+    gitHeadSha: context.gitHeadSha ?? "unknown",
+    gitHeadShortSha: context.gitHeadShortSha ?? "unknown",
+    gitHeadSubject: context.gitHeadSubject ?? "unknown",
+    gitDirty: context.gitDirty === undefined ? "unknown" : context.gitDirty ? "yes" : "no",
+    gitCheckpointBeforeSha: context.gitCheckpointBeforeSha ?? "not-created",
+    gitCheckpointAfterSha: "not-created",
+  };
 }
 
 export class PromptLibrary {
@@ -45,17 +66,15 @@ export class PromptLibrary {
 
   async renderSystemPrompt(
     context: PromptContext,
-    additionalRolePromptFiles: string[] = [],
   ): Promise<string> {
-    const parts = await this.buildSystemPromptParts(context, additionalRolePromptFiles);
+    const parts = await this.buildSystemPromptParts(context);
     return parts.map((part) => part.content).join("\n\n");
   }
 
   async getSystemPromptBreakdown(
     context: PromptContext,
-    additionalRolePromptFiles: string[] = [],
   ): Promise<PromptPartBreakdown[]> {
-    const parts = await this.buildSystemPromptParts(context, additionalRolePromptFiles);
+    const parts = await this.buildSystemPromptParts(context);
     return parts.map(({ content: _content, ...breakdown }) => breakdown);
   }
 
@@ -83,26 +102,7 @@ export class PromptLibrary {
   }
 
   private renderTemplate(template: string, context: PromptContext): string {
-    const values: Record<string, string> = {
-      workspaceRoot: context.workspaceRoot,
-      roleId: context.roleId ?? this.role?.id ?? HERMIT_ROLE_ID,
-      roleRoot: context.roleRoot ?? (this.role ? path.relative(context.workspaceRoot, this.role.roleDir) || "." : "."),
-      entityId: context.entityId ?? "not-selected",
-      entityPath: context.entityPath ?? "not-selected",
-      transcriptPath: context.transcriptPath ?? "not-selected",
-      currentDateTimeIso: context.currentDateTimeIso ?? "unknown",
-      currentLocalDateTime: context.currentLocalDateTime ?? "unknown",
-      currentTimeZone: context.currentTimeZone ?? "unknown",
-      gitBranch: context.gitBranch ?? "unknown",
-      gitHeadSha: context.gitHeadSha ?? "unknown",
-      gitHeadShortSha: context.gitHeadShortSha ?? "unknown",
-      gitHeadSubject: context.gitHeadSubject ?? "unknown",
-      gitDirty: context.gitDirty === undefined ? "unknown" : context.gitDirty ? "yes" : "no",
-      gitCheckpointBeforeSha: context.gitCheckpointBeforeSha ?? "not-created",
-      gitCheckpointAfterSha: "not-created",
-    };
-
-    return template.replaceAll(/\{\{(\w+)\}\}/g, (_match, key: string) => values[key] ?? "");
+    return renderTemplateString(template, buildPromptTemplateContext(context, this.role));
   }
 
   private static async loadSharedPrompts(sharedPromptDirectories: string[]): Promise<PromptSource[]> {
@@ -141,7 +141,6 @@ export class PromptLibrary {
 
   private async buildSystemPromptParts(
     context: PromptContext,
-    additionalRolePromptFiles: string[],
   ): Promise<RenderedPromptPart[]> {
     const parts: RenderedPromptPart[] = [];
 
@@ -150,16 +149,6 @@ export class PromptLibrary {
     }
 
     parts.push(this.createPromptPart("agents", this.role?.agentsFile ?? "AGENTS.md", this.agentsContent, context));
-
-    for (const fileName of additionalRolePromptFiles) {
-      if (!this.role) {
-        throw new Error("Additional role prompts require a role-backed prompt library.");
-      }
-
-      const fullPath = path.join(this.role.rolePromptsDir, fileName);
-      const content = await fs.readFile(fullPath, "utf8");
-      parts.push(this.createPromptPart("role-prompt", fullPath, content, context));
-    }
 
     return parts;
   }

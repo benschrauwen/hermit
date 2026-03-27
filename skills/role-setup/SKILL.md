@@ -27,7 +27,7 @@ Decide for each role:
 - managed entity types
 - startup files and shared context
 - recurring subdomains that need prompt files
-- optional `role_directories` and `transcript_ingest`
+- optional `role_directories`
 - non-negotiable standards and evidence rules
 
 Build order:
@@ -37,12 +37,11 @@ Build order:
 4. Add `prompts/*.md` only for recurring dense work.
 5. Ensure shared agent templates exist.
 6. Let the runtime scaffold `agent/` when possible. If not, create `agent/record.md` and `agent/inbox.md` from the shared templates.
-7. Add `transcript_ingest` only when the entity type, directories, and prompts already exist.
-8. Run `npm run cli -- doctor --role <role-id>`.
+7. Run `npm run cli -- doctor --role <role-id>`.
 
 Interview follow-through:
 - If the user names recurring task clusters, create matching `prompts/*.md` files in the first draft.
-- If the user names evidence flows or special working areas, reflect them in `role_directories` or `transcript_ingest`.
+- If the user names evidence flows or special working areas, reflect them in `role_directories`.
 - If startup files or shared context are obviously required, include them in `AGENTS.md` immediately.
 - Do not leave `On-Demand Prompts` empty when the role already has obvious recurring work modes.
 
@@ -84,15 +83,6 @@ Optional fields:
 ```yaml
 role_directories:
   - supporting-files
-
-transcript_ingest:
-  entity_type: work-item
-  command_prompt: command-transcript-run.md
-  system_prompts:
-    - mode-transcript-ingest.md
-  evidence_directory: transcripts
-  unmatched_directory: supporting-files/unmatched-transcripts
-  activity_log_file: activity-log.md
 ```
 
 `AGENTS.md` outline:

@@ -5,14 +5,8 @@ import process from "node:process";
 
 import type { AgentSession } from "@mariozechner/pi-coding-agent";
 
-import {
-  createCheckpoint,
-  getRepoState,
-  listCheckpointRoots,
-  shouldCheckpointAfterTurn,
-  type CheckpointOutcome,
-} from "./git.js";
-import { loadImageAttachments } from "./session-attachments.js";
+import { withCheckpoints } from "./git.js";
+import { loadImageAttachments } from "./image-attachments.js";
 
 const WORKSPACE_TURN_LOCK_PATH = path.join(".hermit", "state", "active-turn.lock");
 const WORKSPACE_TURN_LOCK_POLL_MS = 250;
@@ -35,15 +29,6 @@ export interface WorkspaceTurnLock {
 
 function getWorkspaceTurnLockPath(root: string): string {
   return path.join(root, WORKSPACE_TURN_LOCK_PATH);
-}
-
-function isAbortError(error: unknown): boolean {
-  if (error instanceof Error && error.name === "AbortError") {
-    return true;
-  }
-
-  const message = error instanceof Error ? error.message : String(error);
-  return /\babort(?:ed|ing)?\b/i.test(message);
 }
 
 function isProcessAlive(pid: number): boolean {
@@ -227,37 +212,16 @@ export async function runCheckpointedTurn(options: {
   gitCheckpointsEnabled?: boolean;
   run: () => Promise<void>;
 }): Promise<void> {
-  const sessionId = randomUUID();
-  const gitCheckpointsEnabled = options.gitCheckpointsEnabled !== false;
-  const checkpointMeta = {
-    commandName: options.commandName,
-    sessionId,
-    ...(options.roleId !== undefined ? { roleId: options.roleId } : {}),
-  };
-  const checkpointRoots = listCheckpointRoots(options.root);
-
-  const beforeStates = new Map(
-    await Promise.all(checkpointRoots.map(async (root) => [root, await getRepoState(root)] as const)),
-  );
-
-  let outcome: CheckpointOutcome = "success";
-  try {
-    await options.run();
-  } catch (error) {
-    outcome = isAbortError(error) ? "aborted" : "failed";
-    throw error;
-  } finally {
-    const afterStates = new Map(
-      await Promise.all(checkpointRoots.map(async (root) => [root, await getRepoState(root)] as const)),
-    );
-    for (const root of checkpointRoots) {
-      const beforeState = beforeStates.get(root);
-      const afterState = afterStates.get(root);
-      if (shouldCheckpointAfterTurn(beforeState, afterState, outcome, gitCheckpointsEnabled)) {
-        await createCheckpoint(root, { ...checkpointMeta, phase: "after", outcome });
-      }
-    }
-  }
+  await withCheckpoints({
+    workspaceRoot: options.root,
+    meta: {
+      commandName: options.commandName,
+      sessionId: randomUUID(),
+      ...(options.roleId !== undefined ? { roleId: options.roleId } : {}),
+    },
+    enabled: options.gitCheckpointsEnabled,
+    run: () => options.run(),
+  });
 }
 
 export async function runInteractiveSessionTurn(options: {

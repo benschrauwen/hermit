@@ -4,7 +4,7 @@
 
 Hermit is a local, file-first runtime where agents are the application. Agents own domain state, make decisions, and evolve the workspace and code. The workspace on disk is canonical — there is no separate database or service layer.
 
-Code handles the deterministic infrastructure that should not depend on model improvisation: command routing, role resolution, session construction, entity scaffolding, transcript placement, validation, git checkpointing, and local telemetry. Everything else — strategy, judgment, record-keeping, entity updates — is agent work driven by prompts and skills.
+Code handles the deterministic infrastructure that should not depend on model improvisation: command routing, role resolution, session construction, entity scaffolding, validation, git checkpointing, and local telemetry. Everything else — strategy, judgment, record-keeping, entity updates — is agent work driven by prompts and skills.
 
 ## Invariants
 
@@ -70,20 +70,34 @@ flowchart TD
   prompt --> session[Create pi agent session]
   session --> tools[Coding tools plus Hermit custom tools]
   session --> telemetry[Append local telemetry events]
-  ingest[Transcript ingest] --> load
-  ingest --> files[Copy transcript and update files]
-  files --> session
   explorer[Astro explorer] --> source[Import src/roles.ts and src/workspace.ts via tsx]
   source --> load
 ```
 
+## Source Module Map
+
+`src/` stays intentionally flat, but the files are grouped by responsibility:
+
+- **Shared primitives**: `constants.ts`, `types.ts`, `abort.ts`, `duration.ts`, `fs-utils.ts`, `runtime-paths.ts`, `type-guards.ts`
+- **Workspace and role loading**: `roles.ts`, `workspace.ts`, `entity-graph.ts`
+- **Prompt and template assembly**: `prompt-library.ts`, `template-library.ts`, `session-prompts.ts`
+- **Session construction and tools**: `session-runtime.ts`, `agent-tools.ts`, `image-attachments.ts`
+- **Session presentation and terminal plumbing**: `session-formatting.ts`, `session-terminal.ts`, `session-loop.ts`, `interactive-session-controller.ts`, `tui-components.ts`, `workspace-start-display.ts`, `workspace-start.ts`
+- **Command orchestration**: `cli.ts`, `cli-session.ts`, `cli-heartbeat.ts`, `heartbeat-daemon.ts`, `start-launcher.ts`
+- **Safety, diagnostics, and support**: `turn-control.ts`, `git.ts`, `doctor.ts`, `model-auth.ts`, `tailscale.ts`, `telemetry-events.ts`, `telemetry-recorder.ts`, `telemetry-report.ts`
+
+The intended dependency direction is:
+
+- low-level helpers should stay reusable and avoid depending on session creation or CLI orchestration
+- session construction should not depend on TUI code
+- formatting/rendering helpers should stay separate from streaming and terminal lifecycle code
+- CLI entrypoints should compose the lower layers rather than implement them inline
+
 ## Command Surface
 
-- `chat` starts an interactive session. Resolution order: `--role`, inferred role from the current directory under `workspace/agents/`, last used chat role from `.hermit/state/last-role.txt`, then `Hermit`. The Hermit fallback applies even when roles exist. Bootstrap mode is enabled only when the resolved target is `Hermit` and no roles are configured. Interactive chat supports runtime role switching through the `switch_role` tool.
+- `start` is the primary runtime entrypoint. It opens the combined workspace screen with explorer, background heartbeats, and interactive chat. Chat target resolution order: `--role`, inferred role from the current directory under `workspace/agents/`, last used chat role from `.hermit/state/last-role.txt`, then `Hermit`. The Hermit fallback applies even when roles exist. Bootstrap mode is enabled only when the resolved target is `Hermit` and no roles are configured. Interactive chat supports runtime role switching through the `switch_role` tool.
 - `ask` runs a one-shot prompt in a role-backed session. Resolution: `--role`, inferred role from cwd, then single-role auto-selection. No last-role fallback, no Hermit fallback. Errors when no role can be resolved.
-- `heartbeat` runs one persisted role-backed upkeep turn. Uses the same resolution as `ask`. Strategic review is selected when `--strategic-review` is passed or when `last_strategic_review` in `agent/record.md` is missing or older than 24 hours. The review behavior itself is prompt-driven; the runtime only selects which prompt to use.
-- `heartbeat-daemon` runs normal role heartbeats on a fixed interval. When any strategic review is due, it runs one combined strategic-review sweep for `Hermit` plus all configured roles, with one separate session per target.
-- `ingest transcript` places a transcript into the matched entity's evidence directory (or the role's unmatched directory), then runs the role's ingest session. When the transcript is stored as unmatched, the ingest session does not run.
+- Background heartbeats are launched only from `start`. The loop runs normal role heartbeats on a fixed interval. When any strategic review is due, it runs one combined strategic-review sweep for `Hermit` plus all configured roles, with one separate session per target.
 - `telemetry report` aggregates local telemetry into Markdown and JSON reports, including session outcome counts.
 - `doctor` validates shared workspace structure plus the selected role contract. `doctor --context` also prints the rendered system-prompt file breakdown and char counts for the selected role.
 
@@ -93,8 +107,7 @@ System prompt construction:
 
 1. Load `prompts/*.md`, sorted by filename. Subdirectories are not loaded recursively.
 2. For role-backed sessions, append `agents/<role-id>/AGENTS.md`.
-3. Append any explicitly requested role prompt files (e.g. `transcript_ingest.system_prompts`).
-4. For Hermit bootstrap chat only, append all `.md` files under `prompts/bootstrap/`.
+3. For Hermit bootstrap chat only, append all `.md` files under `prompts/bootstrap/`.
 
 Role-local prompts are on-demand; they are loaded only when a session explicitly requests them.
 
@@ -109,7 +122,6 @@ Role-local prompts are on-demand; they are loaded only when a session explicitly
 | `{{roleRoot}}` | `.` |
 | `{{entityId}}` | `not-selected` |
 | `{{entityPath}}` | `not-selected` |
-| `{{transcriptPath}}` | `not-selected` |
 | `{{currentDateTimeIso}}` | `unknown` |
 | `{{currentLocalDateTime}}` | `unknown` |
 | `{{currentTimeZone}}` | `unknown` |
@@ -179,20 +191,9 @@ Entity scanning is filesystem-based. A directory containing `record.md` is an en
 
 Graph-style queries are a derived read model, not a second source of truth. The runtime can build an in-memory entity graph on demand by scanning the current markdown entities, loading relationship declarations from `entity-defs/entities.md`, and projecting typed edges from frontmatter references. Broken or mistyped references remain visible as diagnostics instead of silently rewriting the markdown store.
 
-### Transcript ingest
-
-Pipeline:
-
-1. Resolve the target role and verify `transcript_ingest` is declared.
-2. Match the target entity explicitly or infer from the transcript filename.
-3. If ambiguous, prompt the user to choose or store as unmatched.
-4. Copy the transcript into the entity evidence directory or the role's unmatched directory.
-5. Append a line to the configured activity log.
-6. Run a role-backed ingest session using the command prompt and any configured extra system prompts. Skipped when the transcript is stored as unmatched.
-
 ## Git Checkpoints
 
-`chat`, `ask`, and `heartbeat` run inside `withGitCheckpoint()`. `heartbeat-daemon` does not checkpoint as one process; each delegated heartbeat has its own checkpoint wrapper.
+Interactive chat turns inside `start` and `ask` run inside `withGitCheckpoint()`. The background heartbeat loop launched by `start` does not checkpoint as one process; each delegated heartbeat has its own checkpoint wrapper.
 
 - Before the command: checkpoint each distinct git repo involved in the turn if that repo is dirty.
 - After the command: checkpoint each distinct git repo involved in the turn if that repo is dirty and the command outcome policy allows it.
@@ -209,7 +210,7 @@ Pipeline:
 - Required workspace-root directories (`workspace/entities`, `workspace/agents`, `workspace/entity-defs`, `workspace/skills`, `workspace/inbox`)
 - Role manifest loading and directory identity
 - `AGENTS.md` presence and linked markdown files
-- Required shared agent templates and transcript ingest prompts
+- Required shared agent templates
 - Explorer renderer modules
 - Duplicate entity IDs
 - Missing frontmatter fields in entity records

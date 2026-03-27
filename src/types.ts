@@ -7,7 +7,6 @@ export interface PromptContext {
   roleRoot?: string;
   entityId?: string;
   entityPath?: string;
-  transcriptPath?: string;
   currentDateTimeIso?: string;
   currentLocalDateTime?: string;
   currentTimeZone?: string;
@@ -71,15 +70,6 @@ export interface RoleEntityDefinition {
   files: RoleTemplateFileDefinition[];
 }
 
-export interface TranscriptIngestCapability {
-  entityType: string;
-  commandPrompt: string;
-  systemPrompts: string[];
-  evidenceDirectory: string;
-  unmatchedDirectory: string;
-  activityLogFile: string;
-}
-
 export interface RoleExplorerRendererConfig {
   detail?: Record<string, string>;
   files?: Record<string, Record<string, string>>;
@@ -109,7 +99,6 @@ export interface RoleDefinition {
   roleDirectories: string[];
   agentFiles: string[];
   entities: RoleEntityDefinition[];
-  transcriptIngest?: TranscriptIngestCapability;
   explorer?: RoleExplorerConfig;
 }
 
@@ -157,6 +146,13 @@ export interface TelemetryTurnReport {
   timeToFirstTokenMs?: number;
   toolCallCount: number;
   toolErrorCount: number;
+}
+
+export type SessionHistoryType = "interactive" | "heartbeat";
+
+export interface RoleSwitchRequest {
+  roleId: string;
+  reason?: string;
 }
 
 export interface TelemetryReport {

@@ -5,38 +5,52 @@ import type { Readable } from "node:stream";
 import type { AgentSession } from "@mariozechner/pi-coding-agent";
 import {
   CombinedAutocompleteProvider,
-  Editor,
   Key,
   ProcessTerminal,
   TUI,
   matchesKey,
   truncateToWidth,
-  visibleWidth,
-  wrapTextWithAnsi,
   type Component,
   type Focusable,
 } from "@mariozechner/pi-tui";
 
-import { createSessionStreamHandler, formatEntryDesignator, formatUserPromptEcho, type SessionOutputSink } from "./session-terminal.js";
-import type { InteractiveChatSession, RoleSwitchRequest } from "./session-types.js";
+import { isAbortError } from "./abort.js";
+import { runHeartbeatDaemonLoop } from "./cli-heartbeat.js";
+import { createHeartbeatDaemonController, parseHeartbeatDaemonInterval } from "./heartbeat-daemon.js";
+import {
+  InteractiveSessionController,
+  isExitCommand,
+  normalizeChatInput,
+  type InteractiveSessionStreamingHandle,
+} from "./interactive-session-controller.js";
+import { formatUserPromptEcho } from "./session-formatting.js";
+import { createSessionStreamHandler, type SessionOutputSink } from "./session-terminal.js";
+import type { InteractiveChatSession } from "./session-runtime.js";
+import type { RoleSwitchRequest } from "./types.js";
 import { readHermitTailscaleNotice, readHermitTailscaleUrl } from "./tailscale.js";
 import type { TelemetryRecorder } from "./telemetry-recorder.js";
-import { formatWorkspaceTurnOwner, runInteractiveSessionTurn } from "./turn-control.js";
+import {
+  ANSI_BOLD,
+  ANSI_DIM,
+  ANSI_RESET,
+  AnsiTextBuffer,
+  RoleLabeledEditor,
+  StatusLine,
+  colorize,
+  editorTheme,
+} from "./tui-components.js";
+import { formatWorkspaceTurnOwner } from "./turn-control.js";
+import {
+  extractExplorerUrl,
+  renderAnsiTextBlock,
+  resolveWorkspaceStartLayout,
+} from "./workspace-start-display.js";
 
-const ANSI_BOLD = "\x1b[1m";
-const ANSI_DIM = "\x1b[90m";
-const ANSI_RESET = "\x1b[0m";
-const ANSI_BRIGHT_MAGENTA = "\x1b[95m";
-const ANSI_CONTROL_SEQUENCE_PATTERN = /\x1B(?:\[[0-?]*[ -/]*[@-~]|\][^\u0007]*(?:\u0007|\x1B\\))/y;
-
-const STATUS_SPINNER_FRAMES = ["|", "/", "-", "\\"] as const;
-const STATUS_SPINNER_INTERVAL_MS = 80;
+export { extractExplorerUrl, renderAnsiTextBlock, resolveWorkspaceStartLayout };
 
 const DEFAULT_EXPLORER_PORT = 4321;
 const DEFAULT_EXPLORER_URL = `http://localhost:${DEFAULT_EXPLORER_PORT}`;
 const CHILD_STOP_TIMEOUT_MS = 15_000;
-const MIN_HEARTBEAT_HEIGHT = 1;
-const MIN_CHAT_HEIGHT = 4;
 
 export interface WorkspaceStartLoopOptions {
   workspaceRoot: string;
@@ -55,145 +69,6 @@ interface ChildProcessResult {
   code: number | null;
   signal: NodeJS.Signals | null;
   error?: Error;
-}
-
-export function resolveWorkspaceStartLayout(totalRows: number): {
-  heartbeatHeight: number;
-  chatHeight: number;
-} {
-  const safeTotalRows = Math.max(3, Math.floor(totalRows));
-  const dividerHeight = 1;
-  const preferredChatHeight =
-    safeTotalRows >= MIN_HEARTBEAT_HEIGHT + MIN_CHAT_HEIGHT + dividerHeight
-      ? MIN_CHAT_HEIGHT
-      : Math.max(1, Math.ceil(safeTotalRows * 0.55));
-  const heartbeatCeiling = Math.max(1, safeTotalRows - preferredChatHeight - dividerHeight);
-  const heartbeatHeight = Math.max(
-    1,
-    Math.min(Math.max(1, Math.floor(safeTotalRows * 0.32)), heartbeatCeiling),
-  );
-
-  return {
-    heartbeatHeight,
-    chatHeight: Math.max(1, safeTotalRows - heartbeatHeight - dividerHeight),
-  };
-}
-
-export function extractExplorerUrl(text: string): string | undefined {
-  const match = text.match(/https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::\d+)?[^\s]*/i);
-  return match?.[0];
-}
-
-function normalizeChatInput(input: string): string {
-  return input.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-}
-
-function isExitCommand(input: string): boolean {
-  const command = input.trim();
-  return command === "/exit" || command === "/quit";
-}
-
-function isAbortError(error: unknown): boolean {
-  if (error instanceof Error && error.name === "AbortError") {
-    return true;
-  }
-
-  const message = error instanceof Error ? error.message : String(error);
-  return /\babort(?:ed|ing)?\b/i.test(message);
-}
-
-function colorize(code: string, text: string): string {
-  return `${code}${text}${ANSI_RESET}`;
-}
-
-function matchAnsiControlSequence(text: string, index: number): string | undefined {
-  ANSI_CONTROL_SEQUENCE_PATTERN.lastIndex = index;
-  return ANSI_CONTROL_SEQUENCE_PATTERN.exec(text)?.[0];
-}
-
-function isEraseLineSequence(sequence: string): boolean {
-  return /^\x1b\[(?:0|2)?K$/.test(sequence);
-}
-
-function appendWrappedAnsiLine(target: string[], line: string, width: number): void {
-  if (line.length === 0) {
-    target.push("");
-    return;
-  }
-
-  target.push(...wrapTextWithAnsi(line, width));
-}
-
-export function renderAnsiTextBlock(text: string, width: number): string[] {
-  if (!text) {
-    return [];
-  }
-
-  const safeWidth = Math.max(1, width);
-  const rendered: string[] = [];
-  let currentLine = "";
-  let carriageReturnPending = false;
-
-  for (let index = 0; index < text.length; ) {
-    const currentChar = text[index];
-
-    if (currentChar === "\r" && text[index + 1] === "\n") {
-      appendWrappedAnsiLine(rendered, currentLine, safeWidth);
-      currentLine = "";
-      carriageReturnPending = false;
-      index += 2;
-      continue;
-    }
-
-    const ansiSequence = currentChar === "\x1b" ? matchAnsiControlSequence(text, index) : undefined;
-    if (ansiSequence) {
-      if (isEraseLineSequence(ansiSequence)) {
-        currentLine = "";
-        carriageReturnPending = false;
-      } else {
-        if (carriageReturnPending) {
-          currentLine = "";
-          carriageReturnPending = false;
-        }
-        currentLine += ansiSequence;
-      }
-      index += ansiSequence.length;
-      continue;
-    }
-
-    if (currentChar === "\r") {
-      carriageReturnPending = true;
-      index += 1;
-      continue;
-    }
-
-    if (currentChar === "\n") {
-      appendWrappedAnsiLine(rendered, currentLine, safeWidth);
-      currentLine = "";
-      carriageReturnPending = false;
-      index += 1;
-      continue;
-    }
-
-    if (carriageReturnPending) {
-      // Heartbeat status redraws use CR-based line replacement.
-      currentLine = "";
-      carriageReturnPending = false;
-    }
-
-    currentLine += currentChar;
-    index += 1;
-  }
-
-  if (currentLine.length > 0) {
-    appendWrappedAnsiLine(rendered, currentLine, safeWidth);
-  }
-
-  if (text.endsWith("\n")) {
-    rendered.push("");
-  }
-
-  return rendered;
 }
 
 function mergeNodeOptions(existing: string | undefined, option: string): string {
@@ -227,126 +102,9 @@ function renderHeader(title: string, detail: string | undefined, width: number):
   return truncateToWidth(line, Math.max(1, width));
 }
 
-class AnsiTextBuffer implements Component {
-  private text = "";
-  private cachedText: string | undefined;
-  private cachedWidth: number | undefined;
-  private cachedLines: string[] | undefined;
-
-  appendText(text: string): void {
-    if (!text) {
-      return;
-    }
-
-    this.text += text;
-    this.invalidate();
-  }
-
-  invalidate(): void {
-    this.cachedText = undefined;
-    this.cachedWidth = undefined;
-    this.cachedLines = undefined;
-  }
-
-  render(width: number): string[] {
-    if (this.cachedText === this.text && this.cachedWidth === width && this.cachedLines) {
-      return this.cachedLines;
-    }
-
-    const lines = renderAnsiTextBlock(this.text, width);
-    this.cachedText = this.text;
-    this.cachedWidth = width;
-    this.cachedLines = lines;
-    return lines;
-  }
-}
-
-class StatusLine implements Component {
-  private message: string | undefined;
-  private spinnerFrame = 0;
-  private spinnerTimer: NodeJS.Timeout | undefined;
-
-  constructor(private readonly onChange: () => void) {}
-
-  setMessage(message: string): void {
-    const normalized = message.replace(/\r\n/g, " ").replace(/\r/g, " ").replace(/\s+/g, " ").trim() || "Thinking";
-    this.message = normalized;
-
-    if (!this.spinnerTimer) {
-      this.spinnerTimer = setInterval(() => {
-        this.spinnerFrame += 1;
-        this.onChange();
-      }, STATUS_SPINNER_INTERVAL_MS);
-    }
-
-    this.onChange();
-  }
-
-  clear(): void {
-    this.message = undefined;
-    if (this.spinnerTimer) {
-      clearInterval(this.spinnerTimer);
-      this.spinnerTimer = undefined;
-    }
-    this.onChange();
-  }
-
-  invalidate(): void {}
-
-  render(width: number): string[] {
-    if (!this.message) {
-      return [];
-    }
-
-    const frame = STATUS_SPINNER_FRAMES[this.spinnerFrame % STATUS_SPINNER_FRAMES.length];
-    return [truncateToWidth(colorize(ANSI_DIM, `${frame} ${this.message}`), Math.max(1, width))];
-  }
-}
-
-const editorTheme = {
-  borderColor: (text: string) => colorize(ANSI_DIM, text),
-  selectList: {
-    selectedPrefix: (text: string) => colorize(ANSI_BRIGHT_MAGENTA, text),
-    selectedText: (text: string) => colorize(ANSI_BRIGHT_MAGENTA, text),
-    description: (text: string) => colorize(ANSI_DIM, text),
-    scrollInfo: (text: string) => colorize(ANSI_DIM, text),
-    noMatch: (text: string) => colorize(ANSI_DIM, text),
-  },
-};
-
-class RoleLabeledEditor extends Editor {
-  private roleLabel: string;
-
-  constructor(tui: TUI, roleLabel: string) {
-    super(tui, editorTheme, { paddingX: 1, autocompleteMaxVisible: 6 });
-    this.roleLabel = roleLabel;
-  }
-
-  setRoleLabel(roleLabel: string): void {
-    if (this.roleLabel === roleLabel) {
-      return;
-    }
-
-    this.roleLabel = roleLabel;
-    this.tui.requestRender();
-  }
-
-  render(width: number): string[] {
-    const lines = super.render(width);
-    if (lines.length === 0 || lines[0]?.includes("↑")) {
-      return lines;
-    }
-
-    const label = `${formatEntryDesignator(this.roleLabel)} `;
-    const suffixWidth = Math.max(0, width - visibleWidth(label));
-    lines[0] = `${label}${this.borderColor("─".repeat(suffixWidth))}`;
-    return lines;
-  }
-}
-
 class WorkspaceStartLayout implements Component, Focusable {
-  private readonly heartbeatLog = new AnsiTextBuffer();
-  private readonly transcript = new AnsiTextBuffer();
+  private readonly heartbeatLog = new AnsiTextBuffer(renderAnsiTextBlock);
+  private readonly transcript = new AnsiTextBuffer(renderAnsiTextBlock);
   private readonly status: StatusLine;
   private readonly editor: RoleLabeledEditor;
   private activeRoleLabel: string;
@@ -360,7 +118,7 @@ class WorkspaceStartLayout implements Component, Focusable {
     this.activeRoleLabel = activeRoleLabel;
     this.modelLabel = modelLabel;
     this.status = new StatusLine(() => this.tui.requestRender());
-    this.editor = new RoleLabeledEditor(this.tui, activeRoleLabel);
+    this.editor = new RoleLabeledEditor(this.tui, editorTheme, activeRoleLabel);
   }
 
   get focused(): boolean {
@@ -773,15 +531,37 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
     throw new Error("The combined `start` command requires an interactive terminal.");
   }
 
-  let activeSession = options.initialSession;
-  const ui = new WorkspaceStartTui(activeSession.activeRoleLabel, activeSession.modelLabel);
-  let stopStreaming = attachWorkspaceStartStreaming(activeSession.session, ui, activeSession.telemetry);
+  const ui = new WorkspaceStartTui(options.initialSession.activeRoleLabel, options.initialSession.modelLabel);
   let explorerProcess: ManagedChildProcess | undefined;
-  let heartbeatProcess: ManagedChildProcess | undefined;
+  const heartbeatController = createHeartbeatDaemonController({
+    onAbortError: (error) => {
+      ui.appendHeartbeatOutput(`[supervisor] Failed to abort active heartbeat session: ${error instanceof Error ? error.message : String(error)}.\n`);
+    },
+  });
+  let heartbeatLoopPromise: Promise<void> | undefined;
   let shutdownRequested = false;
   let shutdownPromise: Promise<void> | undefined;
   let explorerReadyNotified = false;
   let explorerUrl = DEFAULT_EXPLORER_URL;
+  const sessionController = new InteractiveSessionController({
+    root: options.workspaceRoot,
+    initialSession: options.initialSession,
+    ...(options.gitCheckpointsEnabled !== undefined ? { gitCheckpointsEnabled: options.gitCheckpointsEnabled } : {}),
+    ...(options.onRoleSwitch ? { onRoleSwitch: options.onRoleSwitch } : {}),
+    shouldHandleRoleSwitch: () => !shutdownRequested,
+    attachStreaming: (session): InteractiveSessionStreamingHandle => ({
+      stop: attachWorkspaceStartStreaming(session.session, ui, session.telemetry),
+    }),
+    onActiveSessionChange: (session) => {
+      ui.setActiveSession(session.activeRoleLabel, session.modelLabel);
+    },
+    onRedundantRoleSwitch: (activeRoleLabel) => {
+      ui.appendSystemNotice(`Ignored redundant role switch to ${activeRoleLabel}.`);
+    },
+    onRoleSwitched: (session) => {
+      ui.appendSystemNotice(`Switched active role to ${session.activeRoleLabel} using ${session.modelLabel}.`);
+    },
+  });
 
   const requestShutdown = async (): Promise<void> => {
     if (shutdownPromise) {
@@ -793,9 +573,10 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
     ui.clearStatus();
 
     shutdownPromise = (async () => {
+      heartbeatController.stop();
       const results = await Promise.allSettled([
-        activeSession.session.abort(),
-        heartbeatProcess?.stop(),
+        sessionController.getActiveSession().session.abort(),
+        heartbeatLoopPromise,
         explorerProcess?.stop(),
       ]);
 
@@ -811,7 +592,7 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
   };
 
   ui.setShutdownHandler(requestShutdown);
-  ui.appendSystemNotice(`Using model ${activeSession.modelLabel}.`);
+  ui.appendSystemNotice(`Using model ${sessionController.getActiveSession().modelLabel}.`);
   ui.setExplorerStatus(`starting on ${DEFAULT_EXPLORER_URL}`);
   const tailscaleUrl = readHermitTailscaleUrl();
   if (tailscaleUrl) {
@@ -830,51 +611,15 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
   process.on("SIGINT", onSignal);
   process.on("SIGTERM", onSignal);
 
-  async function switchRolesIfRequested(): Promise<void> {
-    let switchCount = 0;
-    while (true) {
-      const request = activeSession.consumeRoleSwitchRequest();
-      if (!request || !options.onRoleSwitch || shutdownRequested) {
-        return;
-      }
-
-      switchCount += 1;
-      if (switchCount > 5) {
-        throw new Error("Too many role switches were requested in a single turn.");
-      }
-
-      if (request.roleId === activeSession.activeRoleLabel) {
-        ui.appendSystemNotice(`Ignored redundant role switch to ${activeSession.activeRoleLabel}.`);
-        return;
-      }
-
-      const previousRoleLabel = activeSession.activeRoleLabel;
-      stopStreaming();
-      activeSession = await options.onRoleSwitch(request, previousRoleLabel);
-      ui.setActiveSession(activeSession.activeRoleLabel, activeSession.modelLabel);
-      stopStreaming = attachWorkspaceStartStreaming(activeSession.session, ui, activeSession.telemetry);
-      ui.appendSystemNotice(`Switched active role to ${activeSession.activeRoleLabel} using ${activeSession.modelLabel}.`);
-      return;
-    }
-  }
-
   async function promptActiveSession(prompt: string, imagePaths: string[] = []): Promise<void> {
     try {
       let waitingStatusShown = false;
-      await runInteractiveSessionTurn({
-        root: options.workspaceRoot,
-        roleId: activeSession.activeRoleLabel,
-        session: activeSession.session,
-        prompt,
-        imagePaths,
-        ...(options.gitCheckpointsEnabled !== undefined ? { gitCheckpointsEnabled: options.gitCheckpointsEnabled } : {}),
-        onWaitForTurn: (owner) => {
-          if (waitingStatusShown) {
-            return;
-          }
-          waitingStatusShown = true;
-          ui.showStatus(`Waiting for ${formatWorkspaceTurnOwner(owner)} to finish`);
-        },
+      await sessionController.prompt(prompt, imagePaths, (owner) => {
+        if (waitingStatusShown) {
+          return;
+        }
+        waitingStatusShown = true;
+        ui.showStatus(`Waiting for ${formatWorkspaceTurnOwner(owner)} to finish`);
       });
     } catch (error) {
       if (shutdownRequested && isAbortError(error)) {
@@ -886,8 +631,6 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
     if (shutdownRequested) {
       return;
     }
-
-    await switchRolesIfRequested();
     ui.clearStatus();
   }
 
@@ -923,32 +666,28 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
       },
     });
 
-    heartbeatProcess = spawnManagedProcess({
-      cwd: options.frameworkRoot,
-      command: "npm",
-      args: [
-        "run",
-        "cli",
-        "--",
-        "heartbeat-daemon",
-        "--interval",
-        options.heartbeatInterval,
-        ...(options.initialHeartbeatDelay ? ["--initial-delay", options.initialHeartbeatDelay] : []),
-        ...(options.continueHeartbeatSessions ? ["--continue"] : []),
-        ...(options.gitCheckpointsEnabled === false ? ["--no-git-checkpoints"] : []),
-      ],
-      env: {
-        HERMIT_WORKSPACE_ROOT: options.workspaceRoot,
+    heartbeatLoopPromise = runHeartbeatDaemonLoop({
+      root: options.workspaceRoot,
+      intervalMs: parseHeartbeatDaemonInterval(options.heartbeatInterval),
+      ...(options.initialHeartbeatDelay ? { initialDelayMs: parseHeartbeatDaemonInterval(options.initialHeartbeatDelay) } : {}),
+      ...(options.continueHeartbeatSessions ? { continueRecent: true } : {}),
+      ...(options.gitCheckpointsEnabled !== undefined ? { gitCheckpointsEnabled: options.gitCheckpointsEnabled } : {}),
+      controller: heartbeatController,
+      handleSignals: false,
+      onInfo: (message) => {
+        ui.appendHeartbeatOutput(message);
       },
-      onText: (text) => {
-        ui.appendHeartbeatOutput(text);
+      onError: (message) => {
+        ui.appendHeartbeatOutput(message);
       },
-      onResult: (result) => {
-        if (!shutdownRequested) {
-          ui.appendHeartbeatOutput(`\n[supervisor] Heartbeat daemon exited (${formatChildProcessResult(result)}).\n`);
-          ui.appendSystemNotice(`Heartbeat daemon exited unexpectedly (${formatChildProcessResult(result)}).`);
-        }
-      },
+    }).catch((error) => {
+      if (shutdownRequested || isAbortError(error)) {
+        return;
+      }
+
+      const detail = error instanceof Error ? error.message : String(error);
+      ui.appendHeartbeatOutput(`\n[supervisor] Heartbeat daemon failed (${detail}).\n`);
+      ui.appendSystemNotice(`Heartbeat daemon exited unexpectedly (${detail}).`);
     });
 
     if (options.initialPrompt) {
@@ -973,7 +712,7 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
       await promptActiveSession(input);
     }
   } finally {
-    stopStreaming();
+    sessionController.stop();
     process.off("SIGINT", onSignal);
     process.off("SIGTERM", onSignal);
     await requestShutdown();

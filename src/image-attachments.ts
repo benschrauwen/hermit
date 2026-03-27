@@ -1,9 +1,8 @@
+import type { ImageContent } from "@mariozechner/pi-ai";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import type { ImageContent } from "@mariozechner/pi-ai";
-
-function extensionToMimeType(filePath: string): string {
+function resolveImageMimeType(filePath: string): string {
   const extension = path.extname(filePath).toLowerCase();
   switch (extension) {
     case ".png":
@@ -27,7 +26,7 @@ export async function loadImageAttachments(imagePaths: string[]): Promise<ImageC
       return {
         type: "image",
         data: content.toString("base64"),
-        mimeType: extensionToMimeType(imagePath),
+        mimeType: resolveImageMimeType(imagePath),
       } satisfies ImageContent;
     }),
   );

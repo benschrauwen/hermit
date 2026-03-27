@@ -229,14 +229,6 @@ name: ${roleName}
 description: Generic test role.
 role_directories:
   - notes
-transcript_ingest:
-  entity_type: case
-  command_prompt: 40-command-transcript-run.md
-  system_prompts:
-    - 23-mode-transcript-ingest.md
-  evidence_directory: transcripts
-  unmatched_directory: unmatched-transcripts
-  activity_log_file: activity-log.md
 ---
 `,
   );
@@ -248,19 +240,19 @@ transcript_ingest:
 
 Generic role fixture for runtime tests.
 
-- [prompts/23-mode-transcript-ingest.md](prompts/23-mode-transcript-ingest.md)
-- [prompts/40-command-transcript-run.md](prompts/40-command-transcript-run.md)
+- [prompts/23-mode-follow-up.md](prompts/23-mode-follow-up.md)
+- [prompts/40-command-review.md](prompts/40-command-review.md)
 `,
   );
   writeFile(
     root,
-    path.join("agents", roleId, "prompts", "23-mode-transcript-ingest.md"),
-    "# Transcript Ingest\n\nPreserve the transcript as raw evidence.\n",
+    path.join("agents", roleId, "prompts", "23-mode-follow-up.md"),
+    "# Follow-Up Mode\n\nReview the current entity carefully before proposing next actions.\n",
   );
   writeFile(
     root,
-    path.join("agents", roleId, "prompts", "40-command-transcript-run.md"),
-    "# Transcript Processing Request\n\nUse `{{transcriptPath}}`.\n",
+    path.join("agents", roleId, "prompts", "40-command-review.md"),
+    "# Review Request\n\nUse `{{entityPath}}`.\n",
   );
 }
 

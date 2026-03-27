@@ -84,7 +84,7 @@ If you see a version number, Homebrew is installed.
 
 Now install Node.js, Git, and `nono`.
 
-`nono` is the safety layer Hermit uses for the Hermit chat and `heartbeat-daemon` commands in this guide.
+`nono` is the safety layer Hermit uses for the main `npm start` flow in this guide.
 
 Run these one at a time:
 
@@ -271,12 +271,6 @@ Next time:
 3. Run `npm start`
 4. Open `http://localhost:4321` in your browser
 
-If you ever want to run only one piece on its own, you can still use:
-
-```bash
-npm run heartbeat-daemon
-npm run explorer
-```
 
 ## 14. Read This Next
 

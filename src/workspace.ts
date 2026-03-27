@@ -17,7 +17,6 @@ import type {
   EntityRecord,
   RoleDefinition,
   RoleEntityDefinition,
-  TranscriptIngestCapability,
   WorkspaceInitializationState,
 } from "./types.js";
 
@@ -295,11 +294,6 @@ export async function writeFileSafely(filePath: string, content: string, force =
   await fs.writeFile(filePath, content, "utf8");
 }
 
-export async function appendLine(filePath: string, line: string): Promise<void> {
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.appendFile(filePath, `${line}\n`, "utf8");
-}
-
 export async function ensureWorkspaceScaffold(root: string, role?: RoleDefinition): Promise<void> {
   await ensureDirectory(root, [...SHARED_ROOT_DIRECTORIES]);
   await ensureAgentFiles(root, path.join(root, HERMIT_ROLE_ROOT, "agent"), {
@@ -344,7 +338,20 @@ export async function ensureWorkspaceScaffold(root: string, role?: RoleDefinitio
   });
 }
 
-export async function getWorkspaceInitializationState(root: string, role: RoleDefinition): Promise<WorkspaceInitializationState> {
+export async function getWorkspaceInitializationState(root: string, role?: RoleDefinition): Promise<WorkspaceInitializationState> {
+  if (!role) {
+    const [sharedEntities, roleIds] = await Promise.all([
+      scanDirectoryForEntities(getWorkspacePaths(root).entitiesDir, "shared"),
+      listRoleIds(root),
+    ]);
+    return {
+      initialized: sharedEntities.length > 0 || roleIds.length > 0,
+      sharedEntityCount: sharedEntities.length,
+      roleEntityCount: 0,
+      roleEntityCounts: {},
+    };
+  }
+
   const [sharedEntities, roleEntities] = await Promise.all([scanSharedEntities(root, role), scanRoleEntities(role)]);
   const roleEntityCounts = Object.fromEntries(
     role.entities.map((entity) => [entity.key, roleEntities.filter((record) => record.type === entity.type).length]),
@@ -358,29 +365,6 @@ export async function getWorkspaceInitializationState(root: string, role: RoleDe
     sharedEntityCount: sharedEntities.length,
     roleEntityCount,
     roleEntityCounts,
-  };
-}
-
-export async function getWorkspaceBootstrapInitializationState(root: string): Promise<WorkspaceInitializationState> {
-  const sharedEntities = await scanDirectoryForEntities(getWorkspacePaths(root).entitiesDir, "shared");
-  return {
-    initialized: sharedEntities.length > 0,
-    sharedEntityCount: sharedEntities.length,
-    roleEntityCount: 0,
-    roleEntityCounts: {},
-  };
-}
-
-export async function getWorkspaceChatInitializationState(root: string): Promise<WorkspaceInitializationState> {
-  const [sharedEntities, roleIds] = await Promise.all([
-    scanDirectoryForEntities(getWorkspacePaths(root).entitiesDir, "shared"),
-    listRoleIds(root),
-  ]);
-  return {
-    initialized: sharedEntities.length > 0 || roleIds.length > 0,
-    sharedEntityCount: sharedEntities.length,
-    roleEntityCount: 0,
-    roleEntityCounts: {},
   };
 }
 
@@ -502,19 +486,6 @@ function filterEntitiesByType(entities: EntityRecord[], entityType: string): Ent
   return entities.filter((entity) => entity.type === entityType);
 }
 
-function filterCreatableEntities(
-  role: RoleDefinition,
-  definition: RoleEntityDefinition,
-  entities: EntityRecord[],
-): EntityRecord[] {
-  const createDirectoryPath = path.join(role.entitiesDir, definition.createDirectory);
-  const createDirectoryParent = path.dirname(createDirectoryPath);
-  return entities.filter((entity) => {
-    const parentDirectory = path.dirname(entity.path);
-    return parentDirectory === createDirectoryPath || parentDirectory === createDirectoryParent;
-  });
-}
-
 export async function scanEntities(root: string, role: RoleDefinition): Promise<EntityRecord[]> {
   const entities = [...(await scanSharedEntities(root, role)), ...(await scanRoleEntities(role))];
   return entities.sort((left, right) => left.name.localeCompare(right.name));
@@ -558,134 +529,6 @@ export async function findEntityById(root: string, role: RoleDefinition, entityI
 
 export async function findEntitiesByType(root: string, role: RoleDefinition, entityType: string): Promise<EntityRecord[]> {
   return filterEntitiesByType(await scanEntities(root, role), entityType);
-}
-
-export async function findCreatableRoleEntities(root: string, role: RoleDefinition, entityType: string): Promise<EntityRecord[]> {
-  const definition = role.entities.find((entity) => entity.type === entityType);
-  if (!definition) {
-    return [];
-  }
-
-  return filterCreatableEntities(role, definition, filterEntitiesByType(await scanEntities(root, role), entityType));
-}
-
-export async function copyTranscriptIntoRoleEntity(
-  capability: TranscriptIngestCapability,
-  entity: EntityRecord,
-  sourcePath: string,
-): Promise<string> {
-  const transcriptSlug = makeSlug(path.basename(sourcePath, path.extname(sourcePath)));
-  const destination = path.join(
-    entity.path,
-    capability.evidenceDirectory,
-    `${new Date().toISOString().slice(0, 10)}--${transcriptSlug}.md`,
-  );
-  const content = await fs.readFile(sourcePath, "utf8");
-
-  await fs.mkdir(path.dirname(destination), { recursive: true });
-  await fs.writeFile(destination, content, "utf8");
-
-  return destination;
-}
-
-export async function copyTranscriptToRoleInbox(
-  role: RoleDefinition,
-  capability: TranscriptIngestCapability,
-  sourcePath: string,
-): Promise<string> {
-  const destination = path.join(
-    role.roleDir,
-    capability.unmatchedDirectory,
-    `${new Date().toISOString().slice(0, 10)}--${path.basename(sourcePath)}`,
-  );
-  const content = await fs.readFile(sourcePath, "utf8");
-
-  await fs.mkdir(path.dirname(destination), { recursive: true });
-  await fs.writeFile(destination, content, "utf8");
-
-  return destination;
-}
-
-function scoreTranscriptEntityMatch(entity: EntityRecord, transcriptSlug: string): number {
-  const entityIdSlug = makeSlug(entity.id);
-  const entityNameSlug = makeSlug(entity.name);
-
-  if (transcriptSlug.includes(entityIdSlug)) {
-    return 100;
-  }
-  if (transcriptSlug === entityNameSlug) {
-    return 95;
-  }
-  if (transcriptSlug.includes(entityNameSlug)) {
-    return 90;
-  }
-
-  const overlapTokens = [...new Set([...entityNameSlug.split("-"), ...entityIdSlug.split("-")])].filter(
-    (token) => token.length >= 4 && !/^\d+$/.test(token) && transcriptSlug.includes(token),
-  ).length;
-
-  if (overlapTokens >= 2) {
-    return 70 + Math.min(overlapTokens, 10);
-  }
-  if (overlapTokens === 1) {
-    return 60;
-  }
-  return 0;
-}
-
-async function getTranscriptEntityMatches(
-  root: string,
-  role: RoleDefinition,
-  capability: TranscriptIngestCapability,
-  transcriptPath: string,
-): Promise<Array<{ entity: EntityRecord; score: number }>> {
-  const transcriptSlug = makeSlug(path.basename(transcriptPath, path.extname(transcriptPath)));
-  const allEntities = filterEntitiesByType(await scanEntities(root, role), capability.entityType);
-  const definition = role.entities.find((entity) => entity.type === capability.entityType);
-  const preferredEntities = definition ? filterCreatableEntities(role, definition, allEntities) : allEntities;
-  const activeMatches = preferredEntities
-    .map((entity) => ({ entity, score: scoreTranscriptEntityMatch(entity, transcriptSlug) }))
-    .filter((candidate) => candidate.score > 0)
-    .sort((left, right) => right.score - left.score || left.entity.name.localeCompare(right.entity.name));
-
-  if (activeMatches.length > 0) {
-    return activeMatches;
-  }
-
-  return allEntities
-    .map((entity) => ({ entity, score: scoreTranscriptEntityMatch(entity, transcriptSlug) }))
-    .filter((candidate) => candidate.score > 0)
-    .sort((left, right) => right.score - left.score || left.entity.name.localeCompare(right.entity.name));
-}
-
-export async function findTranscriptEntityCandidates(
-  root: string,
-  role: RoleDefinition,
-  capability: TranscriptIngestCapability,
-  transcriptPath: string,
-): Promise<EntityRecord[]> {
-  const matches = await getTranscriptEntityMatches(root, role, capability, transcriptPath);
-  return matches.map((candidate) => candidate.entity);
-}
-
-export async function resolveTranscriptEntity(
-  root: string,
-  role: RoleDefinition,
-  capability: TranscriptIngestCapability,
-  explicitEntityId: string | undefined,
-  transcriptPath: string,
-): Promise<EntityRecord | undefined> {
-  if (explicitEntityId) {
-    return findEntityById(root, role, explicitEntityId);
-  }
-
-  const matches = await getTranscriptEntityMatches(root, role, capability, transcriptPath);
-  const [bestMatch, secondMatch] = matches;
-  if (bestMatch && bestMatch.score >= 90 && (!secondMatch || bestMatch.score > secondMatch.score)) {
-    return bestMatch.entity;
-  }
-
-  return undefined;
 }
 
 function buildRoleEntityPath(role: RoleDefinition, entity: RoleEntityDefinition, entityId: string): string {

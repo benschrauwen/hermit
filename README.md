@@ -77,14 +77,6 @@ If you want to open the explorer from another device, install the free [Tailscal
 
 On first run, Hermit automatically creates `./workspace`, initializes it as its own git repo, writes a workspace `.gitignore`, and scaffolds the directories it needs there.
 
-If you want the pieces separately instead:
-
-```bash
-npm run heartbeat-daemon
-npm run explorer
-```
-
-By default `npm start`, `npm run heartbeat-daemon`, and `npm run explorer` run inside the included `nono` sandbox profile. In an empty workspace, that first `npm start` session bootstraps the initial role and starts shaping the application around the responsibility you describe.
 
 ## How The App Gets Built
 
@@ -112,11 +104,10 @@ Hermit includes a built-in `framework-maintenance` skill with the full git and `
 
 ```bash
 npm start                                         # start explorer, heartbeat daemon, and chat in one sandboxed TUI
-npm run heartbeat-daemon                          # run only the background heartbeat loop
 npm run explorer                                  # launch only the workspace UI server
 ```
 
-`heartbeat` runs a single background turn for a role. `heartbeat-daemon` is the built-in replacement for an external cron job: it runs normal role heartbeats on the configured interval (default `1h`), and when any strategic review becomes due it runs one combined strategic-review sweep for `Hermit` plus all configured roles as separate sessions. Automated runs use separate persisted session histories so they stay distinct from normal interactive chat history. Interactive chat turns now checkpoint git per prompt round instead of only on process exit, and heartbeat turns skip themselves while an interactive turn is actively running so the repo does not get mutated by both paths at once. When `--strategic-review` is passed, or when the last strategic review is more than 24 hours old, the role heartbeat command runs a full strategic review instead of normal task advancement. That review now follows an explicit `evidence -> hypothesis -> test -> re-evaluate hypothesis` loop and tracks open experiments in `agent/record.md`, using git history when useful to verify what the agent actually changed. Hermit keeps its own strategic-review state under `.hermit/agent/record.md`.
+Background heartbeats now run only inside `npm start`. Hermit keeps separate persisted heartbeat histories so those autonomous turns stay distinct from interactive chat history, and each delegated heartbeat still checkpoints git independently. When a strategic review is due, the background loop runs that review instead of a normal upkeep turn. Hermit keeps its own strategic-review state under `.hermit/agent/record.md`.
 
 ### Advanced Raw Commands
 
@@ -124,12 +115,8 @@ Use these when you explicitly want to bypass the sandbox or call the raw CLI dir
 
 ```bash
 npm run start:unsafe                              # start explorer, heartbeat daemon, and chat without the sandbox
-npm run heartbeat-daemon:unsafe                   # run the daemon without the sandbox
-npm run cli -- chat --role <role-id>              # raw interactive CLI
+npm run cli -- start --role <role-id>             # raw combined CLI
 npm run cli -- ask --role <role-id> "Review the top open deals"
-npm run cli -- heartbeat --role <role-id>         # one autonomous GTD upkeep turn
-npm run cli -- heartbeat --role <role-id> --strategic-review  # force a full strategic review
-npm run cli -- ingest transcript ./notes/acme-call.md --role <role-id> --entity d-2026-0001-acme-expansion
 npm run cli -- doctor --role <role-id>            # validate workspace integrity
 npm run cli -- doctor --role <role-id> --context  # print rendered prompt source breakdown
 npm run cli -- telemetry report --window 7d       # aggregate local runtime telemetry
@@ -139,7 +126,7 @@ npm run cli -- telemetry report --window 7d       # aggregate local runtime tele
 
 - **The application is built, not pre-modeled** — you start with a runtime and a goal; Hermit creates the roles, schema, files, and workflows that fit the job.
 - **Single checkout startup** — one `npm start` command from the Hermit checkout creates the nested workspace repo automatically and gets the system running.
-- **Autonomy with structure** — roles capture work, clarify it, and advance next actions through `heartbeat` and `heartbeat-daemon`, while strategic review regularly questions goals, structure, and process.
+- **Autonomy with structure** — roles capture work, clarify it, and advance next actions through the background heartbeat loop inside `npm start`, while strategic review regularly questions goals, structure, and process.
 - **File-first system of record** — durable state lives in readable markdown, not behind an ORM or opaque store.
 - **Git-native history** — session commands create checkpoint commits, so the entire application state sits in normal git history.
 - **Self-improving runtime** — local telemetry, reports, prompts, and skills let Hermit tighten its own workflows based on evidence.
@@ -176,10 +163,9 @@ Roles are how Hermit turns a broad job into an operator inside the app. Each rol
 
 - **Identity** — `id`, `name`, `description`
 - **Extra directories** — optional `role_directories` for role-specific workspace paths
-- **Capabilities** — optional features like `transcript_ingest`
 - **Skills** — shared `skills/` and role-local `agents/<role-id>/skills/` are discovered by pi on demand
 
-Prompts are loaded from directories, not declared in the manifest. The runtime loads shared prompts from `prompts/`, appends the role's `AGENTS.md`, and appends any session-specific role prompt files (e.g. transcript ingest prompts). Role-local prompts live under `agents/<role-id>/prompts/` and are loaded on demand.
+Prompts are loaded from directories, not declared in the manifest. The runtime loads shared prompts from `prompts/`, appends the role's `AGENTS.md`, and uses role-local prompts under `agents/<role-id>/prompts/` on demand.
 
 Entity schema lives in `workspace/entity-defs/entities.md`, and entity starter templates and explorer renderers live under `workspace/entity-defs/`. The `workspace/agents/` directory is for behavior and agent state, while `workspace/entities/` and `workspace/entity-defs/` define app state and schema.
 
@@ -221,7 +207,7 @@ You only need one supported provider key to get started. Hermit will auto-pick t
 
 ## Sandboxing With `nono`
 
-Hermit runs local agents with read/write access to your workspace, so sandboxing is the default and recommended mode for the agent processes. [`nono`](https://github.com/always-further/nono) adds kernel-enforced filesystem boundaries on macOS and Linux, can inject secrets from the system keychain, and lets you keep Hermit confined to this repo plus the runtime paths it needs. The default `npm start` flow now keeps the explorer, heartbeat daemon, and chat together inside that same sandboxed session.
+Hermit runs local agents with read/write access to your workspace, so sandboxing is the default and recommended mode for the agent processes. [`nono`](https://github.com/always-further/nono) adds kernel-enforced filesystem boundaries on macOS and Linux, can inject secrets from the system keychain, and lets you keep Hermit confined to this repo plus the runtime paths it needs. The default `npm start` flow keeps the explorer, heartbeat daemon, and chat together inside the same sandboxed session.
 
 This repo includes its default `nono` profile at `nono/hermit.json`. It grants:
 
@@ -234,7 +220,6 @@ The default short commands already use this profile:
 
 ```bash
 npm start
-npm run heartbeat-daemon
 npm run explorer
 ```
 
@@ -242,7 +227,6 @@ If you want to bypass the sandbox entirely, use the `:unsafe` commands instead:
 
 ```bash
 npm run start:unsafe
-npm run heartbeat-daemon:unsafe
 ```
 
 Those commands accept supported provider API key env vars from your environment. On macOS they also look in the same `nono` Keychain service for the common provider account names listed above.

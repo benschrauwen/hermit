@@ -1,7 +1,6 @@
 import matter from "gray-matter";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import process from "node:process";
 
 import { buildEntityGraph } from "./entity-graph.js";
 import { getProviderAwareModelDiagnostics } from "./model-auth.js";
@@ -392,14 +391,11 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
 export async function printDoctorContext(root: string, roleId: string): Promise<void> {
   const role = await loadRole(root, roleId);
   const promptLibrary = await PromptLibrary.load(role);
-  const breakdown = await promptLibrary.getSystemPromptBreakdown(
-    {
-      workspaceRoot: root,
-      roleId: role.id,
-      roleRoot: path.relative(root, role.roleDir) || ".",
-    },
-    [],
-  );
+  const breakdown = await promptLibrary.getSystemPromptBreakdown({
+    workspaceRoot: root,
+    roleId: role.id,
+    roleRoot: path.relative(root, role.roleDir) || ".",
+  });
   const totalChars = breakdown.reduce((sum, part) => sum + part.renderedChars, 0);
 
   console.log(`context: total rendered chars ${totalChars}`);

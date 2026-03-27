@@ -4,7 +4,7 @@ Hermit has two observability layers: local runtime telemetry for sessions, and `
 
 ## Telemetry Coverage
 
-Telemetry is recorded for `chat`, `ask`, `heartbeat`, and `ingest:transcript`. Git session metadata (branch, HEAD SHAs, checkpoint SHAs) is attached only for `chat`, `ask`, and `heartbeat`, which run through the git checkpoint wrapper.
+Telemetry is recorded for interactive chat inside `start`, `ask`, background heartbeat sessions, and `ingest:transcript`. Git session metadata (branch, HEAD SHAs, checkpoint SHAs) is attached to those interactive chat, `ask`, and background heartbeat sessions because they run through the git checkpoint wrapper.
 
 Telemetry is local-first and append-only. Reports are generated explicitly via `hermit telemetry report`. Telemetry does not trigger rollback, checkpointing, or background mutations.
 

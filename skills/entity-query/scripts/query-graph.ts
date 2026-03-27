@@ -1,14 +1,13 @@
 #!/usr/bin/env -S node --import tsx
 import process from "node:process";
 
+import { buildEntityGraph, type EntityGraph } from "../../../src/entity-graph.js";
 import {
-  buildEntityGraph,
   collectEntitySubgraph,
   findEntityGraphPath,
   getEntityGraphNeighbors,
-  type EntityGraph,
   type EntityGraphDirection,
-} from "../../../src/entity-graph.js";
+} from "./graph-traversal.ts";
 import { resolveRole } from "../../../src/roles.js";
 import {
   getNumberFlag,

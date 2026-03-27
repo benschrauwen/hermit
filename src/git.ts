@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
 
+import { isAbortError } from "./abort.js";
 import { assertSplitWorkspaceLayout, resolveFrameworkRoot, uniquePaths } from "./runtime-paths.js";
 
 const execFileAsync = promisify(execFile);
@@ -232,4 +233,42 @@ export async function createCheckpoint(
     checkpointSha: head.headSha,
     changedFiles,
   };
+}
+
+export async function withCheckpoints(options: {
+  workspaceRoot: string;
+  meta: Omit<CheckpointMetadata, "phase" | "outcome">;
+  enabled?: boolean | undefined;
+  run: (beforeStates: ReadonlyMap<string, RepoState | undefined>) => Promise<void>;
+  onComplete?: ((result: {
+    outcome: CheckpointOutcome;
+    afterStates: ReadonlyMap<string, RepoState | undefined>;
+    checkpoints: ReadonlyMap<string, CheckpointResult | undefined>;
+  }) => void | Promise<void>) | undefined;
+}): Promise<void> {
+  const checkpointRoots = listCheckpointRoots(options.workspaceRoot);
+  const enabled = options.enabled !== false;
+
+  const beforeStates = new Map(
+    await Promise.all(checkpointRoots.map(async (root) => [root, await getRepoState(root)] as const)),
+  );
+
+  let outcome: CheckpointOutcome = "success";
+  try {
+    await options.run(beforeStates);
+  } catch (error) {
+    outcome = isAbortError(error) ? "aborted" : "failed";
+    throw error;
+  } finally {
+    const afterStates = new Map(
+      await Promise.all(checkpointRoots.map(async (root) => [root, await getRepoState(root)] as const)),
+    );
+    const checkpoints = new Map<string, CheckpointResult | undefined>();
+    for (const root of checkpointRoots) {
+      if (shouldCheckpointAfterTurn(beforeStates.get(root), afterStates.get(root), outcome, enabled)) {
+        checkpoints.set(root, await createCheckpoint(root, { ...options.meta, phase: "after", outcome }));
+      }
+    }
+    await options.onComplete?.({ outcome, afterStates, checkpoints });
+  }
 }

@@ -3,12 +3,12 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import { buildEntityGraph } from "../src/entity-graph.js";
 import {
-  buildEntityGraph,
   collectEntitySubgraph,
   findEntityGraphPath,
   getEntityGraphNeighbors,
-} from "../src/entity-graph.js";
+} from "../skills/entity-query/scripts/graph-traversal.js";
 import { loadRole } from "../src/roles.js";
 import { seedRoleWorkspace } from "./test-helpers.js";
 

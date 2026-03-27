@@ -12,7 +12,6 @@ import type {
   RoleExplorerConfig,
   RoleFieldDefinition,
   RoleResolution,
-  TranscriptIngestCapability,
 } from "./types.js";
 
 const ROLE_MANIFEST_FILE = "role.md";
@@ -27,40 +26,45 @@ interface RoleManifestData {
   description?: unknown;
   role_directories?: unknown;
   entities?: unknown;
-  transcript_ingest?: unknown;
   explorer?: unknown;
 }
 
-function asString(value: unknown, fieldName: string): string {
+function assertString(value: unknown, field: string): string {
   if (typeof value !== "string" || value.trim().length === 0) {
-    throw new Error(`Invalid role manifest field: ${fieldName}`);
+    throw new Error(`Invalid role manifest field: ${field}`);
   }
-
   return value;
 }
 
-function asStringArray(value: unknown, fieldName: string): string[] {
-  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string" || entry.length === 0)) {
-    throw new Error(`Invalid role manifest field: ${fieldName}`);
+function assertStringArray(value: unknown, field: string): string[] {
+  if (!Array.isArray(value) || value.some((v) => typeof v !== "string" || v.length === 0)) {
+    throw new Error(`Invalid role manifest field: ${field}`);
   }
-
   return [...value];
 }
 
-function asOptionalStringArray(value: unknown, fieldName: string): string[] | undefined {
-  if (value === undefined) {
-    return undefined;
+function assertObject(value: unknown, field: string): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`Invalid role manifest field: ${field}`);
   }
-
-  return asStringArray(value, fieldName);
+  return value as Record<string, unknown>;
 }
 
-function asObject(value: unknown, errorMessage: string): Record<string, unknown> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error(errorMessage);
-  }
+function optionalStringArray(value: unknown, field: string): string[] | undefined {
+  return value === undefined ? undefined : assertStringArray(value, field);
+}
 
-  return value as Record<string, unknown>;
+function optionalFieldRef(record: Record<string, unknown>, key: string, validKeys: ReadonlySet<string>, context: string): string | undefined {
+  const value = record[key];
+  if (typeof value !== "string") return undefined;
+  if (!validKeys.has(value)) {
+    throw new Error(`${context}.${key} references unknown field ${value}`);
+  }
+  return value;
+}
+
+function spread<K extends string>(key: K, value: string | undefined): { [P in K]: string } | Record<string, never> {
+  return value !== undefined ? ({ [key]: value } as { [P in K]: string }) : {};
 }
 
 function parseFieldDefinitions(value: unknown): RoleFieldDefinition[] {
@@ -69,36 +73,29 @@ function parseFieldDefinitions(value: unknown): RoleFieldDefinition[] {
   }
 
   return value.map((entry, index) => {
-    const record = asObject(entry, `Invalid role field definition at index ${index}`);
-    const type = asString(record.type, `entities[].fields[${index}].type`);
+    const f = `fields[${index}]`;
+    const record = assertObject(entry, f);
+    const type = assertString(record.type, `${f}.type`);
     if (type !== "string" && type !== "string-array") {
       throw new Error(`Unsupported role field type: ${type}`);
     }
 
+    const key = assertString(record.key, `${f}.key`);
     const parsed: RoleFieldDefinition = {
-      key: asString(record.key, `entities[].fields[${index}].key`),
-      label: asString(record.label, `entities[].fields[${index}].label`),
+      key,
+      label: assertString(record.label, `${f}.label`),
       type,
-      description: asString(record.description, `entities[].fields[${index}].description`),
+      description: assertString(record.description, `${f}.description`),
     };
 
-    if (typeof record.required === "boolean") {
-      parsed.required = record.required;
-    }
+    if (typeof record.required === "boolean") parsed.required = record.required;
     if (record.defaultValue !== undefined) {
-      if (type === "string") {
-        if (typeof record.defaultValue !== "string") {
-          throw new Error(`Invalid defaultValue for string field ${parsed.key}. Expected a string.`);
-        }
+      if (type === "string" && typeof record.defaultValue === "string") {
         parsed.defaultValue = record.defaultValue;
-      } else {
-        if (
-          !Array.isArray(record.defaultValue)
-          || record.defaultValue.some((entry) => typeof entry !== "string")
-        ) {
-          throw new Error(`Invalid defaultValue for string-array field ${parsed.key}. Expected a string array.`);
-        }
+      } else if (type === "string-array" && Array.isArray(record.defaultValue) && record.defaultValue.every((v) => typeof v === "string")) {
         parsed.defaultValue = [...record.defaultValue];
+      } else {
+        throw new Error(`Invalid defaultValue for ${type} field ${key}.`);
       }
     }
 
@@ -110,12 +107,11 @@ function parseFileDefinitions(value: unknown): Array<{ path: string; template: s
   if (!Array.isArray(value)) {
     throw new Error("Invalid role manifest field: entities[].files");
   }
-
   return value.map((entry, index) => {
-    const record = asObject(entry, `Invalid role file definition at index ${index}`);
+    const record = assertObject(entry, `files[${index}]`);
     return {
-      path: asString(record.path, `entities[].files[${index}].path`),
-      template: asString(record.template, `entities[].files[${index}].template`),
+      path: assertString(record.path, `files[${index}].path`),
+      template: assertString(record.template, `files[${index}].template`),
     };
   });
 }
@@ -129,41 +125,22 @@ function parseRelationshipDefinitions(
     throw new Error(`Invalid role manifest field: entities[${entityIndex}].relationships`);
   }
 
-  return value.map((entry, relationshipIndex) => {
-    const record = asObject(
-      entry,
-      `Invalid role relationship definition at entities[${entityIndex}].relationships[${relationshipIndex}]`,
-    );
-    const sourceField = asString(
-      record.source_field,
-      `entities[${entityIndex}].relationships[${relationshipIndex}].source_field`,
-    );
+  return value.map((entry, i) => {
+    const ctx = `entities[${entityIndex}].relationships[${i}]`;
+    const record = assertObject(entry, ctx);
+    const sourceField = assertString(record.source_field, `${ctx}.source_field`);
     if (!fieldKeys.has(sourceField)) {
-      throw new Error(
-        `entities[${entityIndex}].relationships[${relationshipIndex}].source_field references unknown field ${sourceField}`,
-      );
+      throw new Error(`${ctx}.source_field references unknown field ${sourceField}`);
     }
 
-    const parsed: RoleEntityRelationshipDefinition = {
+    return {
       sourceField,
-      targetType: asString(
-        record.target_type,
-        `entities[${entityIndex}].relationships[${relationshipIndex}].target_type`,
-      ),
-      edgeType: asString(
-        record.edge_type,
-        `entities[${entityIndex}].relationships[${relationshipIndex}].edge_type`,
-      ),
+      targetType: assertString(record.target_type, `${ctx}.target_type`),
+      edgeType: assertString(record.edge_type, `${ctx}.edge_type`),
+      ...(record.reverse_edge_type !== undefined
+        ? { reverseEdgeType: assertString(record.reverse_edge_type, `${ctx}.reverse_edge_type`) }
+        : {}),
     };
-
-    if (record.reverse_edge_type !== undefined) {
-      parsed.reverseEdgeType = asString(
-        record.reverse_edge_type,
-        `entities[${entityIndex}].relationships[${relationshipIndex}].reverse_edge_type`,
-      );
-    }
-
-    return parsed;
   });
 }
 
@@ -198,132 +175,73 @@ function parseEntityDefinitions(value: unknown): RoleEntityDefinition[] {
   }
 
   return value.map((entry, index) => {
-    const record = asObject(entry, `Invalid role entity definition at index ${index}`);
-    const idStrategy = asString(record.id_strategy, `entities[${index}].id_strategy`);
+    const ctx = `entities[${index}]`;
+    const record = assertObject(entry, ctx);
+    const idStrategy = assertString(record.id_strategy, `${ctx}.id_strategy`);
     if (idStrategy !== "prefixed-slug" && idStrategy !== "year-sequence-slug" && idStrategy !== "singleton") {
       throw new Error(`Unsupported role entity ID strategy: ${idStrategy}`);
     }
 
-    const idSourceFields = asOptionalStringArray(record.id_source_fields, `entities[${index}].id_source_fields`);
-    if (idStrategy !== "singleton" && (!idSourceFields || idSourceFields.length === 0)) {
-      throw new Error(
-        `entities[${index}].id_source_fields is required when id_strategy is prefixed-slug or year-sequence-slug`,
-      );
+    const idSourceFields = optionalStringArray(record.id_source_fields, `${ctx}.id_source_fields`) ?? [];
+    if (idStrategy !== "singleton" && idSourceFields.length === 0) {
+      throw new Error(`${ctx}.id_source_fields is required when id_strategy is prefixed-slug or year-sequence-slug`);
     }
 
     const fields = parseFieldDefinitions(record.fields);
     const fieldKeys = new Set(fields.map((field) => field.key));
-    const parsed: RoleEntityDefinition = {
-      key: asString(record.key, `entities[${index}].key`),
-      label: asString(record.label, `entities[${index}].label`),
-      type: asString(record.type, `entities[${index}].type`),
-      createDirectory: asString(record.create_directory, `entities[${index}].create_directory`),
+
+    for (const fieldName of idSourceFields) {
+      if (!fieldKeys.has(fieldName)) {
+        throw new Error(`${ctx}.id_source_fields references unknown field ${fieldName}`);
+      }
+    }
+
+    return {
+      key: assertString(record.key, `${ctx}.key`),
+      label: assertString(record.label, `${ctx}.label`),
+      type: assertString(record.type, `${ctx}.type`),
+      createDirectory: assertString(record.create_directory, `${ctx}.create_directory`),
       idStrategy,
-      idSourceFields: idSourceFields ?? [],
-      nameTemplate: asString(record.name_template, `entities[${index}].name_template`),
+      idSourceFields,
+      nameTemplate: assertString(record.name_template, `${ctx}.name_template`),
       fields,
       files: parseFileDefinitions(record.files),
+      ...(typeof record.id_prefix === "string" ? { idPrefix: record.id_prefix } : {}),
+      ...spread("statusField", optionalFieldRef(record, "status_field", fieldKeys, ctx)),
+      ...spread("ownerField", optionalFieldRef(record, "owner_field", fieldKeys, ctx)),
+      ...(typeof record.include_in_initialization === "boolean" ? { includeInInitialization: record.include_in_initialization } : {}),
+      ...(Array.isArray(record.extra_directories) ? { extraDirectories: assertStringArray(record.extra_directories, `${ctx}.extra_directories`) } : {}),
+      ...(Array.isArray(record.scan_directories) ? { scanDirectories: assertStringArray(record.scan_directories, `${ctx}.scan_directories`) } : {}),
+      ...(Array.isArray(record.exclude_directory_names) ? { excludeDirectoryNames: assertStringArray(record.exclude_directory_names, `${ctx}.exclude_directory_names`) } : {}),
+      ...(Array.isArray(record.relationships) ? { relationships: parseRelationshipDefinitions(record.relationships, fieldKeys, index) } : {}),
     };
-
-    if (typeof record.id_prefix === "string") {
-      parsed.idPrefix = record.id_prefix;
-    }
-    if (typeof record.status_field === "string") {
-      if (!fieldKeys.has(record.status_field)) {
-        throw new Error(`entities[${index}].status_field references unknown field ${record.status_field}`);
-      }
-      parsed.statusField = record.status_field;
-    }
-    if (typeof record.owner_field === "string") {
-      if (!fieldKeys.has(record.owner_field)) {
-        throw new Error(`entities[${index}].owner_field references unknown field ${record.owner_field}`);
-      }
-      parsed.ownerField = record.owner_field;
-    }
-    if (typeof record.include_in_initialization === "boolean") {
-      parsed.includeInInitialization = record.include_in_initialization;
-    }
-    if (Array.isArray(record.extra_directories)) {
-      parsed.extraDirectories = asStringArray(record.extra_directories, `entities[${index}].extra_directories`);
-    }
-    if (Array.isArray(record.scan_directories)) {
-      parsed.scanDirectories = asStringArray(record.scan_directories, `entities[${index}].scan_directories`);
-    }
-    if (Array.isArray(record.exclude_directory_names)) {
-      parsed.excludeDirectoryNames = asStringArray(
-        record.exclude_directory_names,
-        `entities[${index}].exclude_directory_names`,
-      );
-    }
-    if (Array.isArray(record.relationships)) {
-      parsed.relationships = parseRelationshipDefinitions(record.relationships, fieldKeys, index);
-    }
-    for (const fieldName of parsed.idSourceFields) {
-      if (!fieldKeys.has(fieldName)) {
-        throw new Error(`entities[${index}].id_source_fields references unknown field ${fieldName}`);
-      }
-    }
-
-    return parsed;
   });
 }
 
-function parseTranscriptIngestCapability(value: unknown): TranscriptIngestCapability | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  const record = asObject(value, "Invalid role manifest field: transcript_ingest");
-  return {
-    entityType: asString(record.entity_type, "transcript_ingest.entity_type"),
-    commandPrompt: asString(record.command_prompt, "transcript_ingest.command_prompt"),
-    systemPrompts: asOptionalStringArray(record.system_prompts, "transcript_ingest.system_prompts") ?? [],
-    evidenceDirectory: asString(record.evidence_directory, "transcript_ingest.evidence_directory"),
-    unmatchedDirectory: asString(record.unmatched_directory, "transcript_ingest.unmatched_directory"),
-    activityLogFile: asString(record.activity_log_file, "transcript_ingest.activity_log_file"),
-  };
-}
-
-function parseStringMap(value: unknown, fieldName: string): Record<string, string> {
+function parseStringMap(value: unknown, field: string): Record<string, string> {
   return Object.fromEntries(
-    Object.entries(asObject(value, `Invalid role manifest field: ${fieldName}`)).map(([key, entry]) => [
-      key,
-      asString(entry, `${fieldName}.${key}`),
-    ]),
+    Object.entries(assertObject(value, field)).map(([k, v]) => [k, assertString(v, `${field}.${k}`)]),
   );
 }
 
-function parseNestedStringMap(value: unknown, fieldName: string): Record<string, Record<string, string>> {
+function parseNestedStringMap(value: unknown, field: string): Record<string, Record<string, string>> {
   return Object.fromEntries(
-    Object.entries(asObject(value, `Invalid role manifest field: ${fieldName}`)).map(([key, entry]) => [
-      key,
-      parseStringMap(entry, `${fieldName}.${key}`),
-    ]),
+    Object.entries(assertObject(value, field)).map(([k, v]) => [k, parseStringMap(v, `${field}.${k}`)]),
   );
 }
 
 function parseExplorerConfig(value: unknown): RoleExplorerConfig | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
+  if (value === undefined) return undefined;
+  const record = assertObject(value, "explorer");
+  if (record.renderers === undefined) return {};
 
-  const record = asObject(value, "Invalid role manifest field: explorer");
-  const renderers = record.renderers;
-  if (renderers === undefined) {
-    return {};
-  }
-
-  const rendererRecord = asObject(renderers, "Invalid role manifest field: explorer.renderers");
-  const parsedRenderers: NonNullable<RoleExplorerConfig["renderers"]> = {};
-
-  if (rendererRecord.detail !== undefined) {
-    parsedRenderers.detail = parseStringMap(rendererRecord.detail, "explorer.renderers.detail");
-  }
-  if (rendererRecord.files !== undefined) {
-    parsedRenderers.files = parseNestedStringMap(rendererRecord.files, "explorer.renderers.files");
-  }
-
-  return { renderers: parsedRenderers };
+  const renderers = assertObject(record.renderers, "explorer.renderers");
+  return {
+    renderers: {
+      ...(renderers.detail !== undefined ? { detail: parseStringMap(renderers.detail, "explorer.renderers.detail") } : {}),
+      ...(renderers.files !== undefined ? { files: parseNestedStringMap(renderers.files, "explorer.renderers.files") } : {}),
+    },
+  };
 }
 
 export function getRootPaths(root: string): {
@@ -430,15 +348,14 @@ export async function loadRole(root: string, roleId: string): Promise<RoleDefini
   const parsed = matter(raw);
   const data = parsed.data as RoleManifestData;
 
-  const manifestRoleId = asString(data.id, "id");
+  const manifestRoleId = assertString(data.id, "id");
   assertRoleDirectoryMatchesManifestId(roleId, manifestRoleId);
 
-  const transcriptIngest = parseTranscriptIngestCapability(data.transcript_ingest);
   const entityDefs = await loadEntityDefs(root);
   return {
     id: manifestRoleId,
-    name: asString(data.name, "name"),
-    description: asString(data.description, "description"),
+    name: assertString(data.name, "name"),
+    description: assertString(data.description, "description"),
     frameworkRoot: paths.frameworkRoot,
     root,
     roleDir: paths.roleDir,
@@ -452,10 +369,9 @@ export async function loadRole(root: string, roleId: string): Promise<RoleDefini
     entityDefsDir: paths.entityDefsDir,
     agentDir: paths.agentDir,
     sessionsDir: paths.sessionsDir,
-    roleDirectories: asOptionalStringArray(data.role_directories, "role_directories") ?? [],
+    roleDirectories: optionalStringArray(data.role_directories, "role_directories") ?? [],
     agentFiles: [...ROLE_AGENT_FILES],
     entities: entityDefs.entities,
-    ...(transcriptIngest ? { transcriptIngest } : {}),
     ...(entityDefs.explorer ? { explorer: entityDefs.explorer } : {}),
   };
 }
@@ -605,19 +521,6 @@ export async function ensureRoleTemplatesExist(role: RoleDefinition): Promise<vo
     ),
   ];
 
-  if (role.transcriptIngest) {
-    requiredFiles.push({
-      filePath: path.join(role.rolePromptsDir, role.transcriptIngest.commandPrompt),
-      errorMessage: `Role ${role.id} is missing transcript command prompt: ${role.transcriptIngest.commandPrompt}`,
-    });
-    for (const systemPrompt of role.transcriptIngest.systemPrompts) {
-      requiredFiles.push({
-        filePath: path.join(role.rolePromptsDir, systemPrompt),
-        errorMessage: `Role ${role.id} is missing transcript system prompt: ${systemPrompt}`,
-      });
-    }
-  }
-
   for (const { filePath, errorMessage } of requiredFiles) {
     const candidatePaths = errorMessage.includes("shared agent template:")
       ? resolveSharedPromptTemplateCandidates(
@@ -640,14 +543,6 @@ export async function validateRoleManifest(root: string, roleId: string): Promis
   await fs.access(role.agentsFile);
   await fs.access(role.sharedPromptsDir);
   await ensureRoleTemplatesExist(role);
-
-  if (role.transcriptIngest) {
-    if (!entityTypes.has(role.transcriptIngest.entityType)) {
-      throw new Error(
-        `Role ${roleId} transcript_ingest references unknown entity type ${role.transcriptIngest.entityType}.`,
-      );
-    }
-  }
 
   for (const entity of role.entities) {
     for (const relationship of entity.relationships ?? []) {

@@ -56,7 +56,6 @@ describe("PromptLibrary", () => {
         roleRoot: "agents/role-a",
         entityId: "cs-1",
         entityPath: "/my/root/entities/cases/active/cs-1",
-        transcriptPath: "/path/to/transcript.md",
       });
       expect(out).toContain("# User Record");
       expect(out).toContain("Keep the user's durable record in `/my/root/entities/user/record.md`.");
@@ -92,23 +91,6 @@ describe("PromptLibrary", () => {
       expect(out).not.toContain("{{gitBranch}}");
     });
 
-    it("includes additional role prompts when provided", async () => {
-      const role = await loadRole(root, "role-a");
-      const lib = await PromptLibrary.load(role);
-      const out = await lib.renderSystemPrompt(
-        {
-          workspaceRoot: "/my/root",
-          roleId: "role-a",
-          roleRoot: "agents/role-a",
-          entityId: "cs-1",
-          entityPath: "/my/root/entities/cases/active/cs-1",
-          transcriptPath: "/tmp/call.md",
-        },
-        ["23-mode-transcript-ingest.md"],
-      );
-      expect(out).toContain("Preserve the transcript as raw evidence.");
-    });
-
     it("lets workspace shared prompts override framework prompt files", async () => {
       writeFileSync(
         path.join(root, "prompts", "05-file-rules.md"),
@@ -133,19 +115,19 @@ describe("PromptLibrary", () => {
   describe("renderRolePrompt", () => {
     it("substitutes context into single prompt", async () => {
       const lib = await PromptLibrary.load(await loadRole(root, "role-a"));
-      const out = await lib.renderRolePrompt("40-command-transcript-run.md", {
+      const out = await lib.renderRolePrompt("40-command-review.md", {
         workspaceRoot: "/root",
         roleId: "role-a",
         roleRoot: "agents/role-a",
-        transcriptPath: "/root/entities/cases/active/cs-1/transcripts/call.md",
+        entityPath: "/root/entities/cases/active/cs-1",
       });
-      expect(out).toContain("Transcript Processing Request");
-      expect(out).toContain("/root/entities/cases/active/cs-1/transcripts/call.md");
+      expect(out).toContain("Review Request");
+      expect(out).toContain("/root/entities/cases/active/cs-1");
     });
 
     it("uses not-selected for missing optional context", async () => {
       const lib = await PromptLibrary.load(await loadRole(root, "role-a"));
-      const out = await lib.renderRolePrompt("40-command-transcript-run.md", {
+      const out = await lib.renderRolePrompt("40-command-review.md", {
         workspaceRoot: "/root",
         roleId: "role-a",
         roleRoot: "agents/role-a",
@@ -159,7 +141,7 @@ describe("PromptLibrary", () => {
       const lib = await PromptLibrary.load(await loadRole(root, "role-a"));
       const links = lib.extractLinkedFiles();
       expect(links.length).toBeGreaterThan(0);
-      expect(links).toContain("prompts/23-mode-transcript-ingest.md");
+      expect(links).toContain("prompts/23-mode-follow-up.md");
     });
   });
 
