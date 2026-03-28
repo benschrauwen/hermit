@@ -39,7 +39,7 @@ import {
   colorize,
   editorTheme,
 } from "./tui-components.js";
-import { formatWorkspaceTurnOwner } from "./turn-control.js";
+import { createWorkspaceTurnCoordinator, formatWorkspaceTurnOwner } from "./turn-control.js";
 import {
   extractExplorerUrl,
   renderAnsiTextBlock,
@@ -62,6 +62,7 @@ export interface WorkspaceStartLoopOptions {
   initialSession: InteractiveChatSession;
   initialPrompt?: string;
   initialImages?: string[];
+  showInitialPromptEcho?: boolean;
   onRoleSwitch?: (request: RoleSwitchRequest, previousRoleLabel: string) => Promise<InteractiveChatSession>;
 }
 
@@ -111,6 +112,7 @@ class WorkspaceStartLayout implements Component, Focusable {
   private modelLabel: string;
   private explorerStatus = `starting on ${DEFAULT_EXPLORER_URL}`;
   private tailscaleStatus: string | undefined;
+  private queuedFollowUpCount = 0;
 
   private _focused = false;
 
@@ -161,6 +163,16 @@ class WorkspaceStartLayout implements Component, Focusable {
     }
 
     this.tailscaleStatus = normalized;
+    this.tui.requestRender();
+  }
+
+  setQueuedFollowUpCount(count: number): void {
+    const normalized = Math.max(0, Math.floor(count));
+    if (this.queuedFollowUpCount === normalized) {
+      return;
+    }
+
+    this.queuedFollowUpCount = normalized;
     this.tui.requestRender();
   }
 
@@ -221,9 +233,16 @@ class WorkspaceStartLayout implements Component, Focusable {
   }
 
   private renderChatPane(width: number, height: number): string[] {
+    const detail = [
+      `model ${this.modelLabel}`,
+      ...(this.queuedFollowUpCount > 0
+        ? [`${this.queuedFollowUpCount} queued follow-up${this.queuedFollowUpCount === 1 ? "" : "s"}`]
+        : []),
+      "Ctrl-C exits and cancels live sessions",
+    ].join(" | ");
     const header = renderHeader(
       `${ANSI_BOLD}Chat${ANSI_RESET}`,
-      `model ${this.modelLabel} | Ctrl-C exits and cancels live sessions`,
+      detail,
       width,
     );
 
@@ -260,13 +279,7 @@ class WorkspaceStartTui implements SessionOutputSink {
   private readonly tui = new TUI(this.terminal);
   private readonly layout: WorkspaceStartLayout;
   private readonly removeInputListener: () => void;
-
-  private pendingSubmit:
-    | {
-        resolve: (value: string) => void;
-        reject: (error: Error) => void;
-      }
-    | undefined;
+  private submitHandler: ((value: string) => void) | undefined;
   private shutdownRequested = false;
   private shutdownHandler: (() => Promise<void>) | undefined;
 
@@ -287,18 +300,14 @@ class WorkspaceStartTui implements SessionOutputSink {
       ),
     );
     editor.onSubmit = (submittedValue) => {
-      if (!this.pendingSubmit) {
+      if (this.shutdownRequested || !this.submitHandler) {
         return;
       }
 
       if (submittedValue.trim().length > 0) {
         editor.addToHistory(submittedValue);
       }
-      editor.disableSubmit = true;
-
-      const pendingSubmit = this.pendingSubmit;
-      this.pendingSubmit = undefined;
-      pendingSubmit.resolve(submittedValue);
+      this.submitHandler(submittedValue);
     };
 
     this.removeInputListener = this.tui.addInputListener((data) => {
@@ -336,19 +345,16 @@ class WorkspaceStartTui implements SessionOutputSink {
     this.shutdownHandler = handler;
   }
 
-  async readInput(): Promise<string> {
-    if (this.pendingSubmit) {
-      throw new Error("A chat submission is already pending.");
-    }
-
+  setSubmitHandler(handler: ((value: string) => void) | undefined): void {
+    this.submitHandler = handler;
     const editor = this.layout.getEditor();
-    editor.disableSubmit = false;
+    editor.disableSubmit = handler === undefined;
     this.tui.setFocus(this.layout);
     this.tui.requestRender();
+  }
 
-    return new Promise<string>((resolve, reject) => {
-      this.pendingSubmit = { resolve, reject };
-    });
+  setQueuedFollowUpCount(count: number): void {
+    this.layout.setQueuedFollowUpCount(count);
   }
 
   requestShutdown(message?: string): void {
@@ -365,13 +371,6 @@ class WorkspaceStartTui implements SessionOutputSink {
     const editor = this.layout.getEditor();
     editor.disableSubmit = true;
 
-    if (this.pendingSubmit) {
-      const pendingSubmit = this.pendingSubmit;
-      this.pendingSubmit = undefined;
-      editor.setText("");
-      pendingSubmit.resolve("/exit");
-    }
-
     if (this.shutdownHandler) {
       void this.shutdownHandler();
     }
@@ -381,8 +380,11 @@ class WorkspaceStartTui implements SessionOutputSink {
     this.layout.appendHeartbeatOutput(text);
   }
 
-  appendUserPrompt(prompt: string): void {
+  appendUserPrompt(prompt: string, options: { queued?: boolean } = {}): void {
     this.appendText(formatUserPromptEcho(prompt, this.layout.getActiveRoleLabel()));
+    if (options.queued) {
+      this.appendText(`${colorize(ANSI_DIM, "Queued as a follow-up.")}\n\n`);
+    }
   }
 
   appendSystemNotice(text: string): void {
@@ -411,11 +413,6 @@ class WorkspaceStartTui implements SessionOutputSink {
 
     const editor = this.layout.getEditor();
     editor.disableSubmit = true;
-
-    if (this.pendingSubmit) {
-      this.pendingSubmit.reject(new Error("Workspace start UI closed before input submission."));
-      this.pendingSubmit = undefined;
-    }
 
     await this.terminal.drainInput().catch(() => undefined);
     this.tui.stop();
@@ -503,6 +500,22 @@ function attachWorkspaceStartStreaming(
   return session.subscribe(createSessionStreamHandler(tui, telemetry));
 }
 
+class WorkspaceStartHeartbeatSink implements SessionOutputSink {
+  constructor(private readonly ui: WorkspaceStartTui) {}
+
+  appendText(text: string): void {
+    this.ui.appendHeartbeatOutput(text);
+  }
+
+  appendToolStatus(text: string): void {
+    this.ui.appendHeartbeatOutput(`${colorize(ANSI_DIM, text)}\n`);
+  }
+
+  showStatus(_text: string): void {}
+
+  clearStatus(): void {}
+}
+
 function spawnManagedProcess(options: {
   cwd: string;
   command: string;
@@ -532,21 +545,45 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
   }
 
   const ui = new WorkspaceStartTui(options.initialSession.activeRoleLabel, options.initialSession.modelLabel);
+  const heartbeatSessionSink = new WorkspaceStartHeartbeatSink(ui);
   let explorerProcess: ManagedChildProcess | undefined;
   const heartbeatController = createHeartbeatDaemonController({
     onAbortError: (error) => {
       ui.appendHeartbeatOutput(`[supervisor] Failed to abort active heartbeat session: ${error instanceof Error ? error.message : String(error)}.\n`);
     },
   });
+  const turnCoordinator = createWorkspaceTurnCoordinator();
   let heartbeatLoopPromise: Promise<void> | undefined;
   let shutdownRequested = false;
   let shutdownPromise: Promise<void> | undefined;
+  let loopSettled = false;
+  let resolveLoop!: () => void;
+  let rejectLoop!: (error: unknown) => void;
+  const loopDone = new Promise<void>((resolve, reject) => {
+    resolveLoop = () => {
+      if (loopSettled) {
+        return;
+      }
+      loopSettled = true;
+      resolve();
+    };
+    rejectLoop = (error) => {
+      if (loopSettled) {
+        return;
+      }
+      loopSettled = true;
+      reject(error);
+    };
+  });
   let explorerReadyNotified = false;
   let explorerUrl = DEFAULT_EXPLORER_URL;
+  const pendingQueuedFollowUps: Array<{ prompt: string }> = [];
+  let activePromptPromise: Promise<void> | undefined;
   const sessionController = new InteractiveSessionController({
     root: options.workspaceRoot,
     initialSession: options.initialSession,
     ...(options.gitCheckpointsEnabled !== undefined ? { gitCheckpointsEnabled: options.gitCheckpointsEnabled } : {}),
+    turnCoordinator,
     ...(options.onRoleSwitch ? { onRoleSwitch: options.onRoleSwitch } : {}),
     shouldHandleRoleSwitch: () => !shutdownRequested,
     attachStreaming: (session): InteractiveSessionStreamingHandle => ({
@@ -561,6 +598,23 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
     onRoleSwitched: (session) => {
       ui.appendSystemNotice(`Switched active role to ${session.activeRoleLabel} using ${session.modelLabel}.`);
     },
+    onTurnStateChange: (state) => {
+      if (state !== "running") {
+        return;
+      }
+
+      while (pendingQueuedFollowUps.length > 0) {
+        const nextPrompt = pendingQueuedFollowUps[0];
+        if (!nextPrompt || !sessionController.queueFollowUp(nextPrompt.prompt)) {
+          break;
+        }
+        pendingQueuedFollowUps.shift();
+      }
+      ui.setQueuedFollowUpCount(pendingQueuedFollowUps.length + sessionController.getQueuedFollowUpCount());
+    },
+    onQueuedFollowUpCountChange: (count) => {
+      ui.setQueuedFollowUpCount(pendingQueuedFollowUps.length + count);
+    },
   });
 
   const requestShutdown = async (): Promise<void> => {
@@ -569,6 +623,7 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
     }
 
     shutdownRequested = true;
+    resolveLoop();
     ui.setExplorerStatus("stopping...");
     ui.clearStatus();
 
@@ -611,6 +666,10 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
   process.on("SIGINT", onSignal);
   process.on("SIGTERM", onSignal);
 
+  const updateQueuedFollowUpCount = (): void => {
+    ui.setQueuedFollowUpCount(pendingQueuedFollowUps.length + sessionController.getQueuedFollowUpCount());
+  };
+
   async function promptActiveSession(prompt: string, imagePaths: string[] = []): Promise<void> {
     try {
       let waitingStatusShown = false;
@@ -632,6 +691,70 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
       return;
     }
     ui.clearStatus();
+  }
+
+  function startPromptSubmission(
+    prompt: string,
+    imagePaths: string[] = [],
+    options: { echoPrompt?: boolean } = {},
+  ): void {
+    if (options.echoPrompt !== false) {
+      ui.appendUserPrompt(prompt);
+    }
+
+    activePromptPromise = promptActiveSession(prompt, imagePaths)
+      .catch((error) => {
+        if (shutdownRequested && isAbortError(error)) {
+          return;
+        }
+
+        const detail = error instanceof Error ? error.message : String(error);
+        ui.appendSystemNotice(`Chat failed (${detail}).`);
+        rejectLoop(error);
+        ui.requestShutdown(`Shutting down Hermit after chat failure (${detail}).`);
+      })
+      .finally(() => {
+        activePromptPromise = undefined;
+        if (shutdownRequested) {
+          pendingQueuedFollowUps.length = 0;
+          updateQueuedFollowUpCount();
+          return;
+        }
+
+        const nextPrompt = pendingQueuedFollowUps.shift();
+        updateQueuedFollowUpCount();
+        if (!nextPrompt) {
+          return;
+        }
+
+        startPromptSubmission(nextPrompt.prompt, [], { echoPrompt: false });
+      });
+  }
+
+  function handleSubmittedPrompt(rawInput: string, imagePaths: string[] = []): void {
+    const input = normalizeChatInput(rawInput);
+    if (!input.trim()) {
+      return;
+    }
+
+    if (isExitCommand(input)) {
+      ui.requestShutdown("Shutting down Hermit.");
+      return;
+    }
+
+    if (!activePromptPromise) {
+      startPromptSubmission(input, imagePaths);
+      return;
+    }
+
+    ui.appendUserPrompt(input, { queued: true });
+    if (sessionController.queueFollowUp(input)) {
+      updateQueuedFollowUpCount();
+      return;
+    }
+
+    pendingQueuedFollowUps.push({ prompt: input });
+    updateQueuedFollowUpCount();
   }
 
   try {
@@ -674,11 +797,17 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
       ...(options.gitCheckpointsEnabled !== undefined ? { gitCheckpointsEnabled: options.gitCheckpointsEnabled } : {}),
       controller: heartbeatController,
       handleSignals: false,
+      turnCoordinator,
       onInfo: (message) => {
         ui.appendHeartbeatOutput(message);
       },
       onError: (message) => {
         ui.appendHeartbeatOutput(message);
+      },
+      renderOptions: {
+        sink: heartbeatSessionSink,
+        echoPrompt: false,
+        showModelNotice: false,
       },
     }).catch((error) => {
       if (shutdownRequested || isAbortError(error)) {
@@ -688,29 +817,20 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
       const detail = error instanceof Error ? error.message : String(error);
       ui.appendHeartbeatOutput(`\n[supervisor] Heartbeat daemon failed (${detail}).\n`);
       ui.appendSystemNotice(`Heartbeat daemon exited unexpectedly (${detail}).`);
+      rejectLoop(error);
+    });
+
+    ui.setSubmitHandler((submittedValue) => {
+      handleSubmittedPrompt(submittedValue);
     });
 
     if (options.initialPrompt) {
-      await promptActiveSession(options.initialPrompt, options.initialImages ?? []);
-      if (shutdownRequested) {
-        return;
-      }
+      startPromptSubmission(options.initialPrompt, options.initialImages ?? [], {
+        echoPrompt: options.showInitialPromptEcho ?? false,
+      });
     }
 
-    while (!shutdownRequested) {
-      const input = normalizeChatInput(await ui.readInput());
-      if (!input.trim()) {
-        continue;
-      }
-
-      if (isExitCommand(input)) {
-        ui.requestShutdown("Shutting down Hermit.");
-        break;
-      }
-
-      ui.appendUserPrompt(input);
-      await promptActiveSession(input);
-    }
+    await loopDone;
   } finally {
     sessionController.stop();
     process.off("SIGINT", onSignal);

@@ -5,7 +5,7 @@ import type { AgentSession } from "@mariozechner/pi-coding-agent";
 import { HERMIT_ROLE_ID } from "./constants.js";
 import { loadImageAttachments } from "./image-attachments.js";
 import { formatUserPromptEcho } from "./session-formatting.js";
-import { attachConsoleStreaming } from "./session-terminal.js";
+import { attachConsoleStreaming, attachSessionStreaming, type SessionOutputSink } from "./session-terminal.js";
 import type { TelemetryRecorder } from "./telemetry-recorder.js";
 
 const ANSI_DIM = "\x1b[90m";
@@ -15,6 +15,12 @@ function formatModelNotice(modelLabel: string): string {
   return `${ANSI_DIM}Using model ${modelLabel}.${ANSI_RESET}\n`;
 }
 
+export interface OneShotPromptRenderOptions {
+  sink?: SessionOutputSink;
+  echoPrompt?: boolean;
+  showModelNotice?: boolean;
+}
+
 export async function runOneShotPrompt(
   session: AgentSession,
   prompt: string,
@@ -22,14 +28,29 @@ export async function runOneShotPrompt(
   telemetry?: TelemetryRecorder,
   activeRoleLabel = HERMIT_ROLE_ID,
   modelLabel?: string,
+  renderOptions: OneShotPromptRenderOptions = {},
 ): Promise<void> {
-  const streaming = attachConsoleStreaming(session, telemetry);
+  const streaming = renderOptions.sink
+    ? attachSessionStreaming(session, renderOptions.sink, telemetry)
+    : attachConsoleStreaming(session, telemetry);
 
   try {
-    if (modelLabel) {
-      process.stdout.write(formatModelNotice(modelLabel));
+    if (modelLabel && renderOptions.showModelNotice !== false) {
+      const modelNotice = formatModelNotice(modelLabel);
+      if (renderOptions.sink) {
+        renderOptions.sink.appendToolStatus(`Using model ${modelLabel}.`);
+      } else {
+        process.stdout.write(modelNotice);
+      }
     }
-    process.stdout.write(formatUserPromptEcho(prompt, activeRoleLabel));
+    if (renderOptions.echoPrompt !== false) {
+      const promptEcho = formatUserPromptEcho(prompt, activeRoleLabel);
+      if (renderOptions.sink) {
+        renderOptions.sink.appendText(promptEcho);
+      } else {
+        process.stdout.write(promptEcho);
+      }
+    }
     await session.prompt(prompt, {
       images: await loadImageAttachments(imagePaths),
     });

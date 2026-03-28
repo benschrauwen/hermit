@@ -47,6 +47,11 @@ export interface SessionOutputSink {
   dispose?(): void;
 }
 
+export interface StreamingHandle {
+  stop(): void;
+  clearStatus(): void;
+}
+
 function resetAssistantRenderState(state: TerminalRenderState): void {
   state.inCodeBlock = false;
   state.pendingLine = "";
@@ -271,21 +276,23 @@ class ConsoleSessionSink implements SessionOutputSink {
   }
 }
 
-export interface StreamingHandle {
-  stop(): void;
-  clearStatus(): void;
-}
-
-export function attachConsoleStreaming(session: AgentSession, telemetry?: TelemetryRecorder): StreamingHandle {
-  const sink = new ConsoleSessionSink();
+export function attachSessionStreaming(
+  session: AgentSession,
+  sink: SessionOutputSink,
+  telemetry?: TelemetryRecorder,
+): StreamingHandle {
   const unsubscribe = session.subscribe(createSessionStreamHandler(sink, telemetry));
   return {
     stop() {
       unsubscribe();
-      sink.dispose();
+      sink.dispose?.();
     },
     clearStatus() {
       sink.clearStatus();
     },
   };
+}
+
+export function attachConsoleStreaming(session: AgentSession, telemetry?: TelemetryRecorder): StreamingHandle {
+  return attachSessionStreaming(session, new ConsoleSessionSink(), telemetry);
 }

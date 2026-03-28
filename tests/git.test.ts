@@ -11,6 +11,7 @@ import {
   isGitRepository,
   listChangedFiles,
   shouldCheckpointAfterTurn,
+  withCheckpoints,
 } from "../src/git.js";
 
 const testsDir = path.dirname(fileURLToPath(import.meta.url));
@@ -28,10 +29,14 @@ function writeFile(root: string, relativePath: string, content: string): void {
   writeFileSync(filePath, content);
 }
 
-function createGitWorkspace(): string {
+function createTempRoot(prefix: string): string {
   const tmpRoot = path.join(workspaceRoot, ".tmp-tests");
   mkdirSync(tmpRoot, { recursive: true });
-  const root = mkdtempSync(path.join(tmpRoot, "hermit-git-"));
+  return mkdtempSync(path.join(tmpRoot, prefix));
+}
+
+function createGitWorkspace(): string {
+  const root = createTempRoot("hermit-git-");
   runGit(root, ["init", "--initial-branch=main"]);
   runGit(root, ["config", "user.name", "Hermit Tests"]);
   runGit(root, ["config", "user.email", "hermit-tests@example.com"]);
@@ -44,6 +49,20 @@ function createGitWorkspace(): string {
   runGit(root, ["commit", "-m", "chore: initial workspace"]);
 
   return root;
+}
+
+async function withFrameworkRoot<T>(frameworkRoot: string, callback: () => Promise<T>): Promise<T> {
+  const previousFrameworkRoot = process.env.HERMIT_FRAMEWORK_ROOT;
+  process.env.HERMIT_FRAMEWORK_ROOT = frameworkRoot;
+  try {
+    return await callback();
+  } finally {
+    if (previousFrameworkRoot === undefined) {
+      delete process.env.HERMIT_FRAMEWORK_ROOT;
+    } else {
+      process.env.HERMIT_FRAMEWORK_ROOT = previousFrameworkRoot;
+    }
+  }
 }
 
 describe("git runtime helpers", () => {
@@ -122,6 +141,43 @@ describe("git runtime helpers", () => {
     expect(await isGitRepository(root)).toBe(true);
     expect(await isGitRepository(nestedWorkspace)).toBe(false);
     expect(await listChangedFiles(nestedWorkspace)).toEqual([]);
+  });
+
+  it("creates a pre-turn checkpoint before running against a dirty repository", async () => {
+    const frameworkRoot = createTempRoot("hermit-framework-");
+    const root = createGitWorkspace();
+    roots.push(root, frameworkRoot);
+
+    writeFile(root, "docs/architecture.md", "# Architecture\n\nSafety checkpoint.\n");
+
+    let observedBeforeState: Awaited<ReturnType<typeof getRepoState>> | undefined;
+    await withFrameworkRoot(frameworkRoot, async () => {
+      await withCheckpoints({
+        workspaceRoot: root,
+        meta: {
+          commandName: "chat",
+          sessionId: "session-pre",
+        },
+        run: async (beforeStates) => {
+          observedBeforeState = beforeStates.get(root);
+          expect(await listChangedFiles(root)).toEqual([]);
+
+          const latestCommit = runGit(root, ["log", "-1", "--pretty=%s%n%b"]);
+          expect(latestCommit).toContain("chore(checkpoint): before chat workspace");
+          expect(latestCommit).toContain("Hermit-Phase: before");
+          expect(latestCommit).not.toContain("Hermit-Outcome:");
+        },
+      });
+    });
+
+    expect(observedBeforeState).toMatchObject({
+      branch: "main",
+      headSubject: "chore(checkpoint): before chat workspace",
+      dirty: false,
+      changedFiles: [],
+    });
+    expect(runGit(root, ["show", "--pretty=", "--name-only", "HEAD"])).toContain("docs/architecture.md");
+    expect(runGit(root, ["status", "--porcelain"])).toBe("");
   });
 
   it("only checkpoints when enabled and the repository is dirty", () => {

@@ -25,8 +25,9 @@ import {
   HERMIT_STRATEGIC_REVIEW_PROMPT,
   STRATEGIC_REVIEW_HEARTBEAT_PROMPT,
 } from "./session-prompts.js";
+import type { OneShotPromptRenderOptions } from "./session-loop.js";
 import { createHermitSession, createRoleSession } from "./session-runtime.js";
-import { formatWorkspaceTurnOwner, readWorkspaceTurnLock } from "./turn-control.js";
+import { formatWorkspaceTurnOwner, type WorkspaceTurnCoordinator, type WorkspaceTurnOwner } from "./turn-control.js";
 import type { RoleDefinition } from "./types.js";
 import { ensureWorkspaceScaffold } from "./workspace.js";
 
@@ -100,13 +101,15 @@ export async function runHeartbeatForRole(options: {
   gitCheckpointsEnabled?: boolean;
   isCancelled?: () => boolean;
   registerActiveAbort?: (abortActiveSession?: (() => Promise<void>) | undefined) => void;
+  turnCoordinator?: WorkspaceTurnCoordinator;
+  renderOptions?: OneShotPromptRenderOptions;
 }): Promise<HeartbeatExecutionResult> {
   return runManagedOneShotCommand({
     root: options.root,
     commandName: "heartbeat",
     roleId: options.role.id,
     turnKind: "heartbeat",
-    lockMode: "skip",
+    ...(options.turnCoordinator ? { turnCoordinator: options.turnCoordinator, turnMode: "skip" as const } : {}),
     ...(options.gitCheckpointsEnabled !== undefined ? { gitCheckpointsEnabled: options.gitCheckpointsEnabled } : {}),
     createSession: async (gitContext) => {
       const { session, telemetry, modelLabel } = await createRoleSession({
@@ -141,6 +144,7 @@ export async function runHeartbeatForRole(options: {
     ...(options.isCancelled ? { isCancelled: options.isCancelled } : {}),
     cancelMessage: "Heartbeat daemon aborted the active role session.",
     ...(options.registerActiveAbort ? { registerActiveAbort: options.registerActiveAbort } : {}),
+    ...(options.renderOptions ? { renderOptions: options.renderOptions } : {}),
   });
 }
 
@@ -150,13 +154,15 @@ async function runStrategicReviewForHermit(options: {
   gitCheckpointsEnabled?: boolean;
   isCancelled?: () => boolean;
   registerActiveAbort?: (abortActiveSession?: (() => Promise<void>) | undefined) => void;
+  turnCoordinator?: WorkspaceTurnCoordinator;
+  renderOptions?: OneShotPromptRenderOptions;
 }): Promise<HeartbeatExecutionResult> {
   return runManagedOneShotCommand({
     root: options.root,
     commandName: "heartbeat",
     roleId: HERMIT_ROLE_ID,
     turnKind: "heartbeat",
-    lockMode: "skip",
+    ...(options.turnCoordinator ? { turnCoordinator: options.turnCoordinator, turnMode: "skip" as const } : {}),
     ...(options.gitCheckpointsEnabled !== undefined ? { gitCheckpointsEnabled: options.gitCheckpointsEnabled } : {}),
     createSession: async (gitContext) => {
       const { session, telemetry, modelLabel } = await createHermitSession({
@@ -184,6 +190,7 @@ async function runStrategicReviewForHermit(options: {
     ...(options.isCancelled ? { isCancelled: options.isCancelled } : {}),
     cancelMessage: "Heartbeat daemon aborted the active Hermit strategic-review session.",
     ...(options.registerActiveAbort ? { registerActiveAbort: options.registerActiveAbort } : {}),
+    ...(options.renderOptions ? { renderOptions: options.renderOptions } : {}),
   });
 }
 
@@ -197,7 +204,7 @@ function getErrorMessage(error: unknown): string {
 
 export function formatSkippedHeartbeatMessage(
   targetLabel: string,
-  owner: Awaited<ReturnType<typeof readWorkspaceTurnLock>>,
+  owner: WorkspaceTurnOwner | undefined,
 ): string {
   return `Skipping ${targetLabel} because ${formatWorkspaceTurnOwner(owner)} is active.`;
 }
@@ -261,8 +268,10 @@ export async function runHeartbeatDaemonLoop(options: {
   gitCheckpointsEnabled?: boolean;
   controller?: HeartbeatDaemonController;
   handleSignals?: boolean;
+  turnCoordinator?: WorkspaceTurnCoordinator;
   onInfo?: (message: string) => void;
   onError?: (message: string) => void;
+  renderOptions?: OneShotPromptRenderOptions;
 }): Promise<void> {
   const daemonController = options.controller ?? createHeartbeatDaemonController({
     onAbortError: (error) => {
@@ -352,10 +361,12 @@ export async function runHeartbeatDaemonLoop(options: {
               ...(options.gitCheckpointsEnabled !== undefined ? { gitCheckpointsEnabled: options.gitCheckpointsEnabled } : {}),
               isCancelled: () => !daemonController.isRunning(),
               registerActiveAbort: (abortActiveSession) => daemonController.setActiveAbort(abortActiveSession),
+              ...(options.turnCoordinator ? { turnCoordinator: options.turnCoordinator } : {}),
+              ...(options.renderOptions ? { renderOptions: options.renderOptions } : {}),
             });
             if (result.status === "skipped") {
               logInfo(
-                `[${formatDaemonTimestamp()}] ${formatSkippedHeartbeatMessage("Hermit strategic review", result.lockOwner)}`,
+                `[${formatDaemonTimestamp()}] ${formatSkippedHeartbeatMessage("Hermit strategic review", result.activeTurnOwner)}`,
               );
               return "skipped";
             }
@@ -382,12 +393,14 @@ export async function runHeartbeatDaemonLoop(options: {
             ...(options.gitCheckpointsEnabled !== undefined ? { gitCheckpointsEnabled: options.gitCheckpointsEnabled } : {}),
             isCancelled: () => !daemonController.isRunning(),
             registerActiveAbort: (abortActiveSession) => daemonController.setActiveAbort(abortActiveSession),
+            ...(options.turnCoordinator ? { turnCoordinator: options.turnCoordinator } : {}),
+            ...(options.renderOptions ? { renderOptions: options.renderOptions } : {}),
           });
           if (result.status === "skipped") {
             logInfo(
               `[${formatDaemonTimestamp()}] ${formatSkippedHeartbeatMessage(
                 strategicReviewSweepDue ? `strategic review for ${roleId}` : `heartbeat for ${roleId}`,
-                result.lockOwner,
+                result.activeTurnOwner,
               )}`,
             );
             return "skipped";

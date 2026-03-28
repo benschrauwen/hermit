@@ -1,15 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { promises as fs } from "node:fs";
-import path from "node:path";
-import process from "node:process";
 
 import type { AgentSession } from "@mariozechner/pi-coding-agent";
 
 import { withCheckpoints } from "./git.js";
 import { loadImageAttachments } from "./image-attachments.js";
-
-const WORKSPACE_TURN_LOCK_PATH = path.join(".hermit", "state", "active-turn.lock");
-const WORKSPACE_TURN_LOCK_POLL_MS = 250;
 
 export type WorkspaceTurnKind = "interactive" | "heartbeat" | "ask";
 
@@ -17,82 +11,33 @@ export interface WorkspaceTurnOwner {
   id: string;
   kind: WorkspaceTurnKind;
   commandName: string;
-  pid: number;
   acquiredAt: string;
   roleId?: string;
 }
 
-export interface WorkspaceTurnLock {
+export interface WorkspaceTurnHandle {
   owner: WorkspaceTurnOwner;
   release(): Promise<void>;
 }
 
-function getWorkspaceTurnLockPath(root: string): string {
-  return path.join(root, WORKSPACE_TURN_LOCK_PATH);
+export interface WorkspaceTurnCoordinator {
+  getActiveOwner(): WorkspaceTurnOwner | undefined;
+  acquire(
+    owner: {
+      kind: WorkspaceTurnKind;
+      commandName: string;
+      roleId?: string;
+    },
+    options?: {
+      mode?: "wait" | "skip";
+      onWait?: (currentOwner?: WorkspaceTurnOwner) => void;
+    },
+  ): Promise<WorkspaceTurnHandle | undefined>;
 }
 
-function isProcessAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return !(error instanceof Error && "code" in error && error.code === "ESRCH");
-  }
-}
-
-async function unlinkIfExists(filePath: string): Promise<void> {
-  try {
-    await fs.unlink(filePath);
-  } catch (error) {
-    if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
-      throw error;
-    }
-  }
-}
-
-async function ensureWorkspaceTurnLockParent(root: string): Promise<void> {
-  await fs.mkdir(path.dirname(getWorkspaceTurnLockPath(root)), { recursive: true });
-}
-
-async function readWorkspaceTurnLockFile(lockPath: string): Promise<WorkspaceTurnOwner | undefined> {
-  try {
-    const content = await fs.readFile(lockPath, "utf8");
-    const parsed = JSON.parse(content) as Partial<WorkspaceTurnOwner>;
-    if (
-      typeof parsed.id !== "string" ||
-      typeof parsed.kind !== "string" ||
-      typeof parsed.commandName !== "string" ||
-      typeof parsed.pid !== "number" ||
-      typeof parsed.acquiredAt !== "string"
-    ) {
-      return undefined;
-    }
-
-    return {
-      id: parsed.id,
-      kind: parsed.kind as WorkspaceTurnKind,
-      commandName: parsed.commandName,
-      pid: parsed.pid,
-      acquiredAt: parsed.acquiredAt,
-      ...(typeof parsed.roleId === "string" ? { roleId: parsed.roleId } : {}),
-    };
-  } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
-      return undefined;
-    }
-    return undefined;
-  }
-}
-
-async function clearStaleWorkspaceTurnLock(root: string): Promise<boolean> {
-  const lockPath = getWorkspaceTurnLockPath(root);
-  const owner = await readWorkspaceTurnLockFile(lockPath);
-  if (!owner || isProcessAlive(owner.pid)) {
-    return false;
-  }
-
-  await unlinkIfExists(lockPath);
-  return true;
+interface PendingWorkspaceTurnWaiter {
+  owner: WorkspaceTurnOwner;
+  resolve: (handle: WorkspaceTurnHandle) => void;
 }
 
 function createWorkspaceTurnOwner(input: {
@@ -104,87 +49,62 @@ function createWorkspaceTurnOwner(input: {
     id: randomUUID(),
     kind: input.kind,
     commandName: input.commandName,
-    pid: process.pid,
     acquiredAt: new Date().toISOString(),
     ...(input.roleId !== undefined ? { roleId: input.roleId } : {}),
   };
 }
 
-async function acquireWorkspaceTurnLockOnce(
-  root: string,
-  owner: WorkspaceTurnOwner,
-): Promise<WorkspaceTurnLock | undefined> {
-  const lockPath = getWorkspaceTurnLockPath(root);
-  await ensureWorkspaceTurnLockParent(root);
+export function createWorkspaceTurnCoordinator(): WorkspaceTurnCoordinator {
+  let activeOwner: WorkspaceTurnOwner | undefined;
+  const waiters: PendingWorkspaceTurnWaiter[] = [];
 
-  try {
-    await fs.writeFile(lockPath, JSON.stringify(owner), { encoding: "utf8", flag: "wx" });
-  } catch (error) {
-    if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) {
-      throw error;
+  const activateNextWaiter = (): void => {
+    if (activeOwner || waiters.length === 0) {
+      return;
     }
 
-    if (await clearStaleWorkspaceTurnLock(root)) {
-      return acquireWorkspaceTurnLockOnce(root, owner);
+    const nextWaiter = waiters.shift();
+    if (!nextWaiter) {
+      return;
     }
-    return undefined;
-  }
 
-  return {
+    activeOwner = nextWaiter.owner;
+    nextWaiter.resolve(createHandle(nextWaiter.owner));
+  };
+
+  const createHandle = (owner: WorkspaceTurnOwner): WorkspaceTurnHandle => ({
     owner,
     async release() {
-      const currentOwner = await readWorkspaceTurnLockFile(lockPath);
-      if (currentOwner?.id === owner.id) {
-        await unlinkIfExists(lockPath);
+      if (activeOwner?.id !== owner.id) {
+        return;
       }
+
+      activeOwner = undefined;
+      activateNextWaiter();
+    },
+  });
+
+  return {
+    getActiveOwner(): WorkspaceTurnOwner | undefined {
+      return activeOwner;
+    },
+    async acquire(ownerInput, options = {}): Promise<WorkspaceTurnHandle | undefined> {
+      const owner = createWorkspaceTurnOwner(ownerInput);
+      if (!activeOwner) {
+        activeOwner = owner;
+        return createHandle(owner);
+      }
+
+      if (options.mode === "skip") {
+        return undefined;
+      }
+
+      options.onWait?.(activeOwner);
+      return new Promise<WorkspaceTurnHandle>((resolve) => {
+        waiters.push({ owner, resolve });
+      });
     },
   };
-}
-
-export async function readWorkspaceTurnLock(root: string): Promise<WorkspaceTurnOwner | undefined> {
-  return readWorkspaceTurnLockFile(getWorkspaceTurnLockPath(root));
-}
-
-export async function tryAcquireWorkspaceTurnLock(
-  root: string,
-  owner: {
-    kind: WorkspaceTurnKind;
-    commandName: string;
-    roleId?: string;
-  },
-): Promise<WorkspaceTurnLock | undefined> {
-  return acquireWorkspaceTurnLockOnce(root, createWorkspaceTurnOwner(owner));
-}
-
-export async function acquireWorkspaceTurnLock(
-  root: string,
-  owner: {
-    kind: WorkspaceTurnKind;
-    commandName: string;
-    roleId?: string;
-  },
-  options: {
-    pollMs?: number;
-    onWait?: (currentOwner?: WorkspaceTurnOwner) => void;
-  } = {},
-): Promise<WorkspaceTurnLock> {
-  const pollMs = options.pollMs ?? WORKSPACE_TURN_LOCK_POLL_MS;
-  const createdOwner = createWorkspaceTurnOwner(owner);
-  let hasWaited = false;
-
-  while (true) {
-    const lock = await acquireWorkspaceTurnLockOnce(root, createdOwner);
-    if (lock) {
-      return lock;
-    }
-
-    const currentOwner = await readWorkspaceTurnLock(root);
-    if (!hasWaited) {
-      options.onWait?.(currentOwner);
-      hasWaited = true;
-    }
-    await new Promise((resolve) => setTimeout(resolve, pollMs));
-  }
 }
 
 export function formatWorkspaceTurnOwner(owner: WorkspaceTurnOwner | undefined): string {
@@ -231,17 +151,20 @@ export async function runInteractiveSessionTurn(options: {
   prompt: string;
   imagePaths?: string[];
   gitCheckpointsEnabled?: boolean;
+  turnCoordinator?: WorkspaceTurnCoordinator;
   onWaitForTurn?: (currentOwner?: WorkspaceTurnOwner) => void;
+  onTurnStarted?: () => void;
 }): Promise<void> {
-  const lock = await acquireWorkspaceTurnLock(
-    options.root,
-    {
-      kind: "interactive",
-      commandName: "chat",
-      roleId: options.roleId,
-    },
-    options.onWaitForTurn ? { onWait: options.onWaitForTurn } : {},
-  );
+  const turn = options.turnCoordinator
+    ? await options.turnCoordinator.acquire(
+        {
+          kind: "interactive",
+          commandName: "chat",
+          roleId: options.roleId,
+        },
+        options.onWaitForTurn ? { onWait: options.onWaitForTurn } : {},
+      )
+    : undefined;
 
   try {
     await runCheckpointedTurn({
@@ -250,12 +173,18 @@ export async function runInteractiveSessionTurn(options: {
       roleId: options.roleId,
       ...(options.gitCheckpointsEnabled !== undefined ? { gitCheckpointsEnabled: options.gitCheckpointsEnabled } : {}),
       run: async () => {
-        await options.session.prompt(options.prompt, {
+        const maybeWaitForIdle = options.session as AgentSession & {
+          waitForIdle?: () => Promise<void>;
+        };
+        const promptPromise = options.session.prompt(options.prompt, {
           images: await loadImageAttachments(options.imagePaths ?? []),
         });
+        options.onTurnStarted?.();
+        await promptPromise;
+        await maybeWaitForIdle.waitForIdle?.();
       },
     });
   } finally {
-    await lock.release();
+    await turn?.release();
   }
 }

@@ -19,7 +19,6 @@ import { printDoctorContext, runDoctor } from "./doctor.js";
 import { assertProviderAwareModelConfigured } from "./model-auth.js";
 import { createRoleSession } from "./session-runtime.js";
 import { generateTelemetryReport, renderTelemetryReportSummary, writeTelemetryReport } from "./telemetry-report.js";
-import { formatWorkspaceTurnOwner } from "./turn-control.js";
 import { resolveFrameworkRoot } from "./runtime-paths.js";
 import { runWorkspaceStartLoop } from "./workspace-start.js";
 
@@ -61,6 +60,7 @@ program
           initialSession,
           ...(initialPrompt !== undefined ? { initialPrompt } : {}),
           initialImages,
+          ...(initialPrompt !== undefined ? { showInitialPromptEcho: options.prompt !== undefined } : {}),
           onRoleSwitch,
         });
       });
@@ -85,21 +85,12 @@ program
     ) => {
       assertProviderAwareModelConfigured();
       const { root, role, promptContext } = await resolveSessionContext(options);
-      let waitingNoticePrinted = false;
       await runManagedOneShotCommand({
         root,
         commandName: "ask",
         roleId: role.id,
         turnKind: "ask",
-        lockMode: "wait",
         ...(options.gitCheckpoints !== undefined ? { gitCheckpointsEnabled: options.gitCheckpoints } : {}),
-        onWaitForTurn: (owner) => {
-          if (waitingNoticePrinted) {
-            return;
-          }
-          waitingNoticePrinted = true;
-          console.log(`Waiting for ${formatWorkspaceTurnOwner(owner)} to finish.`);
-        },
         createSession: async (gitContext) => {
           const { session, telemetry, modelLabel } = await createRoleSession({
             root,

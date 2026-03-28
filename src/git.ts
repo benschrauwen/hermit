@@ -185,6 +185,13 @@ export async function getRepoState(root: string): Promise<RepoState | undefined>
   };
 }
 
+export function shouldCheckpointBeforeTurn(
+  beforeState: Pick<RepoState, "dirty"> | undefined,
+  enabled = true,
+): boolean {
+  return enabled && Boolean(beforeState?.dirty);
+}
+
 export function shouldCheckpointAfterTurn(
   beforeState: Pick<RepoState, "dirty"> | undefined,
   afterState: Pick<RepoState, "dirty"> | undefined,
@@ -249,9 +256,18 @@ export async function withCheckpoints(options: {
   const checkpointRoots = listCheckpointRoots(options.workspaceRoot);
   const enabled = options.enabled !== false;
 
-  const beforeStates = new Map(
+  const initialBeforeStates = new Map(
     await Promise.all(checkpointRoots.map(async (root) => [root, await getRepoState(root)] as const)),
   );
+  const beforeCheckpoints = new Map<string, CheckpointResult | undefined>();
+  for (const root of checkpointRoots) {
+    if (shouldCheckpointBeforeTurn(initialBeforeStates.get(root), enabled)) {
+      beforeCheckpoints.set(root, await createCheckpoint(root, { ...options.meta, phase: "before" }));
+    }
+  }
+  const beforeStates = beforeCheckpoints.size > 0
+    ? new Map(await Promise.all(checkpointRoots.map(async (root) => [root, await getRepoState(root)] as const)))
+    : initialBeforeStates;
 
   let outcome: CheckpointOutcome = "success";
   try {

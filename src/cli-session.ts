@@ -15,12 +15,12 @@ import {
   resolveRole,
   writeLastUsedChatRole,
 } from "./roles.js";
-import { runOneShotPrompt } from "./session-loop.js";
+import { runOneShotPrompt, type OneShotPromptRenderOptions } from "./session-loop.js";
 import { resolveInitialChatPrompt } from "./session-prompts.js";
 import { createHermitSession, createRoleSession, type InteractiveChatSession } from "./session-runtime.js";
 import { assertProviderAwareModelConfigured } from "./model-auth.js";
 import type { TelemetryRecorder } from "./telemetry-recorder.js";
-import { acquireWorkspaceTurnLock, readWorkspaceTurnLock, tryAcquireWorkspaceTurnLock } from "./turn-control.js";
+import type { WorkspaceTurnCoordinator, WorkspaceTurnOwner } from "./turn-control.js";
 import type { RoleDefinition, RoleSwitchRequest } from "./types.js";
 import { ensureWorkspaceRepository } from "./runtime-paths.js";
 
@@ -200,7 +200,7 @@ async function withGitCheckpoint(options: {
 
 export interface HeartbeatExecutionResult {
   status: "ran" | "skipped";
-  lockOwner?: Awaited<ReturnType<typeof readWorkspaceTurnLock>>;
+  activeTurnOwner?: WorkspaceTurnOwner;
 }
 
 export interface OneShotCommandSession {
@@ -215,35 +215,36 @@ export async function runManagedOneShotCommand(options: {
   commandName: SessionCommandName;
   roleId: string;
   turnKind: "ask" | "heartbeat";
-  lockMode: "wait" | "skip";
   gitCheckpointsEnabled?: boolean;
-  onWaitForTurn?: (owner?: Awaited<ReturnType<typeof readWorkspaceTurnLock>>) => void;
+  turnCoordinator?: WorkspaceTurnCoordinator;
+  turnMode?: "wait" | "skip";
+  onWaitForTurn?: (owner?: WorkspaceTurnOwner) => void;
   createSession: (gitContext: CommandGitContext) => Promise<OneShotCommandSession>;
   resolvePrompt: () => Promise<string>;
   imagePaths?: string[];
   isCancelled?: () => boolean;
   cancelMessage?: string;
   registerActiveAbort?: (abortActiveSession?: (() => Promise<void>) | undefined) => void;
+  renderOptions?: OneShotPromptRenderOptions;
 }): Promise<HeartbeatExecutionResult> {
-  const turnLock = options.lockMode === "wait"
-    ? await acquireWorkspaceTurnLock(
-        options.root,
+  const turn = options.turnCoordinator
+    ? await options.turnCoordinator.acquire(
         {
           kind: options.turnKind,
           commandName: options.commandName,
           roleId: options.roleId,
         },
-        options.onWaitForTurn ? { onWait: options.onWaitForTurn } : {},
+        {
+          mode: options.turnMode ?? "wait",
+          ...(options.onWaitForTurn ? { onWait: options.onWaitForTurn } : {}),
+        },
       )
-    : await tryAcquireWorkspaceTurnLock(options.root, {
-        kind: options.turnKind,
-        commandName: options.commandName,
-        roleId: options.roleId,
-      });
-  if (!turnLock) {
+    : undefined;
+  if (options.turnCoordinator && !turn) {
+    const activeTurnOwner = options.turnCoordinator.getActiveOwner();
     return {
       status: "skipped",
-      lockOwner: await readWorkspaceTurnLock(options.root),
+      ...(activeTurnOwner ? { activeTurnOwner } : {}),
     };
   }
 
@@ -271,6 +272,7 @@ export async function runManagedOneShotCommand(options: {
             sessionContext.telemetry,
             sessionContext.activeRoleLabel,
             sessionContext.modelLabel,
+            options.renderOptions,
           );
           return sessionContext.telemetry;
         } finally {
@@ -281,7 +283,7 @@ export async function runManagedOneShotCommand(options: {
 
     return { status: "ran" };
   } finally {
-    await turnLock.release();
+    await turn?.release();
   }
 }
 
