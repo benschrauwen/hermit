@@ -26,6 +26,7 @@ import {
 import { formatUserPromptEcho } from "./session-formatting.js";
 import { createSessionStreamHandler, type SessionOutputSink } from "./session-terminal.js";
 import type { InteractiveChatSession } from "./session-runtime.js";
+import { formatTelegramInboundPrompt, resolveTelegramBridgeStatus, TelegramPollingBridge } from "./telegram.js";
 import type { RoleSwitchRequest } from "./types.js";
 import { readHermitTailscaleNotice, readHermitTailscaleUrl } from "./tailscale.js";
 import type { TelemetryRecorder } from "./telemetry-recorder.js";
@@ -544,9 +545,11 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
     throw new Error("The combined `start` command requires an interactive terminal.");
   }
 
+  const telegramStatus = resolveTelegramBridgeStatus();
   const ui = new WorkspaceStartTui(options.initialSession.activeRoleLabel, options.initialSession.modelLabel);
   const heartbeatSessionSink = new WorkspaceStartHeartbeatSink(ui);
   let explorerProcess: ManagedChildProcess | undefined;
+  let telegramBridge: TelegramPollingBridge | undefined;
   const heartbeatController = createHeartbeatDaemonController({
     onAbortError: (error) => {
       ui.appendHeartbeatOutput(`[supervisor] Failed to abort active heartbeat session: ${error instanceof Error ? error.message : String(error)}.\n`);
@@ -633,6 +636,7 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
         sessionController.getActiveSession().session.abort(),
         heartbeatLoopPromise,
         explorerProcess?.stop(),
+        telegramBridge?.stop(),
       ]);
 
       for (const result of results) {
@@ -658,6 +662,9 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
     if (tailscaleNotice) {
       ui.appendSystemNotice(tailscaleNotice);
     }
+  }
+  if (telegramStatus.kind === "misconfigured") {
+    ui.appendSystemNotice(`Telegram integration disabled: ${telegramStatus.issues.join(" ")}`);
   }
 
   const onSignal = (signal: NodeJS.Signals) => {
@@ -823,6 +830,26 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
     ui.setSubmitHandler((submittedValue) => {
       handleSubmittedPrompt(submittedValue);
     });
+
+    if (telegramStatus.kind === "configured") {
+      telegramBridge = new TelegramPollingBridge({
+        workspaceRoot: options.workspaceRoot,
+        config: telegramStatus.config,
+        onMessage: (message) => {
+          if (shutdownRequested) {
+            return;
+          }
+          handleSubmittedPrompt(formatTelegramInboundPrompt(message));
+        },
+        onInfo: (message) => {
+          ui.appendSystemNotice(message);
+        },
+        onError: (message) => {
+          ui.appendSystemNotice(message);
+        },
+      });
+      telegramBridge.start();
+    }
 
     if (options.initialPrompt) {
       startPromptSubmission(options.initialPrompt, options.initialImages ?? [], {

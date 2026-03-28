@@ -8,6 +8,7 @@ import {
   createEntityLookupTool,
   createHermitTools,
   createRoleSwitchTool,
+  createTelegramSendTool,
   createWebSearchTool,
 } from "../src/agent-tools.js";
 import { loadRole } from "../src/roles.js";
@@ -74,6 +75,20 @@ describe("createHermitTools", () => {
   it("returns web search for Hermit sessions by default", () => {
     const tools = createHermitTools("/tmp/workspace");
     expect(tools.map((tool) => tool.name)).toEqual(["web_search"]);
+  });
+
+  it("adds telegram send tool when telegram config is provided", () => {
+    const tools = createHermitTools("/tmp/workspace", {
+      telegram: {
+        config: {
+          botToken: "telegram-token",
+          chatId: "123456",
+          apiBaseUrl: "https://api.telegram.org",
+          pollTimeoutSeconds: 20,
+        },
+      },
+    });
+    expect(tools.map((tool) => tool.name)).toEqual(["web_search", "send_telegram_message"]);
   });
 });
 
@@ -161,6 +176,56 @@ describe("createWebSearchTool", () => {
         url: "https://developers.openai.com/api/docs/guides/tools-web-search/",
       },
     ]);
+  });
+});
+
+describe("createTelegramSendTool", () => {
+  it("sends the configured message through the telegram sender", async () => {
+    const sender = vi.fn().mockResolvedValue({
+      chatId: "123456",
+      messageId: 77,
+      text: "Short reply",
+    });
+    const tool = createTelegramSendTool(
+      {
+        botToken: "telegram-token",
+        chatId: "123456",
+        apiBaseUrl: "https://api.telegram.org",
+        pollTimeoutSeconds: 20,
+      },
+      sender,
+    );
+
+    expect(tool.promptGuidelines).toContain(
+      "Keep Telegram replies shorter and more direct than normal desktop chat because they appear in a chat app.",
+    );
+
+    const result = await (tool.execute as (id: unknown, params: unknown) => Promise<unknown>)("call-1", {
+      message: "Short reply",
+    });
+
+    expect(sender).toHaveBeenCalledWith(
+      {
+        botToken: "telegram-token",
+        chatId: "123456",
+        apiBaseUrl: "https://api.telegram.org",
+        pollTimeoutSeconds: 20,
+      },
+      "Short reply",
+    );
+    expect(result).toEqual({
+      content: [
+        {
+          type: "text",
+          text: "Telegram message sent to chat 123456.",
+        },
+      ],
+      details: {
+        chatId: "123456",
+        messageId: 77,
+        text: "Short reply",
+      },
+    });
   });
 });
 

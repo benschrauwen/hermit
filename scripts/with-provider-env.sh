@@ -28,5 +28,6 @@ load_key_from_keychain GROQ_API_KEY groq_api_key
 load_key_from_keychain XAI_API_KEY xai_api_key
 load_key_from_keychain MISTRAL_API_KEY mistral_api_key
 load_key_from_keychain CEREBRAS_API_KEY cerebras_api_key
+load_key_from_keychain HERMIT_TELEGRAM_BOT_TOKEN hermit_telegram_bot_token
 
 exec "$@"

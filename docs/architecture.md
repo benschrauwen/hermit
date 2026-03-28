@@ -95,7 +95,7 @@ The intended dependency direction is:
 
 ## Command Surface
 
-- `start` is the primary runtime entrypoint. It opens the combined workspace screen with explorer, background heartbeats, and interactive chat. Chat target resolution order: `--role`, inferred role from the current directory under `workspace/agents/`, last used chat role from `.hermit/state/last-role.txt`, then `Hermit`. The Hermit fallback applies even when roles exist. Bootstrap mode is enabled only when the resolved target is `Hermit` and no roles are configured. Interactive chat supports runtime role switching through the `switch_role` tool.
+- `start` is the primary runtime entrypoint. It opens the combined workspace screen with explorer, background heartbeats, and interactive chat. Chat target resolution order: `--role`, inferred role from the current directory under `workspace/agents/`, last used chat role from `.hermit/state/last-role.txt`, then `Hermit`. The Hermit fallback applies even when roles exist. Bootstrap mode is enabled only when the resolved target is `Hermit` and no roles are configured. Interactive chat supports runtime role switching through the `switch_role` tool. When `HERMIT_TELEGRAM_BOT_TOKEN` (or `TELEGRAM_BOT_TOKEN`) plus `HERMIT_TELEGRAM_CHAT_ID` are configured, `start` also long-polls Telegram, converts inbound messages from that one chat into queued prompts in the main chat thread, and persists the next Telegram update offset under `.hermit/state/telegram.json`.
 - `ask` runs a one-shot prompt in a role-backed session. Resolution: `--role`, inferred role from cwd, then single-role auto-selection. No last-role fallback, no Hermit fallback. Errors when no role can be resolved.
 - Background heartbeats are launched only from `start`. The loop runs normal role heartbeats on a fixed interval. When any strategic review is due, it runs one combined strategic-review sweep for `Hermit` plus all configured roles, with one separate session per target.
 - `telemetry report` aggregates local telemetry into Markdown and JSON reports, including session outcome counts.
@@ -155,6 +155,7 @@ Every session gets standard coding tools. Custom tools by session type:
 
 - **Role sessions**: `entity_lookup`, `web_search`, one `create_<entity>_record` per entity definition
 - **Role interactive** (with role switching enabled): adds `switch_role`
+- **Telegram-enabled sessions**: add `send_telegram_message`, which sends a short reply to the configured Telegram chat
 - **Hermit sessions**: `web_search`, plus `switch_role` when role switching is enabled
 
 Model selection is provider-aware:

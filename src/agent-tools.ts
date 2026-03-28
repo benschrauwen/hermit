@@ -5,6 +5,12 @@ import { AuthStorage, type ToolDefinition } from "@mariozechner/pi-coding-agent"
 
 import { HERMIT_ROLE_ID } from "./constants.js";
 import { parseModelReference } from "./model-auth.js";
+import {
+  resolveTelegramBridgeConfig,
+  sendTelegramMessage,
+  type TelegramBridgeConfig,
+  type TelegramMessageSender,
+} from "./telegram.js";
 import { getArray, getString, isRecord } from "./type-guards.js";
 import { isHermitRoleId, loadRole, normalizeRoleId } from "./roles.js";
 import { createRoleEntityRecord, scanEntities } from "./workspace.js";
@@ -35,8 +41,20 @@ const roleSwitchParameters = Type.Object({
 
 type RoleSwitchToolParams = Static<typeof roleSwitchParameters>;
 
+const telegramSendParameters = Type.Object({
+  message: Type.String({
+    description: "Short message to send back to the configured Telegram chat. Keep it concise because it appears in a chat app.",
+  }),
+});
+
+type TelegramSendToolParams = Static<typeof telegramSendParameters>;
+
 export interface CustomToolOptions {
   onRoleSwitchRequest?: (request: { roleId: string; reason?: string }) => void;
+  telegram?: {
+    config: TelegramBridgeConfig;
+    sender?: TelegramMessageSender;
+  };
 }
 
 interface WebSearchCitation {
@@ -50,6 +68,18 @@ interface WebSearchResult {
 }
 
 export type WebSearchExecutor = (params: WebSearchToolParams) => Promise<WebSearchResult>;
+
+function resolveTelegramToolOptions(options: CustomToolOptions): { config: TelegramBridgeConfig; sender: TelegramMessageSender } | undefined {
+  const config = options.telegram?.config ?? resolveTelegramBridgeConfig();
+  if (!config) {
+    return undefined;
+  }
+
+  return {
+    config,
+    sender: options.telegram?.sender ?? sendTelegramMessage,
+  };
+}
 
 async function getConfiguredProviderApiKey(provider: string): Promise<string | undefined> {
   const authStorage = AuthStorage.create();
@@ -423,6 +453,37 @@ export function createRoleSwitchTool(
   };
 }
 
+export function createTelegramSendTool(
+  config: TelegramBridgeConfig,
+  sender: TelegramMessageSender = sendTelegramMessage,
+): ToolDefinition<typeof telegramSendParameters> {
+  return {
+    name: "send_telegram_message",
+    label: "Send Telegram Message",
+    description: "Send a short reply back to the configured Telegram chat.",
+    promptSnippet:
+      "Use send_telegram_message when replying to a message that was queued from Telegram. A normal assistant reply in Hermit does not reach Telegram.",
+    promptGuidelines: [
+      "Use send_telegram_message for Telegram-originated requests instead of pretending your normal chat reply was sent externally.",
+      "Keep Telegram replies shorter and more direct than normal desktop chat because they appear in a chat app.",
+      "If the Telegram request needs longer work, send a brief acknowledgment and next step instead of a long essay.",
+    ],
+    parameters: telegramSendParameters,
+    async execute(_toolCallId, params) {
+      const result = await sender(config, params.message);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Telegram message sent to chat ${result.chatId}.`,
+          },
+        ],
+        details: result,
+      };
+    },
+  };
+}
+
 export function createEntityRecordTool(root: string, role: RoleDefinition, entity: RoleEntityDefinition): ToolDefinition<TSchema> {
   const parameters = buildRoleEntityParameters(entity);
   return {
@@ -458,6 +519,10 @@ export function createCustomTools(root: string, role: RoleDefinition, options: C
     createWebSearchTool(),
     ...role.entities.map((entity) => createEntityRecordTool(root, role, entity)),
   ];
+  const telegram = resolveTelegramToolOptions(options);
+  if (telegram) {
+    tools.push(createTelegramSendTool(telegram.config, telegram.sender));
+  }
 
   if (options.onRoleSwitchRequest) {
     tools.push(createRoleSwitchTool(root, options));
@@ -468,6 +533,10 @@ export function createCustomTools(root: string, role: RoleDefinition, options: C
 
 export function createHermitTools(root: string, options: CustomToolOptions = {}): Array<ToolDefinition<any>> {
   const tools: Array<ToolDefinition<any>> = [createWebSearchTool()];
+  const telegram = resolveTelegramToolOptions(options);
+  if (telegram) {
+    tools.push(createTelegramSendTool(telegram.config, telegram.sender));
+  }
   if (options.onRoleSwitchRequest) {
     tools.push(createRoleSwitchTool(root, options));
   }

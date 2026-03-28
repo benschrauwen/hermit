@@ -14,11 +14,13 @@ Hermit's home page at https://hermit-ai.com/ is built and maintained by the herm
 
 Share your own usecase in https://github.com/benschrauwen/hermit/discussions/categories/show-and-tell
 
-[Architecture](docs/architecture.md) · [Observability](docs/observability.md) · [License](LICENSE)
+[Architecture](docs/architecture.md) · [Observability](docs/observability.md) · [Telegram Setup](docs/telegram-setup.md) · [License](LICENSE)
 
 ## Get Started
 
 If you want a very beginner-friendly, Mac-only walkthrough, start with [`docs/getting-started-macos.md`](docs/getting-started-macos.md).
+
+If you want a simple Telegram bridge after setup, read [`docs/telegram-setup.md`](docs/telegram-setup.md).
 
 Short version on macOS:
 
@@ -205,6 +207,13 @@ Common provider API key env vars and matching macOS Keychain accounts:
 
 You only need one supported provider key to get started. Hermit will auto-pick the best model it can use from the keys it finds. `web_search` currently supports OpenAI and Anthropic credentials.
 
+Optional Telegram bridge env vars:
+
+- `HERMIT_TELEGRAM_BOT_TOKEN` or `TELEGRAM_BOT_TOKEN`
+- `HERMIT_TELEGRAM_CHAT_ID`
+
+When both Telegram settings are present, the combined `npm start` flow long-polls that one Telegram chat, queues inbound Telegram messages into the main chat thread, and exposes a `send_telegram_message` tool so the agent can reply back into Telegram. See [`docs/telegram-setup.md`](docs/telegram-setup.md) for the novice setup walkthrough.
+
 ## Sandboxing With `nono`
 
 Hermit runs local agents with read/write access to your workspace, so sandboxing is the default and recommended mode for the agent processes. [`nono`](https://github.com/always-further/nono) adds kernel-enforced filesystem boundaries on macOS and Linux, can inject secrets from the system keychain, and lets you keep Hermit confined to this repo plus the runtime paths it needs. The default `npm start` flow keeps the explorer, heartbeat daemon, and chat together inside the same sandboxed session.
@@ -214,6 +223,7 @@ This repo includes its default `nono` profile at `nono/hermit.json`. It grants:
 - Read/write access to the current workspace
 - Read access to common Git config paths
 - Network access to a small built-in set of common model providers plus the existing skill hosts
+- Telegram Bot API access at `api.telegram.org`
 - No required secret list. The startup wrapper loads whichever supported provider keys it finds in your environment or macOS Keychain before entering the sandbox.
 
 The default short commands already use this profile:

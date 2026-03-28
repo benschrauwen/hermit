@@ -285,6 +285,8 @@ That guide explains:
 - how web lookup and skills fit into the system
 - how heartbeat keeps the agent going
 
+If you want to connect one Telegram chat after that, read [`docs/telegram-setup.md`](telegram-setup.md).
+
 ## Troubleshooting
 
 ### `brew: command not found`

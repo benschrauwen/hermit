@@ -244,6 +244,12 @@ describe("formatActivityStatus", () => {
   it("renders role switches from the requested role ID", () => {
     expect(formatActivityStatus("switch_role", { roleId: "Hermit" })).toBe("switch_role Hermit");
   });
+
+  it("renders telegram sends from the message text", () => {
+    expect(formatActivityStatus("send_telegram_message", { message: "Short reply for mobile" })).toBe(
+      "send_telegram_message Short reply for mobile",
+    );
+  });
 });
 
 describe("renderTerminalMarkdown", () => {

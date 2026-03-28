@@ -212,13 +212,15 @@ function formatObjectToolStatus(toolName: string, args: Record<string, unknown>)
   const pathValue = typeof args.path === "string" ? args.path : undefined;
   const queryValue = typeof args.query === "string" ? args.query : undefined;
   const promptValue = typeof args.prompt === "string" ? args.prompt : undefined;
+  const messageValue = typeof args.message === "string" ? args.message : undefined;
+  const textValue = typeof args.text === "string" ? args.text : undefined;
   const actionValue = typeof args.action === "string" ? args.action : undefined;
   const fileValue = typeof args.file === "string" ? args.file : undefined;
   const targetValue = typeof args.target === "string" ? args.target : undefined;
   const idValue = typeof args.id === "string" ? args.id : undefined;
   const roleValue = typeof args.roleId === "string" ? args.roleId : undefined;
 
-  const inlineValues = [queryValue, promptValue, actionValue, fileValue, targetValue, idValue, roleValue].filter(
+  const inlineValues = [queryValue, promptValue, messageValue, textValue, actionValue, fileValue, targetValue, idValue, roleValue].filter(
     (value): value is string => value !== undefined && value.length > 0,
   );
 
