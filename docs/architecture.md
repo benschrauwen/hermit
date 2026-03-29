@@ -180,7 +180,7 @@ Thinking level: `ROLE_AGENT_THINKING_LEVEL` env var, default `medium`.
 - Optional `relationships` with per-relationship `source_field`, `target_type`, `edge_type`, and optional `reverse_edge_type`
 - `files` with per-file `path` and `template`
 - Optional `status_field`, `owner_field`, `include_in_initialization`, `extra_directories`
-- Optional `explorer.renderers` for detail-level and file-level custom rendering
+- Optional `explorer.renderers` for home-page, custom-page, entity-list, detail-level, and file-level custom rendering
 
 `ensureWorkspaceScaffold()` creates shared root directories and role-local directories. For existing roles, it backfills `agent/record.md` and `agent/inbox.md` from `prompts/templates/agent/*.md` when missing.
 
@@ -235,12 +235,13 @@ Astro SSR app under `explorer/`. Read-only by design — agents own and mutate w
 | `/entities/:entityType/:entityId` | Entity detail |
 | `/agents` | Agent list |
 | `/agents/:roleId` | Agent detail |
+| `/<custom-page>` | Optional workspace-defined explorer page when declared in `explorer.renderers.pages` |
 
 No per-role entity routes.
 
 ### Renderers
 
-`workspace/entity-defs/entities.md` may declare detail-level or file-level renderers under `explorer.renderers`. Modules are loaded dynamically from `workspace/entity-defs/` and can replace the full detail body or a specific file section. Without a declared renderer, the explorer uses the default markdown renderer.
+`workspace/entity-defs/entities.md` may declare explorer renderers under `explorer.renderers`. Modules are loaded dynamically from `workspace/entity-defs/` and can replace the home page, custom top-level pages, entity-type list pages, the full entity detail body, or specific file sections. Without a declared renderer, the explorer falls back to its built-in generic pages and markdown rendering.
 
 ## Extension Surface
 

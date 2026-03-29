@@ -1,9 +1,20 @@
 import path from "node:path";
 import { marked } from "marked";
 
-import type { EntityFileContent } from "./entity-content.js";
+import {
+  readEntityFrontmatter,
+  readEntityRecordContent,
+  type EntityFileContent,
+} from "./entity-content.js";
 import type { EntityRecord, RoleEntityDefinition, RoleExplorerConfig } from "./workspace.js";
-import { importWithNode } from "./workspace.js";
+import {
+  countEntitiesByDefinition,
+  getFrameworkRoot,
+  importWithNode,
+  listRoleIds,
+  loadEntityDefs,
+  scanEntitiesByDefinition,
+} from "./workspace.js";
 
 marked.setOptions({ gfm: true });
 
@@ -47,9 +58,56 @@ export interface EntityFileRendererContext extends BaseEntityRendererContext {
   file: EntityFileContent;
 }
 
+export interface ExplorerRendererHelpers {
+  frameworkRoot: string;
+  listRoleIds: () => Promise<string[]>;
+  loadEntityDefs: typeof loadEntityDefs;
+  countEntitiesByDefinition: typeof countEntitiesByDefinition;
+  scanEntitiesByDefinition: typeof scanEntitiesByDefinition;
+  readEntityFrontmatter: typeof readEntityFrontmatter;
+  readEntityRecordContent: typeof readEntityRecordContent;
+  renderMarkdown: typeof renderMarkdown;
+  renderDefaultFileSection: typeof renderDefaultFileSection;
+}
+
+interface ExplorerRendererContextBase {
+  root: string;
+  explorer?: RoleExplorerConfig;
+  helpers: ExplorerRendererHelpers;
+}
+
+export interface ExplorerHomeRendererContext extends ExplorerRendererContextBase {}
+
+export interface ExplorerEntityListRow extends EntityRecord {
+  fieldValues: Record<string, string>;
+}
+
+export interface ExplorerEntityListRendererContext extends ExplorerRendererContextBase {
+  entityType: string;
+  entityDef: RoleEntityDefinition;
+  allEntities: ExplorerEntityListRow[];
+  entities: ExplorerEntityListRow[];
+  searchQuery: string;
+  sort: string;
+  dir: "asc" | "desc";
+  buildSortHref: (nextSort: string) => string;
+  sortIndicator: (column: string) => string;
+  buildClearHref: () => string;
+}
+
+export interface ExplorerCustomPageRendererContext extends ExplorerRendererContextBase {
+  pageKey: string;
+}
+
 type RendererResult = string | { html: string };
+type PageLikeRendererResult = string | { html: string; title?: string };
 type DetailRenderer = (context: EntityDetailRendererContext) => Promise<RendererResult> | RendererResult;
 type FileRenderer = (context: EntityFileRendererContext) => Promise<RendererResult> | RendererResult;
+type HomeRenderer = (context: ExplorerHomeRendererContext) => Promise<PageLikeRendererResult> | PageLikeRendererResult;
+type ListRenderer = (context: ExplorerEntityListRendererContext) => Promise<RendererResult> | RendererResult;
+type CustomPageRenderer = (
+  context: ExplorerCustomPageRendererContext,
+) => Promise<PageLikeRendererResult> | PageLikeRendererResult;
 
 type DetailRendererModule = {
   default?: DetailRenderer;
@@ -59,6 +117,21 @@ type DetailRendererModule = {
 type FileRendererModule = {
   default?: FileRenderer;
   renderEntityFile?: FileRenderer;
+};
+
+type HomeRendererModule = {
+  default?: HomeRenderer;
+  renderExplorerHome?: HomeRenderer;
+};
+
+type ListRendererModule = {
+  default?: ListRenderer;
+  renderEntityList?: ListRenderer;
+};
+
+type CustomPageRendererModule = {
+  default?: CustomPageRenderer;
+  renderExplorerPage?: CustomPageRenderer;
 };
 
 const pluginCache = new Map<string, Promise<unknown>>();
@@ -117,6 +190,22 @@ function normalizeRendererResult(result: RendererResult, description: string): s
   throw new Error(`${description} must return a string or an object with an html field.`);
 }
 
+function normalizePageLikeRendererResult(
+  result: PageLikeRendererResult,
+  description: string,
+): { html: string; title?: string } {
+  if (typeof result === "string") {
+    return { html: result };
+  }
+  if (result && typeof result === "object" && typeof result.html === "string") {
+    return {
+      html: result.html,
+      ...(typeof result.title === "string" ? { title: result.title } : {}),
+    };
+  }
+  throw new Error(`${description} must return a string or an object with an html field.`);
+}
+
 function resolveRendererPath(root: string, rendererPath: string): string {
   const entityDefsDir = path.join(root, "entity-defs");
   const resolvedPath = path.resolve(entityDefsDir, rendererPath);
@@ -137,6 +226,20 @@ async function loadPluginModule<TModule>(absolutePath: string): Promise<TModule>
   return (await pending) as TModule;
 }
 
+function getExplorerRendererHelpers(root: string): ExplorerRendererHelpers {
+  return {
+    frameworkRoot: getFrameworkRoot(),
+    listRoleIds: () => listRoleIds(root),
+    loadEntityDefs,
+    countEntitiesByDefinition,
+    scanEntitiesByDefinition,
+    readEntityFrontmatter,
+    readEntityRecordContent,
+    renderMarkdown,
+    renderDefaultFileSection,
+  };
+}
+
 function getBaseContext(args: {
   root: string;
   entityType: string;
@@ -150,6 +253,86 @@ function getBaseContext(args: {
     renderDefaultFileSection,
     renderDefaultSections: () => Promise.all(args.files.map((file) => renderDefaultFileSection(file))),
   };
+}
+
+export async function renderExplorerHome(args: {
+  root: string;
+  explorer?: RoleExplorerConfig;
+}): Promise<{ html: string; title?: string } | undefined> {
+  const rendererPath = args.explorer?.renderers?.home;
+  if (!rendererPath) {
+    return undefined;
+  }
+
+  const module = await loadPluginModule<HomeRendererModule>(resolveRendererPath(args.root, rendererPath));
+  const renderer = module.renderExplorerHome ?? module.default;
+  if (typeof renderer !== "function") {
+    throw new Error(
+      `Explorer home renderer ${rendererPath} must export renderExplorerHome(context) or a default function.`,
+    );
+  }
+
+  return normalizePageLikeRendererResult(
+    await renderer({ root: args.root, explorer: args.explorer, helpers: getExplorerRendererHelpers(args.root) }),
+    `Explorer home renderer ${rendererPath}`,
+  );
+}
+
+export async function renderRoleEntityList(args: {
+  root: string;
+  explorer?: RoleExplorerConfig;
+  entityType: string;
+  entityDef: RoleEntityDefinition;
+  allEntities: ExplorerEntityListRow[];
+  entities: ExplorerEntityListRow[];
+  searchQuery: string;
+  sort: string;
+  dir: "asc" | "desc";
+  buildSortHref: (nextSort: string) => string;
+  sortIndicator: (column: string) => string;
+  buildClearHref: () => string;
+}): Promise<string | undefined> {
+  const rendererPath = args.explorer?.renderers?.lists?.[args.entityType];
+  if (!rendererPath) {
+    return undefined;
+  }
+
+  const module = await loadPluginModule<ListRendererModule>(resolveRendererPath(args.root, rendererPath));
+  const renderer = module.renderEntityList ?? module.default;
+  if (typeof renderer !== "function") {
+    throw new Error(
+      `Explorer list renderer ${rendererPath} must export renderEntityList(context) or a default function.`,
+    );
+  }
+
+  return normalizeRendererResult(
+    await renderer({ ...args, helpers: getExplorerRendererHelpers(args.root) }),
+    `Explorer list renderer ${rendererPath}`,
+  );
+}
+
+export async function renderExplorerCustomPage(args: {
+  root: string;
+  explorer?: RoleExplorerConfig;
+  pageKey: string;
+}): Promise<{ html: string; title?: string } | undefined> {
+  const rendererPath = args.explorer?.renderers?.pages?.[args.pageKey];
+  if (!rendererPath) {
+    return undefined;
+  }
+
+  const module = await loadPluginModule<CustomPageRendererModule>(resolveRendererPath(args.root, rendererPath));
+  const renderer = module.renderExplorerPage ?? module.default;
+  if (typeof renderer !== "function") {
+    throw new Error(
+      `Explorer page renderer ${rendererPath} must export renderExplorerPage(context) or a default function.`,
+    );
+  }
+
+  return normalizePageLikeRendererResult(
+    await renderer({ root: args.root, explorer: args.explorer, pageKey: args.pageKey, helpers: getExplorerRendererHelpers(args.root) }),
+    `Explorer page renderer ${rendererPath}`,
+  );
 }
 
 export async function renderRoleEntityDetail(args: {

@@ -147,7 +147,7 @@ workspace/
   entity-defs/
     entities.md      # entity schema and explorer config
     <entity-id>/     # entity scaffold templates
-    renderers/       # custom explorer renderers
+    renderers/       # custom explorer renderers and page overrides
   skills/            # shared workspace skills available to all roles
   agents/
     <role-id>/
@@ -169,7 +169,7 @@ Roles are how Hermit turns a broad job into an operator inside the app. Each rol
 
 Prompts are loaded from directories, not declared in the manifest. The runtime loads shared prompts from `prompts/`, appends the role's `AGENTS.md`, and uses role-local prompts under `agents/<role-id>/prompts/` on demand.
 
-Entity schema lives in `workspace/entity-defs/entities.md`, and entity starter templates and explorer renderers live under `workspace/entity-defs/`. The `workspace/agents/` directory is for behavior and agent state, while `workspace/entities/` and `workspace/entity-defs/` define app state and schema.
+Entity schema lives in `workspace/entity-defs/entities.md`, and entity starter templates plus explorer renderers for detail views, entity lists, the home page, and custom explorer pages live under `workspace/entity-defs/`. The `workspace/agents/` directory is for behavior and agent state, while `workspace/entities/` and `workspace/entity-defs/` define app state and schema.
 
 The shared `workspace/inbox/` directory is the default intake area for uncategorized incoming files. Agents should process files dropped there, route durable material into the right role or entity directories, and remove temporary drop files once their contents are preserved elsewhere.
 
