@@ -137,11 +137,14 @@ describe("roles explorer renderers", () => {
     seedRoleWorkspace(root, ["role-a"]);
 
     const role = await loadRole(root, "role-a");
+    expect(role.explorer?.renderers?.home).toBe("renderers/home.mjs");
     expect(role.explorer?.renderers?.detail?.case).toBe("renderers/case-detail.mjs");
+    expect(role.explorer?.renderers?.lists?.item).toBe("renderers/item-list.mjs");
+    expect(role.explorer?.renderers?.pages?.["training-calendar"]).toBe("renderers/training-calendar.mjs");
     await expect(validateRoleManifest(root, "role-a")).resolves.toBeUndefined();
   });
 
-  it("fails validation when an explorer renderer file is missing", async () => {
+  it("fails validation when an explorer detail renderer file is missing", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "roles-explorer-missing-"));
     roots.push(root);
     seedRoleWorkspace(root, ["role-a"]);
@@ -155,6 +158,23 @@ describe("roles explorer renderers", () => {
 
     await expect(validateRoleManifest(root, "role-a")).rejects.toThrow(
       "Role role-a is missing explorer detail renderer: renderers/missing-detail.mjs",
+    );
+  });
+
+  it("fails validation when an explorer home renderer file is missing", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "roles-explorer-home-missing-"));
+    roots.push(root);
+    seedRoleWorkspace(root, ["role-a"]);
+
+    const entityDefsPath = path.join(root, "entity-defs", "entities.md");
+    replaceInFile(
+      entityDefsPath,
+      "home: renderers/home.mjs",
+      "home: renderers/missing-home.mjs",
+    );
+
+    await expect(validateRoleManifest(root, "role-a")).rejects.toThrow(
+      "Role role-a is missing explorer home renderer: renderers/missing-home.mjs",
     );
   });
 

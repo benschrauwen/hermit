@@ -238,8 +238,11 @@ function parseExplorerConfig(value: unknown): RoleExplorerConfig | undefined {
   const renderers = assertObject(record.renderers, "explorer.renderers");
   return {
     renderers: {
+      ...(renderers.home !== undefined ? { home: assertString(renderers.home, "explorer.renderers.home") } : {}),
       ...(renderers.detail !== undefined ? { detail: parseStringMap(renderers.detail, "explorer.renderers.detail") } : {}),
       ...(renderers.files !== undefined ? { files: parseNestedStringMap(renderers.files, "explorer.renderers.files") } : {}),
+      ...(renderers.lists !== undefined ? { lists: parseStringMap(renderers.lists, "explorer.renderers.lists") } : {}),
+      ...(renderers.pages !== undefined ? { pages: parseStringMap(renderers.pages, "explorer.renderers.pages") } : {}),
     },
   };
 }
@@ -554,6 +557,15 @@ export async function validateRoleManifest(root: string, roleId: string): Promis
     }
   }
 
+  const homeRenderer = role.explorer?.renderers?.home;
+  if (homeRenderer) {
+    try {
+      await fs.access(resolveEntityDefsLocalPath(role, homeRenderer));
+    } catch {
+      throw new Error(`Role ${roleId} is missing explorer home renderer: ${homeRenderer}`);
+    }
+  }
+
   const detailRenderers = role.explorer?.renderers?.detail ?? {};
   for (const [entityType, rendererPath] of Object.entries(detailRenderers)) {
     if (!entityTypes.has(entityType)) {
@@ -577,6 +589,27 @@ export async function validateRoleManifest(root: string, roleId: string): Promis
       } catch {
         throw new Error(`Role ${roleId} is missing explorer file renderer: ${rendererPath}`);
       }
+    }
+  }
+
+  const listRenderers = role.explorer?.renderers?.lists ?? {};
+  for (const [entityType, rendererPath] of Object.entries(listRenderers)) {
+    if (!entityTypes.has(entityType)) {
+      throw new Error(`Role ${roleId} references explorer list renderer for unknown entity type ${entityType}.`);
+    }
+    try {
+      await fs.access(resolveEntityDefsLocalPath(role, rendererPath));
+    } catch {
+      throw new Error(`Role ${roleId} is missing explorer list renderer: ${rendererPath}`);
+    }
+  }
+
+  const pageRenderers = role.explorer?.renderers?.pages ?? {};
+  for (const [pageKey, rendererPath] of Object.entries(pageRenderers)) {
+    try {
+      await fs.access(resolveEntityDefsLocalPath(role, rendererPath));
+    } catch {
+      throw new Error(`Role ${roleId} is missing explorer page renderer for ${pageKey}: ${rendererPath}`);
     }
   }
 }

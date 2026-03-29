@@ -137,8 +137,13 @@ entities:
         template: issue/record.md
 explorer:
   renderers:
+    home: renderers/home.mjs
     detail:
       case: renderers/case-detail.mjs
+    lists:
+      item: renderers/item-list.mjs
+    pages:
+      training-calendar: renderers/training-calendar.mjs
 ---
 `,
   );
@@ -210,7 +215,10 @@ source_refs:
 - {{nextStep}}
 `,
   );
+  writeFile(root, "entity-defs/renderers/home.mjs", "export default function render() { return { title: 'Home', html: '<div>home</div>' }; }\n");
   writeFile(root, "entity-defs/renderers/case-detail.mjs", "export default function render() { return '<div>case detail</div>'; }\n");
+  writeFile(root, "entity-defs/renderers/item-list.mjs", "export default function render() { return '<div>item list</div>'; }\n");
+  writeFile(root, "entity-defs/renderers/training-calendar.mjs", "export default function render() { return { title: 'Training Calendar', html: '<div>training calendar</div>' }; }\n");
 }
 
 function writeRoleFiles(root: string, roleId: string): void {

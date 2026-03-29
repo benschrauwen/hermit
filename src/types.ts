@@ -71,8 +71,11 @@ export interface RoleEntityDefinition {
 }
 
 export interface RoleExplorerRendererConfig {
+  home?: string;
   detail?: Record<string, string>;
   files?: Record<string, Record<string, string>>;
+  lists?: Record<string, string>;
+  pages?: Record<string, string>;
 }
 
 export interface RoleExplorerConfig {

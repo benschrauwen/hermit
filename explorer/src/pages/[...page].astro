@@ -1,0 +1,21 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { renderExplorerCustomPage } from "../lib/renderers.js";
+import { getWorkspaceRoot, loadEntityDefs } from "../lib/workspace.js";
+
+const pageParam = Astro.params.page;
+const pageKey = Array.isArray(pageParam) ? pageParam.join("/") : pageParam ?? "";
+if (!pageKey) {
+  return Astro.redirect("/");
+}
+
+const root = getWorkspaceRoot();
+const { explorer } = await loadEntityDefs(root);
+const renderedPage = await renderExplorerCustomPage({ root, explorer, pageKey });
+if (!renderedPage) {
+  return new Response("Not found", { status: 404 });
+}
+---
+<BaseLayout title={renderedPage.title ?? pageKey}>
+  <div set:html={renderedPage.html} />
+</BaseLayout>
