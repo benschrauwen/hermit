@@ -8,6 +8,7 @@ const DEFAULT_TELEGRAM_API_BASE_URL = "https://api.telegram.org";
 const DEFAULT_TELEGRAM_POLL_TIMEOUT_SECONDS = 20;
 const DEFAULT_TELEGRAM_RETRY_DELAY_MS = 5_000;
 const TELEGRAM_STATE_FILE = path.join(".hermit", "state", "telegram.json");
+const TELEGRAM_ATTACHMENT_DIR = path.join("inbox", "telegram");
 const TELEGRAM_MAX_MESSAGE_LENGTH = 4_096;
 
 export interface TelegramBridgeConfig {
@@ -22,6 +23,11 @@ export type TelegramBridgeStatus =
   | { kind: "misconfigured"; issues: string[] }
   | { kind: "configured"; config: TelegramBridgeConfig };
 
+export interface TelegramInboundAttachment {
+  kind: string;
+  path: string;
+}
+
 export interface TelegramInboundMessage {
   updateId: number;
   chatId: string;
@@ -29,6 +35,7 @@ export interface TelegramInboundMessage {
   senderLabel: string;
   messageId: number;
   text: string;
+  attachments?: TelegramInboundAttachment[];
 }
 
 export interface TelegramSendResult {
@@ -37,7 +44,19 @@ export interface TelegramSendResult {
   text: string;
 }
 
+export interface TelegramVoiceSendResult {
+  chatId: string;
+  messageId: number;
+  audioFilePath: string;
+  caption?: string;
+}
+
 export type TelegramMessageSender = (config: TelegramBridgeConfig, message: string) => Promise<TelegramSendResult>;
+export type TelegramVoiceNoteSender = (
+  config: TelegramBridgeConfig,
+  audioFilePath: string,
+  caption?: string,
+) => Promise<TelegramVoiceSendResult>;
 
 interface TelegramApiChat {
   id?: number | string;
@@ -75,6 +94,11 @@ interface TelegramApiResponse<T> {
   ok?: boolean;
   result?: T;
   description?: string;
+}
+
+interface TelegramApiFile {
+  file_id?: string;
+  file_path?: string;
 }
 
 interface TelegramStateFile {
@@ -192,14 +216,98 @@ function detectAttachmentType(message: TelegramApiMessage): string {
 
   for (const key of knownAttachmentKeys) {
     if (message[key] !== undefined) {
-      return key.replace(/_/g, " ");
+      return key === "voice" ? "voice note" : key.replace(/_/g, " ");
     }
   }
 
   return "non-text message";
 }
 
-function extractMessageText(message: TelegramApiMessage): string {
+function getObjectProperty(value: unknown, key: string): unknown {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+  return (value as Record<string, unknown>)[key];
+}
+
+function getStringProperty(value: unknown, key: string): string | undefined {
+  const property = getObjectProperty(value, key);
+  return typeof property === "string" && property.trim().length > 0 ? property.trim() : undefined;
+}
+
+function getExtensionFromPath(filePath: string | undefined): string | undefined {
+  if (!filePath) {
+    return undefined;
+  }
+  const extension = path.extname(filePath).trim().toLowerCase();
+  return extension.length > 0 ? extension : undefined;
+}
+
+function extensionFromMimeType(mimeType: string | undefined): string | undefined {
+  switch (mimeType?.toLowerCase()) {
+    case "audio/ogg":
+    case "application/ogg":
+      return ".ogg";
+    case "audio/mpeg":
+      return ".mp3";
+    case "audio/mp4":
+    case "audio/x-m4a":
+      return ".m4a";
+    case "audio/wav":
+    case "audio/x-wav":
+      return ".wav";
+    case "audio/webm":
+      return ".webm";
+    case "video/mp4":
+      return ".mp4";
+    default:
+      return undefined;
+  }
+}
+
+interface DownloadableTelegramAttachment {
+  kind: string;
+  fileId: string;
+  extension: string;
+}
+
+function getDownloadableAttachments(message: TelegramApiMessage): DownloadableTelegramAttachment[] {
+  const voiceFileId = getStringProperty(message.voice, "file_id");
+  if (voiceFileId) {
+    return [{ kind: "voice note", fileId: voiceFileId, extension: ".ogg" }];
+  }
+
+  const audioFileId = getStringProperty(message.audio, "file_id");
+  if (audioFileId) {
+    const audioFileName = getStringProperty(message.audio, "file_name");
+    const audioMimeType = getStringProperty(message.audio, "mime_type");
+    return [{
+      kind: "audio",
+      fileId: audioFileId,
+      extension: getExtensionFromPath(audioFileName) ?? extensionFromMimeType(audioMimeType) ?? ".mp3",
+    }];
+  }
+
+  const videoNoteFileId = getStringProperty(message.video_note, "file_id");
+  if (videoNoteFileId) {
+    return [{ kind: "video note", fileId: videoNoteFileId, extension: ".mp4" }];
+  }
+
+  const documentFileId = getStringProperty(message.document, "file_id");
+  const documentMimeType = getStringProperty(message.document, "mime_type");
+  if (documentFileId && documentMimeType?.toLowerCase().startsWith("audio/")) {
+    const documentFileName = getStringProperty(message.document, "file_name");
+    return [{
+      kind: "audio document",
+      fileId: documentFileId,
+      extension: getExtensionFromPath(documentFileName) ?? extensionFromMimeType(documentMimeType) ?? ".bin",
+    }];
+  }
+
+  return [];
+}
+
+function extractMessageText(message: TelegramApiMessage, hasSavedAttachments = false): string {
   const text = message.text?.trim();
   if (text) {
     return text;
@@ -210,10 +318,81 @@ function extractMessageText(message: TelegramApiMessage): string {
     return `[Telegram ${detectAttachmentType(message)} with caption]\n${caption}`;
   }
 
+  if (hasSavedAttachments) {
+    return `[Telegram ${detectAttachmentType(message)} saved to the workspace inbox.]`;
+  }
+
   return `[Telegram ${detectAttachmentType(message)}. Ask the human to resend it as text if you need the details.]`;
 }
 
-function toInboundMessage(update: TelegramApiUpdate, configuredChatId: string): TelegramInboundMessage | undefined {
+function normalizeAttachmentFileNamePart(value: string): string {
+  const normalized = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return normalized.length > 0 ? normalized : "attachment";
+}
+
+async function getTelegramFile(
+  config: TelegramBridgeConfig,
+  fileId: string,
+  options: TelegramApiCallOptions = {},
+): Promise<TelegramApiFile> {
+  return callTelegramApi<TelegramApiFile>(config, "getFile", { file_id: fileId }, options);
+}
+
+async function downloadTelegramFile(
+  config: TelegramBridgeConfig,
+  filePath: string,
+  options: TelegramApiCallOptions = {},
+): Promise<Uint8Array> {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const response = await fetchImpl(`${config.apiBaseUrl}/file/bot${config.botToken}/${filePath}`, {
+    method: "GET",
+    ...(options.signal ? { signal: options.signal } : {}),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Telegram file download failed (HTTP ${response.status}).`);
+  }
+
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+async function saveTelegramAttachment(args: {
+  workspaceRoot: string;
+  config: TelegramBridgeConfig;
+  updateId: number;
+  messageId: number;
+  attachment: DownloadableTelegramAttachment;
+  options?: TelegramApiCallOptions;
+}): Promise<TelegramInboundAttachment> {
+  const telegramFile = await getTelegramFile(args.config, args.attachment.fileId, args.options);
+  const remoteFilePath = telegramFile.file_path?.trim();
+  if (!remoteFilePath) {
+    throw new Error(`Telegram attachment ${args.attachment.fileId} is missing file_path.`);
+  }
+
+  const bytes = await downloadTelegramFile(args.config, remoteFilePath, args.options);
+  const fileName = `${String(args.updateId).padStart(8, "0")}-${String(args.messageId).padStart(6, "0")}-${normalizeAttachmentFileNamePart(args.attachment.kind)}${args.attachment.extension}`;
+  const workspaceRelativePath = path.join(TELEGRAM_ATTACHMENT_DIR, fileName);
+  const absolutePath = path.join(args.workspaceRoot, workspaceRelativePath);
+  await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+  await fs.writeFile(absolutePath, bytes);
+
+  return {
+    kind: args.attachment.kind,
+    path: absolutePath,
+  };
+}
+
+async function toInboundMessage(
+  update: TelegramApiUpdate,
+  configuredChatId: string,
+  options: {
+    workspaceRoot: string;
+    config: TelegramBridgeConfig;
+    fetchImpl?: FetchLike;
+    signal?: AbortSignal;
+  },
+): Promise<TelegramInboundMessage | undefined> {
   const message = update.message ?? update.channel_post;
   if (!message || message.from?.is_bot) {
     return undefined;
@@ -229,6 +408,23 @@ function toInboundMessage(update: TelegramApiUpdate, configuredChatId: string): 
     return undefined;
   }
 
+  const downloadableAttachments = getDownloadableAttachments(message);
+  const attachments = await Promise.all(
+    downloadableAttachments.map((attachment) =>
+      saveTelegramAttachment({
+        workspaceRoot: options.workspaceRoot,
+        config: options.config,
+        updateId,
+        messageId: typeof message.message_id === "number" ? message.message_id : 0,
+        attachment,
+        options: {
+          ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
+          ...(options.signal ? { signal: options.signal } : {}),
+        },
+      }),
+    ),
+  );
+
   const chatLabel = formatChatLabel(message.chat, chatId);
   return {
     updateId,
@@ -236,7 +432,8 @@ function toInboundMessage(update: TelegramApiUpdate, configuredChatId: string): 
     chatLabel,
     senderLabel: formatSenderLabel(message, chatLabel),
     messageId: typeof message.message_id === "number" ? message.message_id : 0,
-    text: extractMessageText(message),
+    text: extractMessageText(message, attachments.length > 0),
+    ...(attachments.length > 0 ? { attachments } : {}),
   };
 }
 
@@ -374,15 +571,46 @@ export function resolveTelegramBridgeConfig(env: NodeJS.ProcessEnv = process.env
 }
 
 export function formatTelegramInboundPrompt(message: TelegramInboundMessage): string {
+  const startedWithVoiceNote = Boolean(message.attachments?.some((attachment) => attachment.kind === "voice note"));
   return [
     `Telegram message from ${message.senderLabel} in ${message.chatLabel} (chat ${message.chatId}, message ${message.messageId}).`,
     "This message came from Telegram.",
     "Use send_telegram_message to reply; replying in the normal chat does not send anything back to Telegram.",
+    ...(startedWithVoiceNote
+      ? [
+          "The user started this Telegram exchange with a voice note.",
+          "Prefer replying with a Telegram voice note when the reply is substantive and the voice-send tool is available.",
+        ]
+      : []),
     "Keep Telegram replies shorter than regular chat because they are shown in a chat app.",
+    ...(message.attachments && message.attachments.length > 0
+      ? [
+          "If you need the content of a saved audio attachment, use the telegram-voice-transcription skill before replying.",
+          "",
+          "Saved attachments:",
+          ...message.attachments.map((attachment) => `- ${attachment.path} (${attachment.kind})`),
+        ]
+      : []),
     "",
     "Message:",
     message.text,
   ].join("\n");
+}
+
+function getTelegramAudioMimeType(filePath: string): string {
+  switch (path.extname(filePath).toLowerCase()) {
+    case ".ogg":
+    case ".opus":
+      return "audio/ogg";
+    case ".mp3":
+      return "audio/mpeg";
+    case ".m4a":
+      return "audio/mp4";
+    case ".wav":
+      return "audio/wav";
+    default:
+      return "application/octet-stream";
+  }
 }
 
 export async function sendTelegramMessage(config: TelegramBridgeConfig, message: string): Promise<TelegramSendResult> {
@@ -402,6 +630,67 @@ export async function sendTelegramMessage(config: TelegramBridgeConfig, message:
     chatId: config.chatId,
     messageId: typeof result.message_id === "number" ? result.message_id : 0,
     text,
+  };
+}
+
+export async function sendTelegramVoiceNote(
+  config: TelegramBridgeConfig,
+  audioFilePath: string,
+  caption?: string,
+): Promise<TelegramVoiceSendResult> {
+  const resolvedPath = path.resolve(audioFilePath);
+  const fileBuffer = await fs.readFile(resolvedPath).catch((error) => {
+    if (isMissingPathError(error)) {
+      throw new Error(`Telegram voice note file not found: ${resolvedPath}`);
+    }
+    throw error;
+  });
+
+  const trimmedCaption = caption?.trim();
+  if (trimmedCaption && trimmedCaption.length > TELEGRAM_MAX_MESSAGE_LENGTH) {
+    throw new Error(`Telegram captions must be ${TELEGRAM_MAX_MESSAGE_LENGTH} characters or fewer.`);
+  }
+
+  const form = new FormData();
+  form.set("chat_id", config.chatId);
+  form.set(
+    "voice",
+    new Blob([fileBuffer], { type: getTelegramAudioMimeType(resolvedPath) }),
+    path.basename(resolvedPath),
+  );
+  if (trimmedCaption) {
+    form.set("caption", trimmedCaption);
+  }
+
+  const response = await fetch(`${config.apiBaseUrl}/bot${config.botToken}/sendVoice`, {
+    method: "POST",
+    body: form,
+  });
+
+  const rawBody = await response.text();
+  let parsed: TelegramApiResponse<TelegramApiMessage> | undefined;
+  if (rawBody.trim().length > 0) {
+    try {
+      parsed = JSON.parse(rawBody) as TelegramApiResponse<TelegramApiMessage>;
+    } catch {
+      parsed = undefined;
+    }
+  }
+
+  if (!response.ok) {
+    const detail = parsed?.description?.trim() || `HTTP ${response.status}`;
+    throw new Error(`Telegram sendVoice failed (${detail}).`);
+  }
+
+  if (parsed?.ok !== true || parsed.result === undefined) {
+    throw new Error(parsed?.description?.trim() || "Telegram sendVoice failed.");
+  }
+
+  return {
+    chatId: config.chatId,
+    messageId: typeof parsed.result.message_id === "number" ? parsed.result.message_id : 0,
+    audioFilePath: resolvedPath,
+    ...(trimmedCaption ? { caption: trimmedCaption } : {}),
   };
 }
 
@@ -459,7 +748,12 @@ export class TelegramPollingBridge {
             highestUpdateId = highestUpdateId === undefined ? updateId : Math.max(highestUpdateId, updateId);
           }
 
-          const inboundMessage = toInboundMessage(update, this.options.config.chatId);
+          const inboundMessage = await toInboundMessage(update, this.options.config.chatId, {
+            workspaceRoot: this.options.workspaceRoot,
+            config: this.options.config,
+            ...(this.options.fetchImpl ? { fetchImpl: this.options.fetchImpl } : {}),
+            signal: controller.signal,
+          });
           if (inboundMessage) {
             this.options.onMessage(inboundMessage);
           }

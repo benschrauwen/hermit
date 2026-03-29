@@ -13,6 +13,15 @@ function createTelegramResponse(payload: unknown, status = 200): Response {
   } as Response;
 }
 
+function createBinaryResponse(bytes: Uint8Array, status = 200): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    text: async () => "",
+    arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+  } as Response;
+}
+
 function createAbortError(): Error {
   const error = new Error("Aborted");
   error.name = "AbortError";
@@ -64,6 +73,24 @@ describe("formatTelegramInboundPrompt", () => {
     expect(prompt).toContain("Keep Telegram replies shorter");
     expect(prompt).toContain("Can you summarize the latest plan?");
   });
+
+  it("includes saved attachment paths and transcription guidance when attachments exist", () => {
+    const prompt = formatTelegramInboundPrompt({
+      updateId: 10,
+      chatId: "456",
+      chatLabel: "Alice",
+      senderLabel: "Alice",
+      messageId: 12,
+      text: "[Telegram voice note saved to the workspace inbox.]",
+      attachments: [{ kind: "voice note", path: "/tmp/workspace/inbox/telegram/00000010-000012-voice-note.ogg" }],
+    });
+
+    expect(prompt).toContain("telegram-voice-transcription skill");
+    expect(prompt).toContain("The user started this Telegram exchange with a voice note.");
+    expect(prompt).toContain("Prefer replying with a Telegram voice note");
+    expect(prompt).toContain("Saved attachments:");
+    expect(prompt).toContain("/tmp/workspace/inbox/telegram/00000010-000012-voice-note.ogg");
+  });
 });
 
 describe("TelegramPollingBridge", () => {
@@ -100,6 +127,15 @@ describe("TelegramPollingBridge", () => {
               update_id: 11,
               message: {
                 message_id: 13,
+                voice: { file_id: "voice-file-1" },
+                chat: { id: 456, first_name: "Alice" },
+                from: { first_name: "Alice" },
+              },
+            },
+            {
+              update_id: 12,
+              message: {
+                message_id: 14,
                 text: "Ignore me",
                 chat: { id: 999, first_name: "Mallory" },
                 from: { first_name: "Mallory" },
@@ -109,6 +145,20 @@ describe("TelegramPollingBridge", () => {
         });
       }
 
+      if (fetchCallCount === 2) {
+        return createTelegramResponse({
+          ok: true,
+          result: {
+            file_id: "voice-file-1",
+            file_path: "voice/file-1.ogg",
+          },
+        });
+      }
+
+      if (fetchCallCount === 3) {
+        return createBinaryResponse(new Uint8Array([1, 2, 3, 4]));
+      }
+
       return new Promise<Response>((_resolve, reject) => {
         init?.signal?.addEventListener("abort", () => {
           reject(createAbortError());
@@ -116,7 +166,7 @@ describe("TelegramPollingBridge", () => {
       });
     };
 
-    const receivedMessages: Array<{ senderLabel: string; text: string }> = [];
+    const receivedMessages: Array<{ senderLabel: string; text: string; attachments?: Array<{ kind: string; path: string }> }> = [];
     const infoMessages: string[] = [];
     let readyCount = 0;
     const bridge = new TelegramPollingBridge({
@@ -132,6 +182,7 @@ describe("TelegramPollingBridge", () => {
         receivedMessages.push({
           senderLabel: message.senderLabel,
           text: message.text,
+          attachments: message.attachments,
         });
       },
       onReady: () => {
@@ -153,14 +204,23 @@ describe("TelegramPollingBridge", () => {
       {
         senderLabel: "Alice",
         text: "Ping from Telegram",
+        attachments: undefined,
+      },
+      {
+        senderLabel: "Alice",
+        text: "[Telegram voice note saved to the workspace inbox.]",
+        attachments: [{ kind: "voice note", path: path.join(workspaceRoot, "inbox", "telegram", "00000011-000013-voice-note.ogg") }],
       },
     ]);
     expect(infoMessages).toContain("Telegram bridge listening for chat 456.");
     expect(readyCount).toBe(1);
+    expect(readFileSync(path.join(workspaceRoot, "inbox", "telegram", "00000011-000013-voice-note.ogg"))).toEqual(
+      Buffer.from([1, 2, 3, 4]),
+    );
 
     const statePath = path.join(workspaceRoot, ".hermit", "state", "telegram.json");
     expect(JSON.parse(readFileSync(statePath, "utf8"))).toEqual({
-      nextUpdateOffset: 12,
+      nextUpdateOffset: 13,
     });
   });
 });

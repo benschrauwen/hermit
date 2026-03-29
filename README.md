@@ -212,7 +212,7 @@ Optional Telegram bridge env vars:
 - `HERMIT_TELEGRAM_BOT_TOKEN` or `TELEGRAM_BOT_TOKEN`
 - `HERMIT_TELEGRAM_CHAT_ID`
 
-When both Telegram settings are present, the combined `npm start` flow long-polls that one Telegram chat, queues inbound Telegram messages into the main chat thread, and exposes a `send_telegram_message` tool so the agent can reply back into Telegram. See [`docs/telegram-setup.md`](docs/telegram-setup.md) for the novice setup walkthrough.
+When both Telegram settings are present, the combined `npm start` flow long-polls that one Telegram chat, queues inbound Telegram messages into the main chat thread, and exposes `send_telegram_message` plus `send_telegram_voice_note` tools so the agent can reply back into Telegram in text or with a generated voice note. See [`docs/telegram-setup.md`](docs/telegram-setup.md) for the novice setup walkthrough.
 
 ## Sandboxing With `nono`
 
