@@ -209,9 +209,10 @@ Interactive chat turns inside `start` and `ask` run inside `withGitCheckpoint()`
 `doctor` is a structural validator. Checks:
 
 - Required workspace-root directories (`workspace/entities`, `workspace/agents`, `workspace/entity-defs`, `workspace/skills`, `workspace/inbox`)
-- Role manifest loading and directory identity
-- `AGENTS.md` presence and linked markdown files
-- Required shared agent templates
+- Hermit shared state under `workspace/.hermit/agent/` when `--role Hermit` is selected
+- Role manifest loading and directory identity for normal roles
+- `AGENTS.md` presence and linked markdown files for normal roles
+- Required shared agent templates and transcript ingest prompts
 - Explorer renderer modules
 - Duplicate entity IDs
 - Missing frontmatter fields in entity records

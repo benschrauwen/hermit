@@ -4,10 +4,10 @@ import path from "node:path";
 
 import { buildEntityGraph } from "./entity-graph.js";
 import { getProviderAwareModelDiagnostics } from "./model-auth.js";
-import { SHARED_ROOT_DIRECTORIES } from "./constants.js";
+import { HERMIT_ROLE_ID, HERMIT_ROLE_ROOT, SHARED_ROOT_DIRECTORIES } from "./constants.js";
 import { PromptLibrary } from "./prompt-library.js";
 import { resolveSharedPromptTemplateCandidates } from "./runtime-paths.js";
-import { loadRole, validateRoleManifest } from "./roles.js";
+import { isHermitRoleId, loadRole, validateRoleManifest } from "./roles.js";
 import { scanEntities } from "./workspace.js";
 
 interface DoctorFinding {
@@ -226,6 +226,32 @@ function printFindings(root: string, findings: DoctorFinding[]): void {
   }
 }
 
+async function validateHermitAgentFiles(
+  findings: DoctorFinding[],
+  root: string,
+  templatePlaceholderCache: Map<string, string[]>,
+): Promise<void> {
+  const hermitAgentDir = path.join(root, HERMIT_ROLE_ROOT, "agent");
+  for (const agentFile of ["record.md", "inbox.md"] as const) {
+    const agentFilePath = path.join(hermitAgentDir, agentFile);
+    const templatePath = resolveSharedPromptTemplateCandidates(
+      root,
+      path.join("templates", "agent", agentFile),
+    )[0];
+    const placeholderCandidates = await loadTemplatePlaceholderCandidates(templatePath, templatePlaceholderCache);
+    try {
+      await fs.access(agentFilePath);
+      await validateMarkdownRecord(findings, agentFilePath, placeholderCandidates);
+    } catch {
+      addGeneralFinding(
+        findings,
+        "error",
+        `Missing required Hermit agent file: ${path.relative(root, agentFilePath)}`,
+      );
+    }
+  }
+}
+
 export async function runDoctor(root: string, roleId: string): Promise<boolean> {
   const findings: DoctorFinding[] = [];
   const templatePlaceholderCache = new Map<string, string[]>();
@@ -241,6 +267,22 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
   }
 
   await validateEntityDefsFile(findings, root);
+
+  if (isHermitRoleId(roleId)) {
+    await validateHermitAgentFiles(findings, root, templatePlaceholderCache);
+
+    for (const diagnostic of getProviderAwareModelDiagnostics()) {
+      addGeneralFinding(findings, diagnostic.level, diagnostic.message);
+    }
+
+    if (findings.length === 0) {
+      console.log("doctor: workspace looks healthy");
+      return true;
+    }
+
+    printFindings(root, findings);
+    return findings.every((finding) => finding.level !== "error");
+  }
 
   let role: Awaited<ReturnType<typeof loadRole>> | undefined;
   try {
@@ -389,13 +431,24 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
 }
 
 export async function printDoctorContext(root: string, roleId: string): Promise<void> {
-  const role = await loadRole(root, roleId);
-  const promptLibrary = await PromptLibrary.load(role);
-  const breakdown = await promptLibrary.getSystemPromptBreakdown({
-    workspaceRoot: root,
-    roleId: role.id,
-    roleRoot: path.relative(root, role.roleDir) || ".",
-  });
+  const breakdown = isHermitRoleId(roleId)
+    ? await (async () => {
+      const promptLibrary = await PromptLibrary.loadForWorkspace(root);
+      return promptLibrary.getSystemPromptBreakdown({
+        workspaceRoot: root,
+        roleId: HERMIT_ROLE_ID,
+        roleRoot: HERMIT_ROLE_ROOT,
+      });
+    })()
+    : await (async () => {
+      const role = await loadRole(root, roleId);
+      const promptLibrary = await PromptLibrary.load(role);
+      return promptLibrary.getSystemPromptBreakdown({
+        workspaceRoot: root,
+        roleId: role.id,
+        roleRoot: path.relative(root, role.roleDir) || ".",
+      });
+    })();
   const totalChars = breakdown.reduce((sum, part) => sum + part.renderedChars, 0);
 
   console.log(`context: total rendered chars ${totalChars}`);

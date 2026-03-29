@@ -62,7 +62,7 @@ No general redaction or universal truncation layer. Local telemetry files should
 
 ## `doctor`
 
-`doctor` validates structural workspace correctness. It does not read telemetry files or compute rates. See [Architecture: Validation](architecture.md#validation) for the full check list.
+`doctor` validates structural workspace correctness. For normal roles it checks the selected role contract; for `--role Hermit` it validates the shared `.hermit/agent/` state directly instead of looking for `workspace/agents/Hermit/`. It does not read telemetry files or compute rates. See [Architecture: Validation](architecture.md#validation) for the full check list.
 
 ## Strategic Review and Telemetry
 

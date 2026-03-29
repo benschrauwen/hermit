@@ -48,6 +48,23 @@ describe("runDoctor", () => {
     rmSync(root, { recursive: true, force: true });
   });
 
+  it("returns true when the shared Hermit workspace state is valid", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "doctor-hermit-valid-"));
+
+    try {
+      seedRoleWorkspace(root, ["role-a"]);
+      await ensureWorkspaceScaffold(root);
+
+      const result = await runDoctor(root, "Hermit");
+      const logged = consoleSpy.log.mock.calls.map((c) => c[0] as string);
+      const errors = logged.filter((m) => m.startsWith("error:"));
+      expect(errors, `Expected no errors but got: ${errors.join("; ")}`).toHaveLength(0);
+      expect(result).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("warns on placeholder text and missing role files without failing the workspace", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "doctor-quality-"));
 
@@ -256,6 +273,23 @@ role_directories:
       expect(logged.some((line) => line.includes("context: total rendered chars"))).toBe(true);
       expect(logged.some((line) => line.includes("prompts/00-environment.md"))).toBe(true);
       expect(logged.some((line) => line.includes("agents/role-a/AGENTS.md"))).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("can print a prompt context breakdown for Hermit", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "doctor-hermit-context-"));
+
+    try {
+      seedRoleWorkspace(root, ["role-a"]);
+      await ensureWorkspaceScaffold(root);
+      await printDoctorContext(root, "Hermit");
+
+      const logged = consoleSpy.log.mock.calls.map((c) => c[0] as string);
+      expect(logged.some((line) => line.includes("context: total rendered chars"))).toBe(true);
+      expect(logged.some((line) => line.includes("prompts/00-environment.md"))).toBe(true);
+      expect(logged.some((line) => line.includes("AGENTS.md"))).toBe(false);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

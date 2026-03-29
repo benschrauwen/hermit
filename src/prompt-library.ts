@@ -148,7 +148,9 @@ export class PromptLibrary {
       parts.push(this.createPromptPart("shared", source.fullPath, source.content, context));
     }
 
-    parts.push(this.createPromptPart("agents", this.role?.agentsFile ?? "AGENTS.md", this.agentsContent, context));
+    if (this.role || this.agentsContent.trim().length > 0) {
+      parts.push(this.createPromptPart("agents", this.role?.agentsFile ?? "AGENTS.md", this.agentsContent, context));
+    }
 
     return parts;
   }
