@@ -1,8 +1,16 @@
+import path from 'node:path';
 import typography from '@tailwindcss/typography';
+
+const workspaceEntityDefsGlob = process.env.WORKSPACE_ROOT
+  ? path.join(process.env.WORKSPACE_ROOT, 'entity-defs/**/*.{js,ts}')
+  : null;
 
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ['./src/**/*.{astro,html,js,jsx,md,mdx,svelte,ts,tsx,vue}'],
+  content: [
+    './src/**/*.{astro,html,js,jsx,md,mdx,svelte,ts,tsx,vue}',
+    ...(workspaceEntityDefsGlob ? [workspaceEntityDefsGlob] : []),
+  ],
   theme: {
     extend: {
       colors: {
