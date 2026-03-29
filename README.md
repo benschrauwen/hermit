@@ -119,7 +119,7 @@ Use these when you explicitly want to bypass the sandbox or call the raw CLI dir
 npm run start:unsafe                              # start explorer, heartbeat daemon, and chat without the sandbox
 npm run cli -- start --role <role-id>             # raw combined CLI
 npm run cli -- ask --role <role-id> "Review the top open deals"
-npm run cli -- doctor --role <role-id>            # validate workspace integrity
+npm run cli -- doctor --role <role-id>            # validate workspace integrity (use Hermit for shared .hermit state)
 npm run cli -- doctor --role <role-id> --context  # print rendered prompt source breakdown
 npm run cli -- telemetry report --window 7d       # aggregate local runtime telemetry
 ```

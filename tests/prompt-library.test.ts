@@ -160,5 +160,18 @@ describe("PromptLibrary", () => {
       expect(breakdown.some((part) => part.sourcePath === "prompts/00-environment.md")).toBe(true);
       expect(breakdown.some((part) => part.sourcePath === "agents/role-a/AGENTS.md")).toBe(true);
     });
+
+    it("omits a phantom AGENTS.md entry for Hermit workspace prompts", async () => {
+      const lib = await PromptLibrary.loadForWorkspace(root);
+      const breakdown = await lib.getSystemPromptBreakdown({
+        workspaceRoot: root,
+        roleId: "Hermit",
+        roleRoot: ".hermit",
+      });
+
+      expect(breakdown.length).toBeGreaterThan(0);
+      expect(breakdown.some((part) => part.sourcePath === "prompts/00-environment.md")).toBe(true);
+      expect(breakdown.some((part) => part.sourcePath === "AGENTS.md")).toBe(false);
+    });
   });
 });
