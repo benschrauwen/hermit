@@ -155,7 +155,7 @@ Every session gets standard coding tools. Custom tools by session type:
 
 - **Role sessions**: `entity_lookup`, `web_search`, one `create_<entity>_record` per entity definition
 - **Role interactive** (with role switching enabled): adds `switch_role`
-- **Telegram-enabled sessions**: add `send_telegram_message`, which sends a short reply to the configured Telegram chat
+- **Telegram-enabled sessions**: add `send_telegram_message` for short text replies and `send_telegram_voice_note` for generated spoken replies to the configured Telegram chat
 - **Hermit sessions**: `web_search`, plus `switch_role` when role switching is enabled
 
 Model selection is provider-aware:

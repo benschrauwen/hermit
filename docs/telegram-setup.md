@@ -7,13 +7,15 @@ What this integration does:
 - One Telegram chat is connected to the combined `npm start` session
 - New Telegram messages are queued into Hermit's main chat thread
 - Hermit can reply by using the built-in `send_telegram_message` tool
+- Hermit can also send a generated voice reply by using `send_telegram_voice_note`
 - Telegram replies are meant to stay shorter than the normal desktop chat
 
 What this simple version does **not** do:
 
 - It does not create a separate Telegram-only agent
 - It does not support multiple Telegram chats at once
-- It does not try to fully understand photos, voice notes, or other rich message types
+- It does not automatically understand photos or other rich message types on its own
+- Voice notes and other supported audio attachments are saved into `workspace/inbox/telegram/`; the agent still needs to transcribe them before replying
 
 ## Before You Start
 
@@ -143,7 +145,7 @@ You should see the Telegram message appear in the main chat thread with extra in
 - it must use the Telegram send tool to reply
 - the reply should stay short
 
-If Hermit decides to answer, it should answer back in Telegram by using `send_telegram_message`.
+If Hermit decides to answer, it should answer back in Telegram by using `send_telegram_message` or `send_telegram_voice_note`.
 
 ## How To Use It Day To Day
 
@@ -152,7 +154,7 @@ The intended flow is simple:
 1. Keep Hermit running with `npm start`.
 2. Send a message to the configured bot chat.
 3. Hermit sees that message in its main chat thread.
-4. Hermit replies through `send_telegram_message` when it wants to answer in Telegram.
+4. Hermit replies through `send_telegram_message` or `send_telegram_voice_note` when it wants to answer in Telegram.
 
 This is intentionally a light bridge, not a full Telegram workflow engine.
 
@@ -160,7 +162,9 @@ This is intentionally a light bridge, not a full Telegram workflow engine.
 
 - Only the combined `npm start` session listens for Telegram messages.
 - This simple setup supports one Telegram chat ID at a time.
-- Non-text Telegram messages are reduced to a short placeholder when possible.
+- Supported Telegram audio attachments are saved into `workspace/inbox/telegram/` and surfaced with a short placeholder plus the saved path.
+- Voice replies require generating a local audio file first, then sending it with `send_telegram_voice_note`.
+- Other non-text Telegram messages are reduced to a short placeholder when possible.
 - If you run more than one Hermit process against the same bot token, Telegram polling can conflict.
 
 ## Troubleshooting

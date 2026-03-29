@@ -9,6 +9,7 @@ import {
   createHermitTools,
   createRoleSwitchTool,
   createTelegramSendTool,
+  createTelegramVoiceSendTool,
   createWebSearchTool,
 } from "../src/agent-tools.js";
 import { loadRole } from "../src/roles.js";
@@ -98,7 +99,7 @@ describe("createHermitTools", () => {
         },
       },
     });
-    expect(tools.map((tool) => tool.name)).toEqual(["web_search", "send_telegram_message"]);
+    expect(tools.map((tool) => tool.name)).toEqual(["web_search", "send_telegram_message", "send_telegram_voice_note"]);
   });
 });
 
@@ -209,6 +210,9 @@ describe("createTelegramSendTool", () => {
     expect(tool.promptGuidelines).toContain(
       "Keep Telegram replies shorter and more direct than normal desktop chat because they appear in a chat app.",
     );
+    expect(tool.promptGuidelines).toContain(
+      "Prefer send_telegram_voice_note instead when the user started with a voice note or explicitly asked for a voice reply and you have a suitable audio file.",
+    );
 
     const result = await (tool.execute as (id: unknown, params: unknown) => Promise<unknown>)("call-1", {
       message: "Short reply",
@@ -234,6 +238,60 @@ describe("createTelegramSendTool", () => {
         chatId: "123456",
         messageId: 77,
         text: "Short reply",
+      },
+    });
+  });
+});
+
+describe("createTelegramVoiceSendTool", () => {
+  it("sends the configured voice note through the telegram voice sender", async () => {
+    const sender = vi.fn().mockResolvedValue({
+      chatId: "123456",
+      messageId: 88,
+      audioFilePath: "/tmp/reply.opus",
+      caption: "Quick update",
+    });
+    const tool = createTelegramVoiceSendTool(
+      {
+        botToken: "telegram-token",
+        chatId: "123456",
+        apiBaseUrl: "https://api.telegram.org",
+        pollTimeoutSeconds: 20,
+      },
+      sender,
+    );
+
+    expect(tool.promptGuidelines).toContain(
+      "Use this after generating a local audio file, for example with the openai-tts skill.",
+    );
+
+    const result = await (tool.execute as (id: unknown, params: unknown) => Promise<unknown>)("call-1", {
+      audioFilePath: "/tmp/reply.opus",
+      caption: "Quick update",
+    });
+
+    expect(sender).toHaveBeenCalledWith(
+      {
+        botToken: "telegram-token",
+        chatId: "123456",
+        apiBaseUrl: "https://api.telegram.org",
+        pollTimeoutSeconds: 20,
+      },
+      "/tmp/reply.opus",
+      "Quick update",
+    );
+    expect(result).toEqual({
+      content: [
+        {
+          type: "text",
+          text: "Telegram voice note sent to chat 123456.",
+        },
+      ],
+      details: {
+        chatId: "123456",
+        messageId: 88,
+        audioFilePath: "/tmp/reply.opus",
+        caption: "Quick update",
       },
     });
   });

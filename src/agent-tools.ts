@@ -9,8 +9,10 @@ import { normalizeProviderEnvironment } from "./provider-env.js";
 import {
   resolveTelegramBridgeConfig,
   sendTelegramMessage,
+  sendTelegramVoiceNote,
   type TelegramBridgeConfig,
   type TelegramMessageSender,
+  type TelegramVoiceNoteSender,
 } from "./telegram.js";
 import { getArray, getString, isRecord } from "./type-guards.js";
 import { isHermitRoleId, loadRole, normalizeRoleId } from "./roles.js";
@@ -48,13 +50,24 @@ const telegramSendParameters = Type.Object({
   }),
 });
 
+const telegramVoiceSendParameters = Type.Object({
+  audioFilePath: Type.String({
+    description: "Local path to a generated voice note audio file to send back to the configured Telegram chat.",
+  }),
+  caption: Type.Optional(Type.String({
+    description: "Optional short caption to include with the voice note.",
+  })),
+});
+
 type TelegramSendToolParams = Static<typeof telegramSendParameters>;
+type TelegramVoiceSendToolParams = Static<typeof telegramVoiceSendParameters>;
 
 export interface CustomToolOptions {
   onRoleSwitchRequest?: (request: { roleId: string; reason?: string }) => void;
   telegram?: {
     config: TelegramBridgeConfig;
     sender?: TelegramMessageSender;
+    voiceSender?: TelegramVoiceNoteSender;
   };
 }
 
@@ -70,7 +83,11 @@ interface WebSearchResult {
 
 export type WebSearchExecutor = (params: WebSearchToolParams) => Promise<WebSearchResult>;
 
-function resolveTelegramToolOptions(options: CustomToolOptions): { config: TelegramBridgeConfig; sender: TelegramMessageSender } | undefined {
+function resolveTelegramToolOptions(options: CustomToolOptions): {
+  config: TelegramBridgeConfig;
+  sender: TelegramMessageSender;
+  voiceSender: TelegramVoiceNoteSender;
+} | undefined {
   const config = options.telegram?.config ?? resolveTelegramBridgeConfig();
   if (!config) {
     return undefined;
@@ -79,6 +96,7 @@ function resolveTelegramToolOptions(options: CustomToolOptions): { config: Teleg
   return {
     config,
     sender: options.telegram?.sender ?? sendTelegramMessage,
+    voiceSender: options.telegram?.voiceSender ?? sendTelegramVoiceNote,
   };
 }
 
@@ -469,6 +487,7 @@ export function createTelegramSendTool(
       "Use send_telegram_message for Telegram-originated requests instead of pretending your normal chat reply was sent externally.",
       "Keep Telegram replies shorter and more direct than normal desktop chat because they appear in a chat app.",
       "If the Telegram request needs longer work, send a brief acknowledgment and next step instead of a long essay.",
+      "Prefer send_telegram_voice_note instead when the user started with a voice note or explicitly asked for a voice reply and you have a suitable audio file.",
     ],
     parameters: telegramSendParameters,
     async execute(_toolCallId, params) {
@@ -478,6 +497,37 @@ export function createTelegramSendTool(
           {
             type: "text",
             text: `Telegram message sent to chat ${result.chatId}.`,
+          },
+        ],
+        details: result,
+      };
+    },
+  };
+}
+
+export function createTelegramVoiceSendTool(
+  config: TelegramBridgeConfig,
+  sender: TelegramVoiceNoteSender = sendTelegramVoiceNote,
+): ToolDefinition<typeof telegramVoiceSendParameters> {
+  return {
+    name: "send_telegram_voice_note",
+    label: "Send Telegram Voice Note",
+    description: "Send a generated voice note audio file back to the configured Telegram chat.",
+    promptSnippet:
+      "Use send_telegram_voice_note when replying to a Telegram voice note or when the user explicitly asked for a spoken reply.",
+    promptGuidelines: [
+      "Use this after generating a local audio file, for example with the openai-tts skill.",
+      "Prefer this tool when the Telegram user started with a voice note and a spoken reply would fit.",
+      "Keep captions short, or omit them when the voice note already says everything needed.",
+    ],
+    parameters: telegramVoiceSendParameters,
+    async execute(_toolCallId, params) {
+      const result = await sender(config, params.audioFilePath, params.caption);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Telegram voice note sent to chat ${result.chatId}.`,
           },
         ],
         details: result,
@@ -524,6 +574,7 @@ export function createCustomTools(root: string, role: RoleDefinition, options: C
   const telegram = resolveTelegramToolOptions(options);
   if (telegram) {
     tools.push(createTelegramSendTool(telegram.config, telegram.sender));
+    tools.push(createTelegramVoiceSendTool(telegram.config, telegram.voiceSender));
   }
 
   if (options.onRoleSwitchRequest) {
@@ -538,6 +589,7 @@ export function createHermitTools(root: string, options: CustomToolOptions = {})
   const telegram = resolveTelegramToolOptions(options);
   if (telegram) {
     tools.push(createTelegramSendTool(telegram.config, telegram.sender));
+    tools.push(createTelegramVoiceSendTool(telegram.config, telegram.voiceSender));
   }
   if (options.onRoleSwitchRequest) {
     tools.push(createRoleSwitchTool(root, options));
