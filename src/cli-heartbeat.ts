@@ -419,7 +419,7 @@ export async function runHeartbeatDaemonLoop(options: {
           failure.roleId === HERMIT_ROLE_ID
             ? "Hermit strategic review"
             : `${cycleLabel} for ${failure.roleId}`;
-        if (isAbortError(failure.error) && !daemonController.isRunning()) {
+        if (isAbortError(failure.error)) {
           logInfo(`[${formatDaemonTimestamp()}] ${targetLabel} aborted.`);
           continue;
         }

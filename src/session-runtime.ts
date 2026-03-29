@@ -13,6 +13,7 @@ import path from "node:path";
 import { createCustomTools, createHermitTools } from "./agent-tools.js";
 import { DEFAULT_THINKING_LEVEL, HERMIT_ROLE_ID, HERMIT_ROLE_ROOT } from "./constants.js";
 import { resolveConfiguredModel } from "./model-auth.js";
+import { normalizeProviderEnvironment } from "./provider-env.js";
 import { PromptLibrary } from "./prompt-library.js";
 import { resolveCommonAncestor, resolveFrameworkRoot, resolveSharedSkillDirectories, uniquePaths } from "./runtime-paths.js";
 import { TelemetryRecorder } from "./telemetry-recorder.js";
@@ -230,6 +231,7 @@ async function createSessionCore(options: SessionCoreOptions): Promise<{
   });
   await loader.reload();
 
+  normalizeProviderEnvironment();
   const authStorage = AuthStorage.create();
   const modelRegistry = new ModelRegistry(authStorage);
   const { model } = resolveConfiguredModel(authStorage, modelRegistry);

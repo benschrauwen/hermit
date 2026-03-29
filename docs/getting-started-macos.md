@@ -180,17 +180,19 @@ printf 'Paste your Anthropic key, then press Return: '; read -s PROVIDER_KEY; ec
 ```
 
 ```bash
-printf 'Paste your Google key, then press Return: '; read -s PROVIDER_KEY; echo; security add-generic-password -s "nono" -a "google_api_key" -w "$PROVIDER_KEY" -U; unset PROVIDER_KEY
+printf 'Paste your Google Gemini key, then press Return: '; read -s PROVIDER_KEY; echo; security add-generic-password -s "nono" -a "gemini_api_key" -w "$PROVIDER_KEY" -U; unset PROVIDER_KEY
 ```
 
 You can also use these account names for other supported providers:
 
-- `gemini_api_key`
+- `google_api_key`
 - `openrouter_api_key`
 - `groq_api_key`
 - `xai_api_key`
 - `mistral_api_key`
 - `cerebras_api_key`
+
+Hermit accepts both `GEMINI_API_KEY` and `GOOGLE_API_KEY` for Google Gemini. `gemini_api_key` is the preferred macOS Keychain account name, and `google_api_key` remains a compatible alias.
 
 Then:
 

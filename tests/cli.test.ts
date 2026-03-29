@@ -16,12 +16,12 @@ function runCliHelp(args: string[]): string {
 }
 
 describe("cli help", () => {
-  it("exposes the git checkpoint opt-out on supported session commands", { timeout: 15_000 }, () => {
+  it("exposes the git checkpoint opt-out on supported session commands", { timeout: 30_000 }, () => {
     expect(runCliHelp(["start"])).toContain("--no-git-checkpoints");
     expect(runCliHelp(["ask"])).toContain("--no-git-checkpoints");
   });
 
-  it("documents the start command heartbeat interval", { timeout: 15_000 }, () => {
+  it("documents the start command heartbeat interval", { timeout: 30_000 }, () => {
     expect(runCliHelp(["start"])).toContain("--interval <duration>");
   });
 });

@@ -147,6 +147,22 @@ describe("runHeartbeatCycle", () => {
 });
 
 describe("createHeartbeatDaemonController", () => {
+  it("can abort the active session without stopping the daemon", async () => {
+    const steps: string[] = [];
+    const controller = createHeartbeatDaemonController();
+
+    controller.setActiveAbort(async () => {
+      steps.push("aborted");
+    });
+
+    expect(controller.abortActiveSession()).toEqual({
+      abortedActiveSession: true,
+    });
+    await Promise.resolve();
+    expect(steps).toEqual(["aborted"]);
+    expect(controller.isRunning()).toBe(true);
+  });
+
   it("aborts the active session when the daemon stops", async () => {
     const steps: string[] = [];
     const controller = createHeartbeatDaemonController();
@@ -162,6 +178,24 @@ describe("createHeartbeatDaemonController", () => {
     await Promise.resolve();
     expect(steps).toEqual(["aborted"]);
     expect(controller.isRunning()).toBe(false);
+  });
+
+  it("only requests the active-session abort once per session", async () => {
+    const steps: string[] = [];
+    const controller = createHeartbeatDaemonController();
+
+    controller.setActiveAbort(async () => {
+      steps.push("aborted");
+    });
+
+    expect(controller.abortActiveSession()).toEqual({
+      abortedActiveSession: true,
+    });
+    expect(controller.abortActiveSession()).toEqual({
+      abortedActiveSession: true,
+    });
+    await Promise.resolve();
+    expect(steps).toEqual(["aborted"]);
   });
 
   it("only stops once", () => {

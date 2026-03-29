@@ -72,7 +72,17 @@ describe("createCustomTools", () => {
 });
 
 describe("createHermitTools", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("returns web search for Hermit sessions by default", () => {
+    vi.stubEnv("HERMIT_TELEGRAM_BOT_TOKEN", "");
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", "");
+    vi.stubEnv("HERMIT_TELEGRAM_CHAT_ID", "");
+    vi.stubEnv("HERMIT_TELEGRAM_API_BASE_URL", "");
+    vi.stubEnv("HERMIT_TELEGRAM_POLL_TIMEOUT_SECONDS", "");
+
     const tools = createHermitTools("/tmp/workspace");
     expect(tools.map((tool) => tool.name)).toEqual(["web_search"]);
   });

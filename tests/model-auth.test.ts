@@ -1,9 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AuthStorage, ModelRegistry } from "@mariozechner/pi-coding-agent";
 
 import { collectModelPreferences, parseModelReference, resolveConfiguredModel } from "../src/model-auth.js";
 
 describe("provider-aware model resolution", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("parses slashless model names as OpenAI models", () => {
     expect(parseModelReference("gpt-5.4")).toEqual({
       raw: "gpt-5.4",
@@ -28,6 +32,8 @@ describe("provider-aware model resolution", () => {
   });
 
   it("uses a configured fallback model when the preferred provider has no auth", () => {
+    vi.stubEnv("OPENAI_API_KEY", "");
+
     const authStorage = AuthStorage.inMemory({
       anthropic: {
         type: "api_key",

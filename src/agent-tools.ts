@@ -5,6 +5,7 @@ import { AuthStorage, type ToolDefinition } from "@mariozechner/pi-coding-agent"
 
 import { HERMIT_ROLE_ID } from "./constants.js";
 import { parseModelReference } from "./model-auth.js";
+import { normalizeProviderEnvironment } from "./provider-env.js";
 import {
   resolveTelegramBridgeConfig,
   sendTelegramMessage,
@@ -82,6 +83,7 @@ function resolveTelegramToolOptions(options: CustomToolOptions): { config: Teleg
 }
 
 async function getConfiguredProviderApiKey(provider: string): Promise<string | undefined> {
+  normalizeProviderEnvironment();
   const authStorage = AuthStorage.create();
   return authStorage.getApiKey(provider);
 }

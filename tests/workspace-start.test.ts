@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { extractExplorerUrl, renderAnsiTextBlock, resolveWorkspaceStartLayout } from "../src/workspace-start.js";
+import {
+  extractExplorerUrl,
+  interruptActiveHeartbeatForChatPrompt,
+  renderAnsiTextBlock,
+  resolveWorkspaceStartLayout,
+} from "../src/workspace-start.js";
 
 describe("resolveWorkspaceStartLayout", () => {
   it("reserves a larger lower pane for chat on standard terminals", () => {
@@ -39,5 +44,59 @@ describe("renderAnsiTextBlock", () => {
 
   it("keeps completed heartbeat log lines after spinner redraws", () => {
     expect(renderAnsiTextBlock("| Thinking\r\x1b[2K[done]\n", 80)).toEqual(["[done]", ""]);
+  });
+});
+
+describe("interruptActiveHeartbeatForChatPrompt", () => {
+  it("aborts the active heartbeat turn before a chat prompt starts", () => {
+    let abortCount = 0;
+
+    expect(
+      interruptActiveHeartbeatForChatPrompt(
+        {
+          getActiveOwner: () => ({
+            id: "heartbeat-1",
+            kind: "heartbeat",
+            commandName: "heartbeat",
+            acquiredAt: "2026-03-28T00:00:00.000Z",
+            roleId: "role-a",
+          }),
+          acquire: async () => undefined,
+        },
+        {
+          abortActiveSession: () => {
+            abortCount += 1;
+            return { abortedActiveSession: true };
+          },
+        },
+      ),
+    ).toBe(true);
+    expect(abortCount).toBe(1);
+  });
+
+  it("leaves chat alone when no heartbeat turn is active", () => {
+    let abortCount = 0;
+
+    expect(
+      interruptActiveHeartbeatForChatPrompt(
+        {
+          getActiveOwner: () => ({
+            id: "chat-1",
+            kind: "interactive",
+            commandName: "chat",
+            acquiredAt: "2026-03-28T00:00:00.000Z",
+            roleId: "role-a",
+          }),
+          acquire: async () => undefined,
+        },
+        {
+          abortActiveSession: () => {
+            abortCount += 1;
+            return { abortedActiveSession: true };
+          },
+        },
+      ),
+    ).toBe(false);
+    expect(abortCount).toBe(0);
   });
 });

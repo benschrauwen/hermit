@@ -3,6 +3,7 @@ import { getEnvApiKey } from "@mariozechner/pi-ai";
 import { AuthStorage, ModelRegistry } from "@mariozechner/pi-coding-agent";
 
 import { DEFAULT_FALLBACK_MODELS, DEFAULT_MODEL } from "./constants.js";
+import { normalizeProviderEnvironment } from "./provider-env.js";
 
 /** Standard models per provider, in preference order. Used when no model is configured. */
 const STANDARD_MODELS_PER_PROVIDER: Record<string, readonly string[]> = {
@@ -48,7 +49,7 @@ function formatCredentialHint(provider: string): string {
       return "ANTHROPIC_API_KEY";
     case "google":
     case "google-antigravity":
-      return "GOOGLE_API_KEY";
+      return "GEMINI_API_KEY or GOOGLE_API_KEY";
     case "google-gemini-cli":
       return "GEMINI_API_KEY";
     case "google-vertex":
@@ -73,6 +74,8 @@ function formatCredentialHint(provider: string): string {
 }
 
 function describeCredentialConfiguration(authStorage: AuthStorage, provider: string): string {
+  normalizeProviderEnvironment();
+
   if (authStorage.has(provider)) {
     return `stored ${provider} credentials`;
   }
@@ -215,6 +218,8 @@ export async function resolveProviderApiKeyForDirectSdk(
   authStorage: AuthStorage,
   provider: string,
 ): Promise<string | undefined> {
+  normalizeProviderEnvironment();
+
   const storedCredential = authStorage.get(provider);
   if (provider === "anthropic" && storedCredential?.type === "oauth") {
     // Anthropic's standalone SDK expects a real API key, not the subscription OAuth token
@@ -257,12 +262,16 @@ export function resolveConfiguredModel(
 }
 
 export function assertProviderAwareModelConfigured(): ResolvedAgentModel {
+  normalizeProviderEnvironment();
+
   const authStorage = AuthStorage.create();
   const modelRegistry = new ModelRegistry(authStorage);
   return resolveConfiguredModel(authStorage, modelRegistry);
 }
 
 export function getProviderAwareModelDiagnostics(): ModelConfigurationDiagnostic[] {
+  normalizeProviderEnvironment();
+
   const authStorage = AuthStorage.create();
   const modelRegistry = new ModelRegistry(authStorage);
   const preferences = collectModelPreferences();

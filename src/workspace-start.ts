@@ -16,7 +16,11 @@ import {
 
 import { isAbortError } from "./abort.js";
 import { runHeartbeatDaemonLoop } from "./cli-heartbeat.js";
-import { createHeartbeatDaemonController, parseHeartbeatDaemonInterval } from "./heartbeat-daemon.js";
+import {
+  createHeartbeatDaemonController,
+  parseHeartbeatDaemonInterval,
+  type HeartbeatDaemonController,
+} from "./heartbeat-daemon.js";
 import {
   InteractiveSessionController,
   isExitCommand,
@@ -40,7 +44,11 @@ import {
   colorize,
   editorTheme,
 } from "./tui-components.js";
-import { createWorkspaceTurnCoordinator, formatWorkspaceTurnOwner } from "./turn-control.js";
+import {
+  createWorkspaceTurnCoordinator,
+  formatWorkspaceTurnOwner,
+  type WorkspaceTurnCoordinator,
+} from "./turn-control.js";
 import {
   extractExplorerUrl,
   renderAnsiTextBlock,
@@ -540,6 +548,17 @@ function spawnManagedProcess(options: {
   });
 }
 
+export function interruptActiveHeartbeatForChatPrompt(
+  turnCoordinator: WorkspaceTurnCoordinator,
+  heartbeatController: Pick<HeartbeatDaemonController, "abortActiveSession">,
+): boolean {
+  if (turnCoordinator.getActiveOwner()?.kind !== "heartbeat") {
+    return false;
+  }
+
+  return heartbeatController.abortActiveSession().abortedActiveSession;
+}
+
 export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions): Promise<void> {
   if (!(process.stdin.isTTY && process.stdout.isTTY)) {
     throw new Error("The combined `start` command requires an interactive terminal.");
@@ -750,6 +769,7 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
     }
 
     if (!activePromptPromise) {
+      interruptActiveHeartbeatForChatPrompt(turnCoordinator, heartbeatController);
       startPromptSubmission(input, imagePaths);
       return;
     }

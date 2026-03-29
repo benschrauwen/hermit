@@ -30,4 +30,12 @@ load_key_from_keychain MISTRAL_API_KEY mistral_api_key
 load_key_from_keychain CEREBRAS_API_KEY cerebras_api_key
 load_key_from_keychain HERMIT_TELEGRAM_BOT_TOKEN hermit_telegram_bot_token
 
+if [[ -n "${GOOGLE_API_KEY:-}" && -z "${GEMINI_API_KEY:-}" ]]; then
+  export "GEMINI_API_KEY=$GOOGLE_API_KEY"
+fi
+
+if [[ -n "${GEMINI_API_KEY:-}" && -z "${GOOGLE_API_KEY:-}" ]]; then
+  export "GOOGLE_API_KEY=$GEMINI_API_KEY"
+fi
+
 exec "$@"

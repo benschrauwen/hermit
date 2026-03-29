@@ -30,6 +30,7 @@ export interface HeartbeatDaemonStopResult {
 export interface HeartbeatDaemonController {
   isRunning(): boolean;
   setActiveAbort(abortActiveSession?: (() => Promise<void>) | undefined): void;
+  abortActiveSession(): { abortedActiveSession: boolean };
   onStop(listener: () => void): () => void;
   stop(): HeartbeatDaemonStopResult;
 }
@@ -93,7 +94,24 @@ export function createHeartbeatDaemonController(options: {
 } = {}): HeartbeatDaemonController {
   let keepRunning = true;
   let activeAbort: (() => Promise<void>) | undefined;
+  let activeAbortRequested = false;
   const stopListeners = new Set<() => void>();
+
+  const requestActiveAbort = (): boolean => {
+    const abortActiveSession = activeAbort;
+    if (!abortActiveSession) {
+      return false;
+    }
+
+    if (!activeAbortRequested) {
+      activeAbortRequested = true;
+      void abortActiveSession().catch((error) => {
+        options.onAbortError?.(error);
+      });
+    }
+
+    return true;
+  };
 
   return {
     isRunning(): boolean {
@@ -101,6 +119,12 @@ export function createHeartbeatDaemonController(options: {
     },
     setActiveAbort(abortActiveSession?: (() => Promise<void>) | undefined): void {
       activeAbort = abortActiveSession;
+      activeAbortRequested = false;
+    },
+    abortActiveSession(): { abortedActiveSession: boolean } {
+      return {
+        abortedActiveSession: requestActiveAbort(),
+      };
     },
     onStop(listener: () => void): () => void {
       stopListeners.add(listener);
@@ -117,16 +141,10 @@ export function createHeartbeatDaemonController(options: {
       for (const listener of stopListeners) {
         listener();
       }
-      const abortActiveSession = activeAbort;
-      if (abortActiveSession) {
-        void abortActiveSession().catch((error) => {
-          options.onAbortError?.(error);
-        });
-      }
 
       return {
         requested: true,
-        abortedActiveSession: abortActiveSession !== undefined,
+        abortedActiveSession: requestActiveAbort(),
       };
     },
   };

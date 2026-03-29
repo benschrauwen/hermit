@@ -197,8 +197,8 @@ Common provider API key env vars and matching macOS Keychain accounts:
 
 - `OPENAI_API_KEY` / `openai_api_key`
 - `ANTHROPIC_API_KEY` / `anthropic_api_key`
-- `GOOGLE_API_KEY` / `google_api_key`
-- `GEMINI_API_KEY` / `gemini_api_key`
+- `GEMINI_API_KEY` / `gemini_api_key` for Google Gemini
+- `GOOGLE_API_KEY` / `google_api_key` as a compatible alias for Google Gemini
 - `OPENROUTER_API_KEY` / `openrouter_api_key`
 - `GROQ_API_KEY` / `groq_api_key`
 - `XAI_API_KEY` / `xai_api_key`
