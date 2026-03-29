@@ -27,16 +27,28 @@ export function formatEntryDesignator(activeRoleLabel: string): string {
   return `${ANSI_BOLD}${ANSI_BRIGHT_MAGENTA}- ${activeRoleLabel} >>${ANSI_RESET}`;
 }
 
-export function formatUserPromptEcho(prompt: string, activeRoleLabel: string): string {
+function formatQueuedEntryDesignator(): string {
+  return `${ANSI_BOLD}${ANSI_BRIGHT_MAGENTA}Queued >>${ANSI_RESET}`;
+}
+
+function formatPromptEcho(prompt: string, designator: string): string {
   const normalizedPrompt = prompt.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   const lines = normalizedPrompt.split("\n");
 
   if (lines.length <= 1) {
-    return `\n${formatEntryDesignator(activeRoleLabel)} ${ANSI_BRIGHT_MAGENTA}${normalizedPrompt}${ANSI_RESET}\n\n`;
+    return `\n${designator} ${ANSI_BRIGHT_MAGENTA}${normalizedPrompt}${ANSI_RESET}\n\n`;
   }
 
   const renderedLines = lines.map((line) => `${ANSI_BRIGHT_MAGENTA}${line}${ANSI_RESET}`).join("\n");
-  return `\n${formatEntryDesignator(activeRoleLabel)}\n${renderedLines}\n\n`;
+  return `\n${designator}\n${renderedLines}\n\n`;
+}
+
+export function formatUserPromptEcho(prompt: string, activeRoleLabel: string): string {
+  return formatPromptEcho(prompt, formatEntryDesignator(activeRoleLabel));
+}
+
+export function formatQueuedPromptEcho(prompt: string): string {
+  return formatPromptEcho(prompt, formatQueuedEntryDesignator());
 }
 
 export function normalizeInlineText(value: string): string {

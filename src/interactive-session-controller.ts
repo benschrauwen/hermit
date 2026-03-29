@@ -23,6 +23,7 @@ export interface InteractiveSessionControllerOptions {
   onRoleSwitched?: (session: InteractiveChatSession) => void;
   onTurnStateChange?: (state: "idle" | "waiting" | "running") => void;
   onQueuedFollowUpCountChange?: (count: number) => void;
+  onQueuedFollowUpStart?: (prompt: string) => void;
 }
 
 export function normalizeChatInput(input: string): string {
@@ -32,6 +33,44 @@ export function normalizeChatInput(input: string): string {
 export function isExitCommand(input: string): boolean {
   const command = input.trim();
   return command === "/exit" || command === "/quit";
+}
+
+function extractUserMessageText(message: unknown): string | undefined {
+  if (!message || typeof message !== "object") {
+    return undefined;
+  }
+
+  const userMessage = message as {
+    role?: unknown;
+    content?: unknown;
+  };
+  if (userMessage.role !== "user") {
+    return undefined;
+  }
+
+  if (typeof userMessage.content === "string") {
+    return userMessage.content;
+  }
+
+  if (!Array.isArray(userMessage.content)) {
+    return undefined;
+  }
+
+  const text = userMessage.content
+    .map((block) => {
+      if (!block || typeof block !== "object") {
+        return "";
+      }
+
+      const textBlock = block as {
+        type?: unknown;
+        text?: unknown;
+      };
+      return textBlock.type === "text" && typeof textBlock.text === "string" ? textBlock.text : "";
+    })
+    .join("");
+
+  return text.length > 0 ? text : undefined;
 }
 
 export class InteractiveSessionController {
@@ -111,6 +150,13 @@ export class InteractiveSessionController {
   private attachSessionTracking(session: AgentSession): void {
     this.sessionTrackingStop?.();
     this.sessionTrackingStop = session.subscribe((event) => {
+      if (event.type === "message_start" && event.message.role === "user" && this.queuedFollowUpCount > 0) {
+        const prompt = extractUserMessageText(event.message);
+        if (prompt !== undefined) {
+          this.options.onQueuedFollowUpStart?.(prompt);
+        }
+      }
+
       if (event.type === "message_end" && event.message.role === "user" && this.queuedFollowUpCount > 0) {
         this.setQueuedFollowUpCount(this.queuedFollowUpCount - 1);
       }

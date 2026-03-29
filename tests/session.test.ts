@@ -19,6 +19,7 @@ import {
 } from "../src/session-runtime.js";
 import {
   formatActivityStatus,
+  formatQueuedPromptEcho,
   formatUserPromptEcho,
   renderTerminalMarkdown,
 } from "../src/session-terminal.js";
@@ -210,6 +211,20 @@ describe("formatUserPromptEcho", () => {
   it("formats multiline prompts as a block under the active role label", () => {
     expect(formatUserPromptEcho("Line one\nLine two", "sales")).toBe(
       "\n\x1b[1m\x1b[95m- sales >>\x1b[0m\n\x1b[95mLine one\x1b[0m\n\x1b[95mLine two\x1b[0m\n\n",
+    );
+  });
+});
+
+describe("formatQueuedPromptEcho", () => {
+  it("renders queued follow-ups with a dedicated queued label", () => {
+    expect(formatQueuedPromptEcho("Inspect the top 3 deals.")).toBe(
+      "\n\x1b[1m\x1b[95mQueued >>\x1b[0m \x1b[95mInspect the top 3 deals.\x1b[0m\n\n",
+    );
+  });
+
+  it("formats multiline queued follow-ups as a block", () => {
+    expect(formatQueuedPromptEcho("Line one\nLine two")).toBe(
+      "\n\x1b[1m\x1b[95mQueued >>\x1b[0m\n\x1b[95mLine one\x1b[0m\n\x1b[95mLine two\x1b[0m\n\n",
     );
   });
 });

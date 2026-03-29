@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   extractExplorerUrl,
-  interruptActiveHeartbeatForChatPrompt,
+  formatHeartbeatHeaderDetail,
   renderAnsiTextBlock,
   resolveWorkspaceStartLayout,
 } from "../src/workspace-start.js";
@@ -37,6 +37,14 @@ describe("extractExplorerUrl", () => {
   });
 });
 
+describe("formatHeartbeatHeaderDetail", () => {
+  it("includes telegram after explorer and tailscale when connected", () => {
+    expect(
+      formatHeartbeatHeaderDetail("http://localhost:4321", "up at https://tail.example.ts.net", "connected"),
+    ).toBe("Explorer http://localhost:4321 | Tailscale up at https://tail.example.ts.net | Telegram connected");
+  });
+});
+
 describe("renderAnsiTextBlock", () => {
   it("treats CR-based redraws as line replacement", () => {
     expect(renderAnsiTextBlock("| Thinking\r\x1b[2K/ Thinking\r\x1b[2K- Thinking", 80)).toEqual(["- Thinking"]);
@@ -47,56 +55,3 @@ describe("renderAnsiTextBlock", () => {
   });
 });
 
-describe("interruptActiveHeartbeatForChatPrompt", () => {
-  it("aborts the active heartbeat turn before a chat prompt starts", () => {
-    let abortCount = 0;
-
-    expect(
-      interruptActiveHeartbeatForChatPrompt(
-        {
-          getActiveOwner: () => ({
-            id: "heartbeat-1",
-            kind: "heartbeat",
-            commandName: "heartbeat",
-            acquiredAt: "2026-03-28T00:00:00.000Z",
-            roleId: "role-a",
-          }),
-          acquire: async () => undefined,
-        },
-        {
-          abortActiveSession: () => {
-            abortCount += 1;
-            return { abortedActiveSession: true };
-          },
-        },
-      ),
-    ).toBe(true);
-    expect(abortCount).toBe(1);
-  });
-
-  it("leaves chat alone when no heartbeat turn is active", () => {
-    let abortCount = 0;
-
-    expect(
-      interruptActiveHeartbeatForChatPrompt(
-        {
-          getActiveOwner: () => ({
-            id: "chat-1",
-            kind: "interactive",
-            commandName: "chat",
-            acquiredAt: "2026-03-28T00:00:00.000Z",
-            roleId: "role-a",
-          }),
-          acquire: async () => undefined,
-        },
-        {
-          abortActiveSession: () => {
-            abortCount += 1;
-            return { abortedActiveSession: true };
-          },
-        },
-      ),
-    ).toBe(false);
-    expect(abortCount).toBe(0);
-  });
-});

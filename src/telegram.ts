@@ -96,6 +96,7 @@ export interface TelegramPollingBridgeOptions {
   workspaceRoot: string;
   config: TelegramBridgeConfig;
   onMessage: (message: TelegramInboundMessage) => void;
+  onReady?: () => void;
   onInfo?: (message: string) => void;
   onError?: (message: string) => void;
   fetchImpl?: FetchLike;
@@ -408,6 +409,7 @@ export class TelegramPollingBridge {
   private stopped = false;
   private loopPromise: Promise<void> | undefined;
   private activeRequestController: AbortController | undefined;
+  private readyNotified = false;
 
   constructor(private readonly options: TelegramPollingBridgeOptions) {}
 
@@ -445,6 +447,10 @@ export class TelegramPollingBridge {
           ...(this.options.fetchImpl ? { fetchImpl: this.options.fetchImpl } : {}),
         });
         this.activeRequestController = undefined;
+        if (!this.readyNotified) {
+          this.readyNotified = true;
+          this.options.onReady?.();
+        }
 
         let highestUpdateId = nextUpdateOffset !== undefined ? nextUpdateOffset - 1 : undefined;
         for (const update of updates) {

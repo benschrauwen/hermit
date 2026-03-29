@@ -40,6 +40,10 @@ interface PendingWorkspaceTurnWaiter {
   resolve: (handle: WorkspaceTurnHandle) => void;
 }
 
+function isUserTurnKind(kind: WorkspaceTurnKind): boolean {
+  return kind === "interactive" || kind === "ask";
+}
+
 function createWorkspaceTurnOwner(input: {
   kind: WorkspaceTurnKind;
   commandName: string;
@@ -55,43 +59,81 @@ function createWorkspaceTurnOwner(input: {
 }
 
 export function createWorkspaceTurnCoordinator(): WorkspaceTurnCoordinator {
-  let activeOwner: WorkspaceTurnOwner | undefined;
-  const waiters: PendingWorkspaceTurnWaiter[] = [];
+  let activeUserOwner: WorkspaceTurnOwner | undefined;
+  let activeHeartbeatOwner: WorkspaceTurnOwner | undefined;
+  const userWaiters: PendingWorkspaceTurnWaiter[] = [];
+  const heartbeatWaiters: PendingWorkspaceTurnWaiter[] = [];
+
+  const getBlockingOwner = (owner: WorkspaceTurnOwner): WorkspaceTurnOwner | undefined => {
+    if (isUserTurnKind(owner.kind)) {
+      return activeUserOwner;
+    }
+
+    return activeUserOwner ?? activeHeartbeatOwner;
+  };
+
+  const assignOwner = (owner: WorkspaceTurnOwner): void => {
+    if (isUserTurnKind(owner.kind)) {
+      activeUserOwner = owner;
+      return;
+    }
+
+    activeHeartbeatOwner = owner;
+  };
 
   const activateNextWaiter = (): void => {
-    if (activeOwner || waiters.length === 0) {
+    if (!activeUserOwner) {
+      const nextUserWaiter = userWaiters.shift();
+      if (nextUserWaiter) {
+        activeUserOwner = nextUserWaiter.owner;
+        nextUserWaiter.resolve(createHandle(nextUserWaiter.owner));
+      }
+    }
+
+    if (activeUserOwner || activeHeartbeatOwner) {
       return;
     }
 
-    const nextWaiter = waiters.shift();
-    if (!nextWaiter) {
+    const nextHeartbeatWaiter = heartbeatWaiters.shift();
+    if (!nextHeartbeatWaiter) {
       return;
     }
 
-    activeOwner = nextWaiter.owner;
-    nextWaiter.resolve(createHandle(nextWaiter.owner));
+    activeHeartbeatOwner = nextHeartbeatWaiter.owner;
+    nextHeartbeatWaiter.resolve(createHandle(nextHeartbeatWaiter.owner));
   };
 
   const createHandle = (owner: WorkspaceTurnOwner): WorkspaceTurnHandle => ({
     owner,
     async release() {
-      if (activeOwner?.id !== owner.id) {
+      if (isUserTurnKind(owner.kind)) {
+        if (activeUserOwner?.id !== owner.id) {
+          return;
+        }
+
+        activeUserOwner = undefined;
+        activateNextWaiter();
         return;
       }
 
-      activeOwner = undefined;
+      if (activeHeartbeatOwner?.id !== owner.id) {
+        return;
+      }
+
+      activeHeartbeatOwner = undefined;
       activateNextWaiter();
     },
   });
 
   return {
     getActiveOwner(): WorkspaceTurnOwner | undefined {
-      return activeOwner;
+      return activeUserOwner ?? activeHeartbeatOwner;
     },
     async acquire(ownerInput, options = {}): Promise<WorkspaceTurnHandle | undefined> {
       const owner = createWorkspaceTurnOwner(ownerInput);
-      if (!activeOwner) {
-        activeOwner = owner;
+      const blockingOwner = getBlockingOwner(owner);
+      if (!blockingOwner) {
+        assignOwner(owner);
         return createHandle(owner);
       }
 
@@ -99,9 +141,14 @@ export function createWorkspaceTurnCoordinator(): WorkspaceTurnCoordinator {
         return undefined;
       }
 
-      options.onWait?.(activeOwner);
+      options.onWait?.(blockingOwner);
       return new Promise<WorkspaceTurnHandle>((resolve) => {
-        waiters.push({ owner, resolve });
+        if (isUserTurnKind(owner.kind)) {
+          userWaiters.push({ owner, resolve });
+          return;
+        }
+
+        heartbeatWaiters.push({ owner, resolve });
       });
     },
   };

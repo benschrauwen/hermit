@@ -5,6 +5,7 @@ import type { AgentSession } from "@mariozechner/pi-coding-agent";
 import {
   formatActivityStatus,
   formatEntryDesignator,
+  formatQueuedPromptEcho,
   formatUserPromptEcho,
   getMaxStatusTextLength,
   normalizeAssistantText,
@@ -16,7 +17,7 @@ import {
 } from "./session-formatting.js";
 import type { TelemetryRecorder } from "./telemetry-recorder.js";
 
-export { formatActivityStatus, formatEntryDesignator, formatUserPromptEcho, renderTerminalMarkdown };
+export { formatActivityStatus, formatEntryDesignator, formatQueuedPromptEcho, formatUserPromptEcho, renderTerminalMarkdown };
 
 const STATUS_SPINNER_FRAMES = ["|", "/", "-", "\\"] as const;
 const STATUS_SPINNER_INTERVAL_MS = 80;

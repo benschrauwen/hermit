@@ -36,7 +36,9 @@ describe("InteractiveSessionController", () => {
       await turnFinished.promise;
     });
 
-    let sessionEventHandler: ((event: { type: string; message?: { role?: string } }) => void) | undefined;
+    let sessionEventHandler:
+      | ((event: { type: string; message?: { role?: string; content?: unknown } }) => void)
+      | undefined;
     const followUp = vi.fn();
     const subscribe = vi.fn((handler: typeof sessionEventHandler) => {
       sessionEventHandler = handler;
@@ -45,6 +47,7 @@ describe("InteractiveSessionController", () => {
 
     const states: Array<"idle" | "waiting" | "running"> = [];
     const queuedCounts: number[] = [];
+    const queuedFollowUpsStarted: string[] = [];
     const controller = new InteractiveSessionController({
       root: "/tmp/workspace",
       initialSession: {
@@ -68,6 +71,9 @@ describe("InteractiveSessionController", () => {
       onQueuedFollowUpCountChange: (count) => {
         queuedCounts.push(count);
       },
+      onQueuedFollowUpStart: (prompt) => {
+        queuedFollowUpsStarted.push(prompt);
+      },
     });
 
     const promptPromise = controller.prompt("Start work");
@@ -84,6 +90,11 @@ describe("InteractiveSessionController", () => {
     expect(followUp).toHaveBeenCalledWith("Queued follow-up");
 
     sessionEventHandler?.({
+      type: "message_start",
+      message: { role: "user", content: "Queued follow-up" },
+    });
+
+    sessionEventHandler?.({
       type: "message_end",
       message: { role: "user" },
     });
@@ -93,6 +104,7 @@ describe("InteractiveSessionController", () => {
 
     expect(states).toEqual(["waiting", "running", "idle"]);
     expect(queuedCounts).toEqual([1, 0]);
+    expect(queuedFollowUpsStarted).toEqual(["Queued follow-up"]);
     expect(subscribe).toHaveBeenCalledTimes(1);
   });
 });

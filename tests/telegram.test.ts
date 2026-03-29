@@ -118,6 +118,7 @@ describe("TelegramPollingBridge", () => {
 
     const receivedMessages: Array<{ senderLabel: string; text: string }> = [];
     const infoMessages: string[] = [];
+    let readyCount = 0;
     const bridge = new TelegramPollingBridge({
       workspaceRoot,
       config: {
@@ -132,6 +133,9 @@ describe("TelegramPollingBridge", () => {
           senderLabel: message.senderLabel,
           text: message.text,
         });
+      },
+      onReady: () => {
+        readyCount += 1;
       },
       onInfo: (message) => {
         infoMessages.push(message);
@@ -152,6 +156,7 @@ describe("TelegramPollingBridge", () => {
       },
     ]);
     expect(infoMessages).toContain("Telegram bridge listening for chat 456.");
+    expect(readyCount).toBe(1);
 
     const statePath = path.join(workspaceRoot, ".hermit", "state", "telegram.json");
     expect(JSON.parse(readFileSync(statePath, "utf8"))).toEqual({

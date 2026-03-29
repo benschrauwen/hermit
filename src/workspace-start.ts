@@ -19,7 +19,6 @@ import { runHeartbeatDaemonLoop } from "./cli-heartbeat.js";
 import {
   createHeartbeatDaemonController,
   parseHeartbeatDaemonInterval,
-  type HeartbeatDaemonController,
 } from "./heartbeat-daemon.js";
 import {
   InteractiveSessionController,
@@ -27,7 +26,7 @@ import {
   normalizeChatInput,
   type InteractiveSessionStreamingHandle,
 } from "./interactive-session-controller.js";
-import { formatUserPromptEcho } from "./session-formatting.js";
+import { formatQueuedPromptEcho, formatUserPromptEcho } from "./session-formatting.js";
 import { createSessionStreamHandler, type SessionOutputSink } from "./session-terminal.js";
 import type { InteractiveChatSession } from "./session-runtime.js";
 import { formatTelegramInboundPrompt, resolveTelegramBridgeStatus, TelegramPollingBridge } from "./telegram.js";
@@ -55,7 +54,7 @@ import {
   resolveWorkspaceStartLayout,
 } from "./workspace-start-display.js";
 
-export { extractExplorerUrl, renderAnsiTextBlock, resolveWorkspaceStartLayout };
+export { extractExplorerUrl, formatHeartbeatHeaderDetail, renderAnsiTextBlock, resolveWorkspaceStartLayout };
 
 const DEFAULT_EXPLORER_PORT = 4321;
 const DEFAULT_EXPLORER_URL = `http://localhost:${DEFAULT_EXPLORER_PORT}`;
@@ -112,6 +111,18 @@ function renderHeader(title: string, detail: string | undefined, width: number):
   return truncateToWidth(line, Math.max(1, width));
 }
 
+function formatHeartbeatHeaderDetail(
+  explorerStatus: string,
+  tailscaleStatus?: string,
+  telegramStatus?: string,
+): string {
+  return [
+    `Explorer ${explorerStatus}`,
+    ...(tailscaleStatus ? [`Tailscale ${tailscaleStatus}`] : []),
+    ...(telegramStatus ? [`Telegram ${telegramStatus}`] : []),
+  ].join(" | ");
+}
+
 class WorkspaceStartLayout implements Component, Focusable {
   private readonly heartbeatLog = new AnsiTextBuffer(renderAnsiTextBlock);
   private readonly transcript = new AnsiTextBuffer(renderAnsiTextBlock);
@@ -121,6 +132,7 @@ class WorkspaceStartLayout implements Component, Focusable {
   private modelLabel: string;
   private explorerStatus = `starting on ${DEFAULT_EXPLORER_URL}`;
   private tailscaleStatus: string | undefined;
+  private telegramStatus: string | undefined;
   private queuedFollowUpCount = 0;
 
   private _focused = false;
@@ -172,6 +184,16 @@ class WorkspaceStartLayout implements Component, Focusable {
     }
 
     this.tailscaleStatus = normalized;
+    this.tui.requestRender();
+  }
+
+  setTelegramStatus(status: string | undefined): void {
+    const normalized = status?.trim() || undefined;
+    if (this.telegramStatus === normalized) {
+      return;
+    }
+
+    this.telegramStatus = normalized;
     this.tui.requestRender();
   }
 
@@ -227,10 +249,7 @@ class WorkspaceStartLayout implements Component, Focusable {
   }
 
   private renderHeartbeatPane(width: number, height: number): string[] {
-    const detail = [
-      `Explorer ${this.explorerStatus}`,
-      ...(this.tailscaleStatus ? [`Tailscale ${this.tailscaleStatus}`] : []),
-    ].join(" | ");
+    const detail = formatHeartbeatHeaderDetail(this.explorerStatus, this.tailscaleStatus, this.telegramStatus);
     const header = renderHeader(
       `${ANSI_BOLD}Heartbeat daemon${ANSI_RESET}`,
       detail,
@@ -350,6 +369,10 @@ class WorkspaceStartTui implements SessionOutputSink {
     this.layout.setTailscaleStatus(status);
   }
 
+  setTelegramStatus(status: string | undefined): void {
+    this.layout.setTelegramStatus(status);
+  }
+
   setShutdownHandler(handler: () => Promise<void>): void {
     this.shutdownHandler = handler;
   }
@@ -390,10 +413,12 @@ class WorkspaceStartTui implements SessionOutputSink {
   }
 
   appendUserPrompt(prompt: string, options: { queued?: boolean } = {}): void {
-    this.appendText(formatUserPromptEcho(prompt, this.layout.getActiveRoleLabel()));
     if (options.queued) {
-      this.appendText(`${colorize(ANSI_DIM, "Queued as a follow-up.")}\n\n`);
+      this.appendText(formatQueuedPromptEcho(prompt));
+      return;
     }
+
+    this.appendText(formatUserPromptEcho(prompt, this.layout.getActiveRoleLabel()));
   }
 
   appendSystemNotice(text: string): void {
@@ -548,17 +573,6 @@ function spawnManagedProcess(options: {
   });
 }
 
-export function interruptActiveHeartbeatForChatPrompt(
-  turnCoordinator: WorkspaceTurnCoordinator,
-  heartbeatController: Pick<HeartbeatDaemonController, "abortActiveSession">,
-): boolean {
-  if (turnCoordinator.getActiveOwner()?.kind !== "heartbeat") {
-    return false;
-  }
-
-  return heartbeatController.abortActiveSession().abortedActiveSession;
-}
-
 export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions): Promise<void> {
   if (!(process.stdin.isTTY && process.stdout.isTTY)) {
     throw new Error("The combined `start` command requires an interactive terminal.");
@@ -636,6 +650,9 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
     },
     onQueuedFollowUpCountChange: (count) => {
       ui.setQueuedFollowUpCount(pendingQueuedFollowUps.length + count);
+    },
+    onQueuedFollowUpStart: (prompt) => {
+      ui.appendUserPrompt(prompt);
     },
   });
 
@@ -753,7 +770,7 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
           return;
         }
 
-        startPromptSubmission(nextPrompt.prompt, [], { echoPrompt: false });
+        startPromptSubmission(nextPrompt.prompt);
       });
   }
 
@@ -769,7 +786,6 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
     }
 
     if (!activePromptPromise) {
-      interruptActiveHeartbeatForChatPrompt(turnCoordinator, heartbeatController);
       startPromptSubmission(input, imagePaths);
       return;
     }
@@ -855,6 +871,9 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
       telegramBridge = new TelegramPollingBridge({
         workspaceRoot: options.workspaceRoot,
         config: telegramStatus.config,
+        onReady: () => {
+          ui.setTelegramStatus("connected");
+        },
         onMessage: (message) => {
           if (shutdownRequested) {
             return;
