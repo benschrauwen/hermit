@@ -12,11 +12,12 @@ import { ENTITY_SEQUENCE_WIDTH, HERMIT_ROLE_ID, HERMIT_ROLE_ROOT, SHARED_ROOT_DI
 import { fileExists, formatErrorMessage, isMissingPathError } from "./fs-utils.js";
 import { resolveFrameworkRoot, resolveSharedPromptTemplateCandidates } from "./runtime-paths.js";
 import { getRootPaths, getRolePaths, listRoleIds } from "./roles.js";
-import { renderBulletList, renderTemplate, renderTemplateString, renderYamlList } from "./template-library.js";
+import { renderBulletList, renderTemplate, renderTemplateString, renderYamlList, type TemplateContextValue } from "./template-library.js";
 import type {
   EntityRecord,
   RoleDefinition,
   RoleEntityDefinition,
+  RoleFieldScalar,
   WorkspaceInitializationState,
 } from "./types.js";
 
@@ -42,6 +43,8 @@ interface CreateEntityOptions {
   force?: boolean;
   sourceRefs?: string[];
 }
+
+type RoleEntityFieldValue = RoleFieldScalar | string[];
 
 export function getWorkspacePaths(root: string, role?: RoleDefinition): WorkspacePaths {
   const shared = getRootPaths(root);
@@ -94,16 +97,16 @@ function joinFieldValues(input: Record<string, unknown>, fieldNames: string[]): 
 async function renderSharedPromptTemplate(
   workspaceRoot: string,
   relativeTemplatePath: string,
-  values: Record<string, string>,
+  values: Record<string, TemplateContextValue>,
   frameworkRoot = resolveFrameworkRoot(),
 ): Promise<string> {
   return renderTemplate(await getSharedPromptTemplatePath(workspaceRoot, relativeTemplatePath, frameworkRoot), values);
 }
 
-function buildFieldContext(input: Record<string, unknown>): Record<string, string> {
-  const context: Record<string, string> = {};
+function buildFieldContext(input: Record<string, unknown>): Record<string, TemplateContextValue> {
+  const context: Record<string, TemplateContextValue> = {};
   for (const [key, value] of Object.entries(input)) {
-    if (typeof value === "string") {
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
       context[key] = value;
       continue;
     }
@@ -141,7 +144,7 @@ async function listDirectoryNames(directory: string): Promise<string[]> {
   }
 }
 
-function cloneFieldDefaultValue(value: string | string[]): string | string[] {
+function cloneFieldDefaultValue(value: RoleEntityFieldValue): RoleEntityFieldValue {
   return Array.isArray(value) ? [...value] : value;
 }
 
@@ -152,6 +155,12 @@ function isMissingFieldValue(value: unknown, fieldType: RoleEntityDefinition["fi
   if (fieldType === "string-array") {
     return !Array.isArray(value) || value.length === 0;
   }
+  if (fieldType === "number") {
+    return typeof value !== "number" || !Number.isFinite(value);
+  }
+  if (fieldType === "boolean") {
+    return typeof value !== "boolean";
+  }
   return typeof value !== "string" || value.trim().length === 0;
 }
 
@@ -159,7 +168,7 @@ function normalizeEntityFieldValue(
   entityKey: string,
   field: RoleEntityDefinition["fields"][number],
   value: unknown,
-): string | string[] | undefined {
+): RoleEntityFieldValue | undefined {
   if (isMissingFieldValue(value, field.type)) {
     if (field.defaultValue !== undefined) {
       return cloneFieldDefaultValue(field.defaultValue);
@@ -177,14 +186,28 @@ function normalizeEntityFieldValue(
     return [...value];
   }
 
+  if (field.type === "number") {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new Error(`Field "${field.key}" for entity ${entityKey} must be a finite number.`);
+    }
+    return value;
+  }
+
+  if (field.type === "boolean") {
+    if (typeof value !== "boolean") {
+      throw new Error(`Field "${field.key}" for entity ${entityKey} must be a boolean.`);
+    }
+    return value;
+  }
+
   if (typeof value !== "string") {
     throw new Error(`Field "${field.key}" for entity ${entityKey} must be a string.`);
   }
   return value;
 }
 
-function resolveEntityInput(entity: RoleEntityDefinition, input: Record<string, unknown>): Record<string, string | string[]> {
-  const resolved: Record<string, string | string[]> = {};
+function resolveEntityInput(entity: RoleEntityDefinition, input: Record<string, unknown>): Record<string, RoleEntityFieldValue> {
+  const resolved: Record<string, RoleEntityFieldValue> = {};
   for (const field of entity.fields) {
     const normalizedValue = normalizeEntityFieldValue(entity.key, field, input[field.key]);
     if (normalizedValue !== undefined) {
@@ -236,7 +259,7 @@ async function makeRoleEntityId(role: RoleDefinition, entity: RoleEntityDefiniti
 async function renderEntityTemplate(
   role: RoleDefinition,
   relativeTemplatePath: string,
-  values: Record<string, string>,
+  values: Record<string, TemplateContextValue>,
 ): Promise<string> {
   return renderTemplate(path.join(role.entityDefsDir, relativeTemplatePath), values);
 }

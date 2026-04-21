@@ -19,7 +19,7 @@ import {
   resolveHeartbeatDaemonDelay,
   runHeartbeatCycle,
 } from "./heartbeat-daemon.js";
-import { listRoleIds, loadRole } from "./roles.js";
+import { formatRoleLoadIssue, inspectWorkspaceRoles } from "./roles.js";
 import {
   DEFAULT_HEARTBEAT_PROMPT,
   HERMIT_STRATEGIC_REVIEW_PROMPT,
@@ -28,7 +28,7 @@ import {
 import type { OneShotPromptRenderOptions } from "./session-loop.js";
 import { createHermitSession, createRoleSession } from "./session-runtime.js";
 import { formatWorkspaceTurnOwner, type WorkspaceTurnCoordinator, type WorkspaceTurnOwner } from "./turn-control.js";
-import type { RoleDefinition } from "./types.js";
+import type { RoleDefinition, RoleLoadIssue } from "./types.js";
 import { ensureWorkspaceScaffold } from "./workspace.js";
 
 const STRATEGIC_REVIEW_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -152,6 +152,7 @@ async function runStrategicReviewForHermit(options: {
   root: string;
   continueRecent?: boolean;
   gitCheckpointsEnabled?: boolean;
+  startupIssues?: RoleLoadIssue[];
   isCancelled?: () => boolean;
   registerActiveAbort?: (abortActiveSession?: (() => Promise<void>) | undefined) => void;
   turnCoordinator?: WorkspaceTurnCoordinator;
@@ -171,6 +172,7 @@ async function runStrategicReviewForHermit(options: {
         continueRecent: Boolean(options.continueRecent),
         sessionHistoryType: "heartbeat",
         bootstrapMode: false,
+        ...(options.startupIssues ? { startupIssues: options.startupIssues } : {}),
         telemetryCommandName: "heartbeat",
         telemetryContext: gitContext.telemetryContext,
         promptContext: {
@@ -317,12 +319,15 @@ export async function runHeartbeatDaemonLoop(options: {
       }
 
       await ensureWorkspaceScaffold(options.root);
-      const roleIds = await listRoleIds(options.root);
+      const inspection = await inspectWorkspaceRoles(options.root);
       const roles: RoleDefinition[] = [];
-      for (const roleId of roleIds) {
-        const role = await loadRole(options.root, roleId);
+      for (const role of inspection.roles) {
         await ensureWorkspaceScaffold(options.root, role);
         roles.push(role);
+      }
+      const roleIds = roles.map((role) => role.id);
+      for (const issue of inspection.invalidRoles) {
+        logError(`[${formatDaemonTimestamp()}] Skipping invalid role ${formatRoleLoadIssue(issue, options.root)}.`);
       }
       const strategicReviewSweepDue = await shouldRunStrategicReviewSweep(options.root, roles);
       const cyclePlan = planHeartbeatDaemonCycle(roleIds, strategicReviewSweepDue);
@@ -330,8 +335,8 @@ export async function runHeartbeatDaemonLoop(options: {
 
       if (cyclePlan.mode === "wait") {
         const waitLabel = firstCycle
-          ? "No roles are configured. Monitoring Hermit strategic review only."
-          : "No roles are currently configured. Monitoring Hermit strategic review only.";
+          ? "No loadable roles are currently configured. Monitoring Hermit strategic review only."
+          : "No loadable roles are currently configured. Monitoring Hermit strategic review only.";
         firstCycle = false;
         logInfo(
           `[${formatDaemonTimestamp()}] ${waitLabel} Waiting ${formatHeartbeatDaemonDuration(options.intervalMs)} before checking again.`,
@@ -343,7 +348,7 @@ export async function runHeartbeatDaemonLoop(options: {
       firstCycle = false;
       logInfo(
         cyclePlan.mode === "strategic-review" && roleIds.length === 0
-          ? `[${formatDaemonTimestamp()}] Starting Hermit strategic-review sweep with no configured roles.`
+          ? `[${formatDaemonTimestamp()}] Starting Hermit strategic-review sweep with no loadable roles.`
           : cyclePlan.mode === "strategic-review"
           ? `[${formatDaemonTimestamp()}] Starting combined strategic-review sweep for Hermit plus ${roleIds.length} role(s): ${roleIds.join(", ")}.`
           : `[${formatDaemonTimestamp()}] Starting heartbeat cycle for ${roleIds.length} role(s): ${roleIds.join(", ")}.`,
@@ -357,6 +362,7 @@ export async function runHeartbeatDaemonLoop(options: {
             logInfo(`[${formatDaemonTimestamp()}] Running Hermit strategic review.`);
             const result = await runStrategicReviewForHermit({
               root: options.root,
+              startupIssues: inspection.invalidRoles,
               ...(options.continueRecent !== undefined ? { continueRecent: options.continueRecent } : {}),
               ...(options.gitCheckpointsEnabled !== undefined ? { gitCheckpointsEnabled: options.gitCheckpointsEnabled } : {}),
               isCancelled: () => !daemonController.isRunning(),

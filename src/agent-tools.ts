@@ -113,6 +113,18 @@ function buildRoleFieldSchema(field: RoleFieldDefinition): TSchema {
       : Type.Optional(Type.Array(Type.String({ description: field.description })));
   }
 
+  if (field.type === "number") {
+    return (field.required ?? false)
+      ? Type.Number({ description: field.description })
+      : Type.Optional(Type.Number({ description: field.description }));
+  }
+
+  if (field.type === "boolean") {
+    return (field.required ?? false)
+      ? Type.Boolean({ description: field.description })
+      : Type.Optional(Type.Boolean({ description: field.description }));
+  }
+
   return (field.required ?? false)
     ? Type.String({ description: field.description })
     : Type.Optional(Type.String({ description: field.description }));

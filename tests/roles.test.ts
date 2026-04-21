@@ -120,6 +120,41 @@ describe("loadRole", () => {
       'Role manifest ID mismatch for agents/role-a/role.md: expected id "role-a" but found "sales".',
     );
   });
+
+  it("accepts number and boolean entity field types", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "roles-number-boolean-fields-"));
+    roots.push(root);
+    seedRoleWorkspace(root, ["role-a"]);
+
+    replaceInFile(
+      path.join(root, "entity-defs", "entities.md"),
+      `      - key: nextStep
+        label: Next Step
+        type: string
+        description: Next concrete step.
+`,
+      `      - key: nextStep
+        label: Next Step
+        type: string
+        description: Next concrete step.
+      - key: estimate
+        label: Estimate
+        type: number
+        description: Estimated effort.
+        defaultValue: 3
+      - key: blocked
+        label: Blocked
+        type: boolean
+        description: Whether the work is blocked.
+        defaultValue: false
+`,
+    );
+
+    const role = await loadRole(root, "role-a");
+    expect(role.entities[0]?.fields.find((field) => field.key === "estimate")?.type).toBe("number");
+    expect(role.entities[0]?.fields.find((field) => field.key === "blocked")?.type).toBe("boolean");
+    await expect(validateRoleManifest(root, "role-a")).resolves.toBeUndefined();
+  });
 });
 
 describe("roles explorer renderers", () => {
@@ -223,6 +258,7 @@ describe("resolveChatSession", () => {
       kind: "hermit",
       root,
       bootstrapMode: true,
+      startupIssues: [],
     });
   });
 
@@ -235,6 +271,7 @@ describe("resolveChatSession", () => {
       kind: "hermit",
       root,
       bootstrapMode: false,
+      startupIssues: [],
     });
   });
 
@@ -249,6 +286,7 @@ describe("resolveChatSession", () => {
       throw new Error("Expected a role-backed chat session.");
     }
     expect(resolved.role.id).toBe("role-a");
+    expect(resolved.startupIssues).toEqual([]);
   });
 
   it("uses the last chat role when one is stored", async () => {
@@ -263,6 +301,7 @@ describe("resolveChatSession", () => {
       throw new Error("Expected a role-backed chat session.");
     }
     expect(resolved.role.id).toBe("role-a");
+    expect(resolved.startupIssues).toEqual([]);
   });
 
   it("stores and reloads Hermit as the last chat role", async () => {
@@ -272,5 +311,47 @@ describe("resolveChatSession", () => {
 
     await writeLastUsedChatRole(root, "Hermit");
     expect(await readLastUsedChatRole(root)).toBe("Hermit");
+  });
+
+  it("falls back to Hermit with startup issues when the selected role cannot load", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "roles-chat-fallback-"));
+    roots.push(root);
+    seedRoleWorkspace(root, ["role-a"]);
+
+    replaceInFile(
+      path.join(root, "entity-defs", "entities.md"),
+      "        type: string\n        description: Stable item name.\n",
+      "        type: custom\n        description: Stable item name.\n",
+    );
+
+    const resolved = await resolveChatSession(root, { inferredRoleId: "role-a" });
+    expect(resolved.kind).toBe("hermit");
+    if (resolved.kind !== "hermit") {
+      throw new Error("Expected Hermit fallback for an invalid role.");
+    }
+    expect(resolved.bootstrapMode).toBe(false);
+    expect(resolved.startupIssues).toHaveLength(1);
+    expect(resolved.startupIssues[0]?.roleId).toBe("role-a");
+    expect(resolved.startupIssues[0]?.message).toContain("Unsupported role field type: custom");
+  });
+
+  it("surfaces startup issues even when defaulting to Hermit", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "roles-chat-hermit-invalid-role-"));
+    roots.push(root);
+    seedRoleWorkspace(root, ["role-a"]);
+
+    replaceInFile(
+      path.join(root, "agents", "role-a", "role.md"),
+      "id: role-a",
+      "id: sales",
+    );
+
+    const resolved = await resolveChatSession(root);
+    expect(resolved.kind).toBe("hermit");
+    if (resolved.kind !== "hermit") {
+      throw new Error("Expected Hermit session.");
+    }
+    expect(resolved.startupIssues).toHaveLength(1);
+    expect(resolved.startupIssues[0]?.message).toContain("Role manifest ID mismatch");
   });
 });

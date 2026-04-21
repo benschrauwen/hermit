@@ -16,8 +16,17 @@ import { resolveConfiguredModel } from "./model-auth.js";
 import { normalizeProviderEnvironment } from "./provider-env.js";
 import { PromptLibrary } from "./prompt-library.js";
 import { resolveCommonAncestor, resolveFrameworkRoot, resolveSharedSkillDirectories, uniquePaths } from "./runtime-paths.js";
+import { renderWorkspaceStartupIssuesSystemPrompt } from "./session-prompts.js";
 import { TelemetryRecorder } from "./telemetry-recorder.js";
-import type { PromptContext, RoleDefinition, RoleSwitchRequest, SessionHistoryType, TelemetrySessionContext, WorkspaceInitializationState } from "./types.js";
+import type {
+  PromptContext,
+  RoleDefinition,
+  RoleLoadIssue,
+  RoleSwitchRequest,
+  SessionHistoryType,
+  TelemetrySessionContext,
+  WorkspaceInitializationState,
+} from "./types.js";
 import { ensureWorkspaceScaffold, getWorkspaceInitializationState } from "./workspace.js";
 
 export { loadImageAttachments } from "./image-attachments.js";
@@ -76,6 +85,7 @@ interface RoleSessionOptions extends BaseSessionOptions {
 
 export interface HermitSessionOptions extends BaseSessionOptions {
   bootstrapMode?: boolean;
+  startupIssues?: RoleLoadIssue[];
 }
 
 type SessionOptions =
@@ -143,12 +153,13 @@ async function prepareSession(options: SessionOptions): Promise<PreparedSession>
   const bootstrapOverlay = options.bootstrapMode
     ? await promptLibrary.renderSharedPromptDirectory(BOOTSTRAP_PROMPTS_DIRECTORY, promptContext)
     : "";
+  const startupIssuesOverlay = renderWorkspaceStartupIssuesSystemPrompt(options.root, options.startupIssues ?? []);
 
   return {
     roleId: HERMIT_ROLE_ID,
     promptLibrary,
     workspaceState,
-    systemPrompt: [baseSystemPrompt, bootstrapOverlay].filter(Boolean).join("\n\n"),
+    systemPrompt: [baseSystemPrompt, bootstrapOverlay, startupIssuesOverlay].filter(Boolean).join("\n\n"),
     executionRoot: resolveCommonAncestor(frameworkRoot, options.root),
     skillPaths: resolveSharedSkillPaths(options.root, frameworkRoot),
     sessionsDir: resolveHermitSessionDirectory(options.root, options.sessionHistoryType),

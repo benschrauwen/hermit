@@ -72,6 +72,48 @@ describe("createCustomTools", () => {
   });
 });
 
+describe("createEntityRecordTool schema", () => {
+  it("exposes number and boolean fields with matching tool parameter types", async () => {
+    const { createEntityRecordTool } = await import("../src/agent-tools.js");
+    const tool = createEntityRecordTool(
+      "/tmp/workspace",
+      {
+        id: "role-a",
+        name: "Role A",
+        description: "Primary role",
+      } as never,
+      {
+        key: "work-item",
+        label: "Work Item",
+        type: "work-item",
+        createDirectory: "work-items",
+        idStrategy: "prefixed-slug",
+        idSourceFields: ["title"],
+        nameTemplate: "{{title}}",
+        fields: [
+          { key: "title", label: "Title", type: "string", description: "Stable title.", required: true },
+          { key: "estimate", label: "Estimate", type: "number", description: "Estimated effort." },
+          { key: "blocked", label: "Blocked", type: "boolean", description: "Whether the work is blocked." },
+          { key: "tags", label: "Tags", type: "string-array", description: "Search tags." },
+        ],
+        files: [],
+      } as never,
+    );
+
+    const schema = tool.parameters as {
+      properties?: Record<string, { type?: string; items?: { type?: string } }>;
+      required?: string[];
+    };
+
+    expect(schema.properties?.title?.type).toBe("string");
+    expect(schema.properties?.estimate?.type).toBe("number");
+    expect(schema.properties?.blocked?.type).toBe("boolean");
+    expect(schema.properties?.tags?.type).toBe("array");
+    expect(schema.properties?.tags?.items?.type).toBe("string");
+    expect(schema.required).toEqual(["title"]);
+  });
+});
+
 describe("createHermitTools", () => {
   afterEach(() => {
     vi.unstubAllEnvs();

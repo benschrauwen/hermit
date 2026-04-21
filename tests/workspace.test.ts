@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, readdirSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -16,6 +16,11 @@ import {
   writeFileSafely,
 } from "../src/workspace.js";
 import { seedRoleWorkspace, writeSharedEntityRecord } from "./test-helpers.js";
+
+function replaceInFile(filePath: string, oldText: string, newText: string): void {
+  const original = readFileSync(filePath, "utf8");
+  writeFileSync(filePath, original.replace(oldText, newText));
+}
 
 describe("workspace", () => {
   let tmpRoot: string;
@@ -171,6 +176,66 @@ describe("workspace", () => {
 
     const entities = await scanEntities(tmpRoot, role);
     expect(entities.map((entity) => entity.name)).toContain("Bleau : De Gres Six");
+  });
+
+  it("renders number and boolean fields as native YAML scalars", async () => {
+    replaceInFile(
+      path.join(tmpRoot, "entity-defs", "entities.md"),
+      `      - key: nextStep
+        label: Next Step
+        type: string
+        description: Next concrete step.
+    files:
+`,
+      `      - key: nextStep
+        label: Next Step
+        type: string
+        description: Next concrete step.
+      - key: estimate
+        label: Estimate
+        type: number
+        description: Estimated effort.
+      - key: blocked
+        label: Blocked
+        type: boolean
+        description: Whether the work is blocked.
+        defaultValue: false
+    files:
+`,
+    );
+    replaceInFile(
+      path.join(tmpRoot, "entity-defs", "item", "record.md"),
+      `status: {{statusYaml}}
+owner: {{ownerYaml}}
+updated_at: {{updatedAtYaml}}
+`,
+      `status: {{statusYaml}}
+owner: {{ownerYaml}}
+estimate: {{estimateYaml}}
+blocked: {{blockedYaml}}
+updated_at: {{updatedAtYaml}}
+`,
+    );
+
+    const role = await loadRole(tmpRoot, "role-a");
+    await ensureWorkspaceScaffold(tmpRoot, role);
+    const item = await createRoleEntityRecord(
+      role,
+      "item",
+      {
+        title: "Widget",
+        summary: "Summary",
+        owner: "Taylor",
+        status: "active",
+        estimate: 5,
+        nextStep: "Review scope",
+      },
+      { sourceRefs: ["agent onboarding"] },
+    );
+
+    const record = readFileSync(path.join(item.path, "record.md"), "utf8");
+    expect(record).toContain("estimate: 5");
+    expect(record).toContain("blocked: false");
   });
 
   it("applies schema defaults when optional fields omit a defaulted value", async () => {

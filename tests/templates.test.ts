@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import { renderBulletList, renderTemplateString, renderYamlList } from "../src/template-library.js";
+import { renderBulletList, renderTemplateString, renderYamlList, renderYamlScalar } from "../src/template-library.js";
 
 describe("renderTemplateString", () => {
   it("renders placeholders from simple context values", () => {
@@ -24,6 +24,16 @@ describe("renderYamlList", () => {
 
   it("renders a fallback when empty", () => {
     expect(renderYamlList([])).toBe("  - none");
+  });
+});
+
+describe("renderYamlScalar", () => {
+  it("renders finite numbers as bare YAML scalars", () => {
+    expect(renderYamlScalar(42)).toBe("42");
+  });
+
+  it("renders booleans as bare YAML scalars", () => {
+    expect(renderYamlScalar(false)).toBe("false");
   });
 });
 

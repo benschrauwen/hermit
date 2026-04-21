@@ -11,6 +11,7 @@ import type {
   RoleEntityRelationshipDefinition,
   RoleExplorerConfig,
   RoleFieldDefinition,
+  RoleLoadIssue,
   RoleResolution,
 } from "./types.js";
 
@@ -76,7 +77,7 @@ function parseFieldDefinitions(value: unknown): RoleFieldDefinition[] {
     const f = `fields[${index}]`;
     const record = assertObject(entry, f);
     const type = assertString(record.type, `${f}.type`);
-    if (type !== "string" && type !== "string-array") {
+    if (type !== "string" && type !== "number" && type !== "boolean" && type !== "string-array") {
       throw new Error(`Unsupported role field type: ${type}`);
     }
 
@@ -91,6 +92,10 @@ function parseFieldDefinitions(value: unknown): RoleFieldDefinition[] {
     if (typeof record.required === "boolean") parsed.required = record.required;
     if (record.defaultValue !== undefined) {
       if (type === "string" && typeof record.defaultValue === "string") {
+        parsed.defaultValue = record.defaultValue;
+      } else if (type === "number" && typeof record.defaultValue === "number" && Number.isFinite(record.defaultValue)) {
+        parsed.defaultValue = record.defaultValue;
+      } else if (type === "boolean" && typeof record.defaultValue === "boolean") {
         parsed.defaultValue = record.defaultValue;
       } else if (type === "string-array" && Array.isArray(record.defaultValue) && record.defaultValue.every((v) => typeof v === "string")) {
         parsed.defaultValue = [...record.defaultValue];
@@ -306,6 +311,68 @@ export function resolveEntityDefsLocalPath(role: RoleDefinition, relativePath: s
   return resolvedPath;
 }
 
+export interface WorkspaceRoleInspection {
+  roleIds: string[];
+  roles: RoleDefinition[];
+  invalidRoles: RoleLoadIssue[];
+}
+
+function toRoleLoadIssue(root: string, roleId: string, error: unknown): RoleLoadIssue {
+  const message = error instanceof Error ? error.message : String(error);
+  return {
+    roleId,
+    manifestFile: getRolePaths(root, roleId).manifestFile,
+    message,
+  };
+}
+
+export function formatRoleLoadIssue(issue: RoleLoadIssue, root?: string): string {
+  const manifestFile = root ? path.relative(root, issue.manifestFile) || issue.manifestFile : issue.manifestFile;
+  return `${issue.roleId} (${manifestFile}): ${issue.message}`;
+}
+
+function mergeRoleLoadIssues(...groups: readonly RoleLoadIssue[][]): RoleLoadIssue[] {
+  const merged = new Map<string, RoleLoadIssue>();
+  for (const group of groups) {
+    for (const issue of group) {
+      const key = `${issue.roleId}\u0000${issue.message}`;
+      if (!merged.has(key)) {
+        merged.set(key, issue);
+      }
+    }
+  }
+  return [...merged.values()].sort((left, right) => left.roleId.localeCompare(right.roleId) || left.message.localeCompare(right.message));
+}
+
+export async function inspectWorkspaceRoles(root: string): Promise<WorkspaceRoleInspection> {
+  const roleIds = await listRoleIds(root);
+  const results = await Promise.all(
+    roleIds.map(async (roleId) => {
+      try {
+        return { roleId, role: await loadRole(root, roleId) };
+      } catch (error) {
+        return { roleId, issue: toRoleLoadIssue(root, roleId, error) };
+      }
+    }),
+  );
+
+  const roles: RoleDefinition[] = [];
+  const invalidRoles: RoleLoadIssue[] = [];
+  for (const result of results) {
+    if ("role" in result) {
+      roles.push(result.role);
+      continue;
+    }
+    invalidRoles.push(result.issue);
+  }
+
+  return {
+    roleIds,
+    roles,
+    invalidRoles,
+  };
+}
+
 export async function listRoleIds(root: string): Promise<string[]> {
   const agentsDir = getRootPaths(root).agentsDir;
   try {
@@ -447,11 +514,13 @@ export type ChatSessionResolution =
       kind: "role";
       root: string;
       role: RoleDefinition;
+      startupIssues: RoleLoadIssue[];
     }
   | {
       kind: "hermit";
       root: string;
       bootstrapMode: boolean;
+      startupIssues: RoleLoadIssue[];
     };
 
 export async function resolveChatSession(root: string, options: {
@@ -461,18 +530,32 @@ export async function resolveChatSession(root: string, options: {
 } = {}): Promise<ChatSessionResolution> {
   const roleId = normalizeRoleId(options.explicitRoleId ?? options.inferredRoleId ?? options.lastRoleId ?? HERMIT_ROLE_ID);
   if (isHermitRoleId(roleId)) {
+    const inspection = await inspectWorkspaceRoles(root);
     return {
       kind: "hermit",
       root,
-      bootstrapMode: (await listRoleIds(root)).length === 0,
+      bootstrapMode: inspection.roleIds.length === 0,
+      startupIssues: inspection.invalidRoles,
     };
   }
 
-  return {
-    kind: "role",
-    root,
-    role: await loadRole(root, roleId),
-  };
+  try {
+    return {
+      kind: "role",
+      root,
+      role: await loadRole(root, roleId),
+      startupIssues: [],
+    };
+  } catch (error) {
+    const requestedRoleIssue = toRoleLoadIssue(root, roleId, error);
+    const inspection = await inspectWorkspaceRoles(root);
+    return {
+      kind: "hermit",
+      root,
+      bootstrapMode: inspection.roleIds.length === 0,
+      startupIssues: mergeRoleLoadIssues([requestedRoleIssue], inspection.invalidRoles),
+    };
+  }
 }
 
 export function inferRootAndRoleFromCwd(cwd: string): { root: string; roleId?: string } {

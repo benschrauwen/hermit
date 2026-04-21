@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -7,6 +7,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import { InteractiveSessionCache, snapshotPreexistingInteractiveSessionKeys } from "../src/chat-session-cache.js";
 import { HERMIT_ROLE_ID } from "../src/constants.js";
 import { seedRoleWorkspace } from "./test-helpers.js";
+
+function replaceInFile(filePath: string, oldText: string, newText: string): void {
+  const original = readFileSync(filePath, "utf8");
+  writeFileSync(filePath, original.replace(oldText, newText));
+}
 
 describe("snapshotPreexistingInteractiveSessionKeys", () => {
   const roots: string[] = [];
@@ -33,6 +38,25 @@ describe("snapshotPreexistingInteractiveSessionKeys", () => {
     const keys = await snapshotPreexistingInteractiveSessionKeys(root);
 
     expect(keys).toEqual(new Set([HERMIT_ROLE_ID, "role-a"]));
+  });
+
+  it("skips invalid roles instead of failing startup", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "chat-session-invalid-role-"));
+    roots.push(root);
+    seedRoleWorkspace(root, ["role-a", "role-b"]);
+
+    const roleASessionsDir = path.join(root, "agents", "role-a", ".role-agent", "sessions");
+    mkdirSync(roleASessionsDir, { recursive: true });
+    writeFileSync(path.join(roleASessionsDir, "existing-session.json"), "{}");
+
+    const roleBSessionsDir = path.join(root, "agents", "role-b", ".role-agent", "sessions");
+    mkdirSync(roleBSessionsDir, { recursive: true });
+    writeFileSync(path.join(roleBSessionsDir, "existing-session.json"), "{}");
+    replaceInFile(path.join(root, "agents", "role-b", "role.md"), "id: role-b", "id: mismatched-role");
+
+    const keys = await snapshotPreexistingInteractiveSessionKeys(root);
+
+    expect(keys).toEqual(new Set(["role-a"]));
   });
 });
 

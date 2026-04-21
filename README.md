@@ -106,6 +106,7 @@ Hermit includes a built-in `framework-maintenance` skill with the full git and `
 
 ```bash
 npm start                                         # start explorer, heartbeat daemon, and chat in one sandboxed TUI
+npm start --continue                              # continue the most recent chat and heartbeat sessions
 npm run explorer                                  # launch only the workspace UI server
 ```
 

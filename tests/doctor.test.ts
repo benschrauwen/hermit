@@ -65,6 +65,24 @@ describe("runDoctor", () => {
     }
   });
 
+  it("reports invalid role manifests during Hermit doctor runs", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "doctor-hermit-invalid-role-"));
+
+    try {
+      seedRoleWorkspace(root, ["role-a"]);
+      await ensureWorkspaceScaffold(root);
+      replaceInFile(path.join(root, "agents", "role-a", "role.md"), "id: role-a", "id: sales");
+
+      const result = await runDoctor(root, "Hermit");
+      const logged = consoleSpy.log.mock.calls.map((c) => c[0] as string);
+      expect(result).toBe(false);
+      expect(logged.some((m) => m.includes("Invalid role configuration: role-a (agents/role-a/role.md)"))).toBe(true);
+      expect(logged.some((m) => m.includes("Role manifest ID mismatch"))).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("warns on placeholder text and missing role files without failing the workspace", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "doctor-quality-"));
 
@@ -96,6 +114,23 @@ updated_at: 2026-03-08T12:00:00.000Z
       expect(result).toBe(true);
       expect(logged.some((m) => m.includes("placeholder text"))).toBe(true);
       expect(logged.some((m) => m.includes("activity-log.md is missing or unreadable"))).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("warns when entity-defs/entities.md is missing in a Hermit-only workspace", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "doctor-entity-defs-missing-"));
+
+    try {
+      seedRoleWorkspace(root, ["role-a"]);
+      await ensureWorkspaceScaffold(root);
+      rmSync(path.join(root, "entity-defs", "entities.md"), { force: true });
+
+      const result = await runDoctor(root, "Hermit");
+      const logged = consoleSpy.log.mock.calls.map((c) => c[0] as string);
+      expect(result).toBe(true);
+      expect(logged.some((m) => m.includes("entity-defs/entities.md is missing or unreadable"))).toBe(true);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

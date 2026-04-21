@@ -32,6 +32,14 @@ export function renderTemplateString(template: string, context: Record<string, T
 }
 
 export function renderYamlScalar(value: TemplateContextValue): string {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? String(value) : JSON.stringify(String(value));
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+
   const rendered = String(value ?? "");
   if (
     rendered.length === 0

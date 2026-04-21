@@ -2,6 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { constants as osConstants } from "node:os";
 import process from "node:process";
 
+import { resolveStartLauncherArgs, resolveStartLauncherEnv } from "./start-launcher-args.js";
 import {
   HERMIT_TAILSCALE_NOTICE_ENV,
   HERMIT_TAILSCALE_URL_ENV,
@@ -126,14 +127,11 @@ function resolveTailscaleStartEnvironment(): StartEnvironment {
   };
 }
 
-async function runSandboxedStartScript(childEnv: NodeJS.ProcessEnv, forwardedArgs: string[]): Promise<ChildExitResult> {
+async function runSandboxedStartScript(env: NodeJS.ProcessEnv, forwardedArgs: string[]): Promise<ChildExitResult> {
   return new Promise<ChildExitResult>((resolve, reject) => {
     const child = spawn("npm", ["run", SANDBOXED_START_SCRIPT, "--", ...forwardedArgs], {
       cwd: process.cwd(),
-      env: {
-        ...process.env,
-        ...childEnv,
-      },
+      env,
       stdio: "inherit",
     });
 
@@ -185,7 +183,13 @@ function resolveExitCode(result: ChildExitResult): number {
 async function main(): Promise<void> {
   const startEnvironment = resolveTailscaleStartEnvironment();
   try {
-    const exitResult = await runSandboxedStartScript(startEnvironment.childEnv, process.argv.slice(2));
+    const exitResult = await runSandboxedStartScript(
+      {
+        ...resolveStartLauncherEnv(),
+        ...startEnvironment.childEnv,
+      },
+      resolveStartLauncherArgs(process.argv.slice(2)),
+    );
     process.exitCode = resolveExitCode(exitResult);
   } finally {
     startEnvironment.cleanup();

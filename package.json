@@ -11,6 +11,7 @@
     "start:session": "./scripts/with-local-npm.sh ./scripts/with-provider-env.sh nono run --profile ./nono/hermit.json --allow-cwd --allow-command npm --allow-bind 4321 -- npm run cli -- start",
     "start:unsafe": "./scripts/with-local-npm.sh ./scripts/with-provider-env.sh npm run cli -- start",
     "cli": "node --import tsx src/cli.ts",
+    "doctor": "node --import tsx src/cli.ts doctor",
     "test": "vitest run",
     "explorer": "./scripts/with-local-npm.sh ./scripts/with-provider-env.sh nono run --profile ./nono/hermit.json --allow-cwd --allow-command npm --allow-bind 4321 -- env NODE_OPTIONS='--import tsx' WORKSPACE_ROOT=\"$(pwd)\" ASTRO_TELEMETRY_DISABLED=1 npm --prefix explorer run dev",
     "explorer:unsafe": "./scripts/with-local-npm.sh env NODE_OPTIONS='--import tsx' WORKSPACE_ROOT=\"$(pwd)\" npm --prefix explorer run dev",

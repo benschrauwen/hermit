@@ -1,5 +1,12 @@
-export type RoleFieldType = "string" | "string-array";
+export type RoleFieldScalar = string | number | boolean;
+export type RoleFieldType = "string" | "number" | "boolean" | "string-array";
 export type RoleEntityIdStrategy = "prefixed-slug" | "year-sequence-slug" | "singleton";
+
+export interface RoleLoadIssue {
+  roleId: string;
+  manifestFile: string;
+  message: string;
+}
 
 export interface PromptContext {
   workspaceRoot: string;
@@ -35,7 +42,7 @@ export interface RoleFieldDefinition {
   type: RoleFieldType;
   description: string;
   required?: boolean;
-  defaultValue?: string | string[];
+  defaultValue?: RoleFieldScalar | string[];
 }
 
 export interface RoleTemplateFileDefinition {

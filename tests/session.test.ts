@@ -8,6 +8,8 @@ import {
   DEFAULT_HEARTBEAT_PROMPT,
   HERMIT_STRATEGIC_REVIEW_PROMPT,
   ONBOARDING_CHAT_OPENING_PROMPT,
+  STARTUP_ISSUES_CHAT_OPENING_PROMPT,
+  renderWorkspaceStartupIssuesSystemPrompt,
   resolveInitialChatPrompt,
 } from "../src/session-prompts.js";
 import {
@@ -100,6 +102,21 @@ describe("resolveInitialChatPrompt", () => {
     ).toBe(ONBOARDING_CHAT_OPENING_PROMPT);
   });
 
+  it("prioritizes startup issue guidance over continue-mode silence", () => {
+    expect(
+      resolveInitialChatPrompt({
+        continueRecent: true,
+        hasStartupIssues: true,
+        workspaceState: {
+          initialized: true,
+          sharedEntityCount: 1,
+          roleEntityCount: 1,
+          roleEntityCounts: { item: 1 },
+        },
+      }),
+    ).toBe(STARTUP_ISSUES_CHAT_OPENING_PROMPT);
+  });
+
   it("does not inject a new opening when continuing a session", () => {
     expect(
       resolveInitialChatPrompt({
@@ -133,6 +150,20 @@ describe("resolveInitialChatPrompt", () => {
     expect(DEFAULT_CHAT_OPENING_PROMPT).toContain("Do not suggest exploratory inspection");
     expect(DEFAULT_CHAT_OPENING_PROMPT).toContain("focused 1:1");
     expect(DEFAULT_CHAT_OPENING_PROMPT).toContain("capturing the follow-up work for heartbeat");
+  });
+
+  it("renders Hermit startup diagnostics into a system-prompt overlay", () => {
+    const prompt = renderWorkspaceStartupIssuesSystemPrompt("/tmp/workspace", [
+      {
+        roleId: "role-a",
+        manifestFile: "/tmp/workspace/agents/role-a/role.md",
+        message: "Unsupported role field type: custom",
+      },
+    ]);
+
+    expect(prompt).toContain("Workspace Load Issues");
+    expect(prompt).toContain("role-a: Unsupported role field type: custom");
+    expect(prompt).toContain("manifest: agents/role-a/role.md");
   });
 });
 

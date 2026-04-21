@@ -176,7 +176,7 @@ Thinking level: `ROLE_AGENT_THINKING_LEVEL` env var, default `medium`.
 - `create_directory`, optional `scan_directories`, optional `exclude_directory_names`
 - `id_strategy`: `prefixed-slug`, `year-sequence-slug`, or `singleton`
 - `id_source_fields`, optional `id_prefix`, `name_template`
-- `fields` with per-field `key`, `label`, `type` (`string` or `string-array`), `description`, optional `required` and `defaultValue`
+- `fields` with per-field `key`, `label`, `type` (`string`, `number`, `boolean`, or `string-array`), `description`, optional `required` and `defaultValue`
 - Optional `relationships` with per-relationship `source_field`, `target_type`, `edge_type`, and optional `reverse_edge_type`
 - `files` with per-file `path` and `template`
 - Optional `status_field`, `owner_field`, `include_in_initialization`, `extra_directories`
@@ -214,6 +214,7 @@ Interactive chat turns inside `start` and `ask` run inside `withGitCheckpoint()`
 - `AGENTS.md` presence and linked markdown files for normal roles
 - Required shared agent templates and transcript ingest prompts
 - Explorer renderer modules
+- Presence and frontmatter shape of `workspace/entity-defs/entities.md` (warning if missing, error if malformed)
 - Duplicate entity IDs
 - Missing frontmatter fields in entity records
 - Unresolved template placeholders and generic placeholder lines

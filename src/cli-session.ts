@@ -306,6 +306,7 @@ async function buildInteractiveChatSession(
           persist: true,
           continueRecent,
           bootstrapMode: target.bootstrapMode,
+          startupIssues: target.startupIssues,
           telemetryCommandName: "chat",
           telemetryContext: gitContext.telemetryContext,
           promptContext: {
@@ -404,6 +405,7 @@ export async function runInteractiveChatCommand(
       const initialEntry = await getOrCreateSession(resolved);
       const initialPrompt = resolveInitialChatPrompt({
         workspaceState: initialEntry.session.workspaceState,
+        hasStartupIssues: resolved.startupIssues.length > 0,
         ...(options.prompt !== undefined ? { initialPrompt: options.prompt } : {}),
         ...(initialEntry.continuedFromPersistedSession ? { continueRecent: true } : {}),
       });

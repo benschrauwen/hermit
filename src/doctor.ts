@@ -7,7 +7,7 @@ import { getProviderAwareModelDiagnostics } from "./model-auth.js";
 import { HERMIT_ROLE_ID, HERMIT_ROLE_ROOT, SHARED_ROOT_DIRECTORIES } from "./constants.js";
 import { PromptLibrary } from "./prompt-library.js";
 import { resolveSharedPromptTemplateCandidates } from "./runtime-paths.js";
-import { isHermitRoleId, loadRole, validateRoleManifest } from "./roles.js";
+import { formatRoleLoadIssue, inspectWorkspaceRoles, isHermitRoleId, loadRole, validateRoleManifest } from "./roles.js";
 import { scanEntities } from "./workspace.js";
 
 interface DoctorFinding {
@@ -144,11 +144,8 @@ async function validateEntityDefsFile(findings: DoctorFinding[], root: string): 
         `entity-defs/entities.md must define an \`entities:\` list in YAML frontmatter. This usually means the file was written as a bare YAML list or markdown body instead of frontmatter. Expected shape:\n${ENTITY_DEFS_FRONTMATTER_EXAMPLE}`,
       );
     }
-  } catch (error) {
-    const code = error && typeof error === "object" && "code" in error ? (error as NodeJS.ErrnoException).code : undefined;
-    if (code !== "ENOENT") {
-      addGeneralFinding(findings, "warning", `${entityDefsPath} is missing or unreadable.`);
-    }
+  } catch {
+    addGeneralFinding(findings, "warning", `${entityDefsPath} is missing or unreadable.`);
   }
 }
 
@@ -269,6 +266,10 @@ export async function runDoctor(root: string, roleId: string): Promise<boolean> 
   await validateEntityDefsFile(findings, root);
 
   if (isHermitRoleId(roleId)) {
+    const workspaceRoleInspection = await inspectWorkspaceRoles(root);
+    for (const issue of workspaceRoleInspection.invalidRoles) {
+      addGeneralFinding(findings, "error", `Invalid role configuration: ${formatRoleLoadIssue(issue, root)}`);
+    }
     await validateHermitAgentFiles(findings, root, templatePlaceholderCache);
 
     for (const diagnostic of getProviderAwareModelDiagnostics()) {

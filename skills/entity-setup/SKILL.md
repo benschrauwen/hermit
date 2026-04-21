@@ -32,7 +32,7 @@ Decide for each entity:
 - optional `status_field`, `owner_field`
 - optional `include_in_initialization`
 - optional `extra_directories`
-- `fields`
+- `fields` (`string`, `number`, `boolean`, or `string-array`)
 - `files`
 - Where should instances live — one flat directory, or lifecycle subdirectories like `active/`, `closed-won/`, `resolved/`?
 - Which companion files deserve their own markdown files instead of living in `record.md`?
