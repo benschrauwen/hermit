@@ -1,4 +1,6 @@
+import { promises as fs } from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { marked } from "marked";
 
 import {
@@ -134,7 +136,7 @@ type CustomPageRendererModule = {
   renderExplorerPage?: CustomPageRenderer;
 };
 
-const pluginCache = new Map<string, Promise<unknown>>();
+const pluginCache = new Map<string, { version: string; pending: Promise<unknown> }>();
 
 function escapeHtml(value: string): string {
   return value
@@ -217,12 +219,17 @@ function resolveRendererPath(root: string, rendererPath: string): string {
 }
 
 async function loadPluginModule<TModule>(absolutePath: string): Promise<TModule> {
-  let pending = pluginCache.get(absolutePath);
-  if (!pending) {
-    const { pathToFileURL } = await import("node:url");
-    pending = importWithNode(pathToFileURL(absolutePath).href);
-    pluginCache.set(absolutePath, pending);
+  const stat = await fs.stat(absolutePath);
+  const version = String(stat.mtimeMs);
+  const cached = pluginCache.get(absolutePath);
+  if (cached && cached.version === version) {
+    return (await cached.pending) as TModule;
   }
+
+  const importUrl = new URL(pathToFileURL(absolutePath).href);
+  importUrl.searchParams.set("v", version);
+  const pending = importWithNode(importUrl.href);
+  pluginCache.set(absolutePath, { version, pending });
   return (await pending) as TModule;
 }
 

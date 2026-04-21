@@ -243,7 +243,7 @@ No per-role entity routes.
 
 ### Renderers
 
-`workspace/entity-defs/entities.md` may declare explorer renderers under `explorer.renderers`. Modules are loaded dynamically from `workspace/entity-defs/` and can replace the home page, custom top-level pages, entity-type list pages, the full entity detail body, or specific file sections. Without a declared renderer, the explorer falls back to its built-in generic pages and markdown rendering.
+`workspace/entity-defs/entities.md` may declare explorer renderers under `explorer.renderers`. Modules are loaded dynamically from `workspace/entity-defs/` and can replace the home page, custom top-level pages, entity-type list pages, the full entity detail body, or specific file sections. The explorer versions these dynamic imports by source-file modification time, so refreshing the page picks up renderer code changes without restarting the whole runtime. Without a declared renderer, the explorer falls back to its built-in generic pages and markdown rendering.
 
 ## Extension Surface
 
