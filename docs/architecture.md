@@ -237,9 +237,12 @@ Astro SSR app under `explorer/`. Read-only by design — agents own and mutate w
 | `/entities/:entityType/:entityId` | Entity detail |
 | `/agents` | Agent list |
 | `/agents/:roleId` | Agent detail |
+| `/workspace-artifacts/*` | Read-only files from the workspace whose path includes `artifacts/` (images, PDFs, etc.) |
 | `/<custom-page>` | Optional workspace-defined explorer page when declared in `explorer.renderers.pages` |
 
 No per-role entity routes.
+
+Custom renderers and HTML can reference workspace binaries at `/workspace-artifacts/<workspace-relative-path>` (for example `/workspace-artifacts/entities/deals/acme/artifacts/diagram.png`). The handler resolves paths under `WORKSPACE_ROOT`, rejects traversal outside the workspace, and only serves files under an `artifacts` directory segment.
 
 ### Renderers
 
