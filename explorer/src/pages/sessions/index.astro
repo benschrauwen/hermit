@@ -1,0 +1,92 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { getWorkspaceRoot } from "../../lib/workspace.js";
+import {
+  formatHistoryTypeLabel,
+  formatSessionTimestamp,
+  listWorkspaceSessions,
+} from "../../lib/sessions.js";
+
+const root = getWorkspaceRoot();
+const sessions = await listWorkspaceSessions(root);
+
+const searchQuery = (Astro.url.searchParams.get("q") ?? "").trim();
+const normalizedQuery = searchQuery.toLowerCase();
+const filteredSessions = normalizedQuery
+  ? sessions.filter((session) =>
+      [
+        session.roleLabel,
+        session.roleId,
+        session.historyType,
+        session.name ?? "",
+        session.firstMessage,
+        session.id,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedQuery),
+    )
+  : sessions;
+---
+<BaseLayout title="Sessions">
+  <div class="breadcrumb">
+    <a href="/">Explorer</a> → Sessions
+  </div>
+  <div class="page-intro">
+    <h1>Chat sessions</h1>
+    <p class="meta">
+      {filteredSessions.length} session{filteredSessions.length !== 1 ? "s" : ""}
+      {searchQuery ? ` matching “${searchQuery}”` : ""}
+    </p>
+  </div>
+
+  <form class="mb-6 flex flex-wrap gap-3" method="get">
+    <input
+      class="min-w-[16rem] flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm outline-none ring-sky-500/0 transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+      type="search"
+      name="q"
+      value={searchQuery}
+      placeholder="Search role, message, or session id"
+    />
+    <button
+      class="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
+      type="submit"
+    >
+      Search
+    </button>
+  </form>
+
+  {filteredSessions.length === 0 ? (
+    <p class="meta">No persisted sessions found in this workspace yet.</p>
+  ) : (
+    <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Role</th>
+            <th>Type</th>
+            <th>Preview</th>
+            <th>Messages</th>
+            <th>Modified</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredSessions.map((session) => (
+            <tr>
+              <td>
+                <a href={`/sessions/${session.key}`}>
+                  <strong>{session.name ?? session.roleLabel}</strong>
+                </a>
+                <div class="meta">{session.roleId}</div>
+              </td>
+              <td class="meta">{formatHistoryTypeLabel(session.historyType)}</td>
+              <td class="max-w-xl truncate">{session.firstMessage}</td>
+              <td class="meta">{session.messageCount}</td>
+              <td class="meta whitespace-nowrap">{formatSessionTimestamp(session.modified)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )}
+</BaseLayout>

@@ -44,6 +44,14 @@ import {
   editorTheme,
 } from "./tui-components.js";
 import {
+  MOUSE_TRACKING_DISABLE,
+  MOUSE_TRACKING_ENABLE,
+  clampScrollFromBottom,
+  parseMouseWheelEvent,
+  scrollDeltaForWheel,
+  sliceScrollableLines,
+} from "./tui-scroll.js";
+import {
   createWorkspaceTurnCoordinator,
   formatWorkspaceTurnOwner,
   type WorkspaceTurnCoordinator,
@@ -53,6 +61,12 @@ import {
   renderAnsiTextBlock,
   resolveWorkspaceStartLayout,
 } from "./workspace-start-display.js";
+
+interface ChatPaneGeometry {
+  startRow: number;
+  transcriptStartRow: number;
+  transcriptHeight: number;
+}
 
 export { extractExplorerUrl, formatHeartbeatHeaderDetail, renderAnsiTextBlock, resolveWorkspaceStartLayout };
 
@@ -134,6 +148,8 @@ class WorkspaceStartLayout implements Component, Focusable {
   private tailscaleStatus: string | undefined;
   private telegramStatus: string | undefined;
   private queuedFollowUpCount = 0;
+  private transcriptScrollFromBottom = 0;
+  private lastChatPaneGeometry: ChatPaneGeometry | undefined;
 
   private _focused = false;
 
@@ -214,7 +230,72 @@ class WorkspaceStartLayout implements Component, Focusable {
 
   appendChatText(text: string): void {
     this.transcript.appendText(text);
+    if (this.transcriptScrollFromBottom === 0) {
+      this.tui.requestRender();
+      return;
+    }
+
+    const width = Math.max(1, this.tui.terminal.columns);
+    const transcriptLines = this.transcript.render(width);
+    const viewportHeight = this.lastChatPaneGeometry?.transcriptHeight ?? 0;
+    this.transcriptScrollFromBottom = clampScrollFromBottom(
+      this.transcriptScrollFromBottom,
+      transcriptLines.length,
+      viewportHeight,
+    );
     this.tui.requestRender();
+  }
+
+  scrollTranscript(deltaLines: number): void {
+    if (deltaLines === 0) {
+      return;
+    }
+
+    const width = Math.max(1, this.tui.terminal.columns);
+    const transcriptLines = this.transcript.render(width);
+    const viewportHeight = this.lastChatPaneGeometry?.transcriptHeight ?? 0;
+    this.transcriptScrollFromBottom = clampScrollFromBottom(
+      this.transcriptScrollFromBottom + deltaLines,
+      transcriptLines.length,
+      viewportHeight,
+    );
+    this.tui.requestRender();
+  }
+
+  scrollTranscriptToBottom(): void {
+    if (this.transcriptScrollFromBottom === 0) {
+      return;
+    }
+    this.transcriptScrollFromBottom = 0;
+    this.tui.requestRender();
+  }
+
+  isTranscriptFollowing(): boolean {
+    return this.transcriptScrollFromBottom === 0;
+  }
+
+  getTranscriptScrollHint(): string | undefined {
+    if (this.transcriptScrollFromBottom === 0) {
+      return undefined;
+    }
+    return `${this.transcriptScrollFromBottom} line${this.transcriptScrollFromBottom === 1 ? "" : "s"} above end · End to follow`;
+  }
+
+  isRowInTranscriptRegion(row: number): boolean {
+    const geometry = this.lastChatPaneGeometry;
+    if (!geometry || geometry.transcriptHeight <= 0) {
+      return false;
+    }
+    // Mouse coordinates are 1-based; layout rows are 0-based.
+    const terminalRow = row - 1;
+    return (
+      terminalRow >= geometry.transcriptStartRow &&
+      terminalRow < geometry.transcriptStartRow + geometry.transcriptHeight
+    );
+  }
+
+  getTranscriptPageSize(): number {
+    return Math.max(1, this.lastChatPaneGeometry?.transcriptHeight ?? 1);
   }
 
   showStatus(text: string): void {
@@ -240,11 +321,12 @@ class WorkspaceStartLayout implements Component, Focusable {
     const totalRows = Math.max(3, this.tui.terminal.rows);
     const { heartbeatHeight, chatHeight } = resolveWorkspaceStartLayout(totalRows);
     const divider = colorize(ANSI_DIM, "─".repeat(Math.max(1, width)));
+    const chatPaneStartRow = heartbeatHeight + 1;
 
     return [
       ...this.renderHeartbeatPane(width, heartbeatHeight),
       truncateToWidth(divider, Math.max(1, width)),
-      ...this.renderChatPane(width, chatHeight),
+      ...this.renderChatPane(width, chatHeight, chatPaneStartRow),
     ];
   }
 
@@ -260,13 +342,15 @@ class WorkspaceStartLayout implements Component, Focusable {
     return [header, ...bodyLines, ...createBlankLines(bodyHeight - bodyLines.length)];
   }
 
-  private renderChatPane(width: number, height: number): string[] {
+  private renderChatPane(width: number, height: number, paneStartRow: number): string[] {
+    const scrollHint = this.getTranscriptScrollHint();
     const detail = [
       `model ${this.modelLabel}`,
       ...(this.queuedFollowUpCount > 0
         ? [`${this.queuedFollowUpCount} queued follow-up${this.queuedFollowUpCount === 1 ? "" : "s"}`]
         : []),
-      "Ctrl-C exits and cancels live sessions",
+      ...(scrollHint ? [scrollHint] : []),
+      "PgUp/PgDn scroll · End follow · Ctrl-C exit",
     ].join(" | ");
     const header = renderHeader(
       `${ANSI_BOLD}Chat${ANSI_RESET}`,
@@ -275,6 +359,11 @@ class WorkspaceStartLayout implements Component, Focusable {
     );
 
     if (height <= 1) {
+      this.lastChatPaneGeometry = {
+        startRow: paneStartRow,
+        transcriptStartRow: paneStartRow + 1,
+        transcriptHeight: 0,
+      };
       return [header];
     }
 
@@ -290,11 +379,24 @@ class WorkspaceStartLayout implements Component, Focusable {
     }
 
     const transcriptHeight = Math.max(0, maxBodyLines - statusLines.length - editorLines.length);
-    const transcriptLines = this.transcript.render(width).slice(-transcriptHeight);
+    const allTranscriptLines = this.transcript.render(width);
+    this.transcriptScrollFromBottom = clampScrollFromBottom(
+      this.transcriptScrollFromBottom,
+      allTranscriptLines.length,
+      transcriptHeight,
+    );
+    const transcriptLines = sliceScrollableLines(allTranscriptLines, transcriptHeight, this.transcriptScrollFromBottom);
+    const transcriptPadding = Math.max(0, transcriptHeight - transcriptLines.length);
+
+    this.lastChatPaneGeometry = {
+      startRow: paneStartRow,
+      transcriptStartRow: paneStartRow + 1 + transcriptPadding,
+      transcriptHeight,
+    };
 
     return [
       header,
-      ...createBlankLines(transcriptHeight - transcriptLines.length),
+      ...createBlankLines(transcriptPadding),
       ...transcriptLines,
       ...statusLines,
       ...editorLines,
@@ -349,11 +451,66 @@ class WorkspaceStartTui implements SessionOutputSink {
         return { consume: true };
       }
 
+      const scrollResult = this.handleTranscriptScrollInput(data, editor);
+      if (scrollResult?.consume) {
+        return scrollResult;
+      }
+
+      const wheel = parseMouseWheelEvent(data);
+      if (wheel && this.layout.isRowInTranscriptRegion(wheel.row)) {
+        this.layout.scrollTranscript(scrollDeltaForWheel(wheel.direction));
+        return { consume: true };
+      }
+
       return undefined;
     });
 
     this.terminal.setTitle(`Hermit start: ${activeRoleLabel}`);
     this.tui.start();
+    this.terminal.write(MOUSE_TRACKING_ENABLE);
+  }
+
+  private handleTranscriptScrollInput(
+    data: string,
+    editor: RoleLabeledEditor,
+  ): { consume: boolean } | undefined {
+    const editorEmpty = editor.getExpandedText().length === 0;
+    const pageLines = this.layout.getTranscriptPageSize();
+    const lineStep = Math.max(1, Math.floor(pageLines / 2));
+
+    if (matchesKey(data, Key.end) || matchesKey(data, Key.ctrl("g"))) {
+      this.layout.scrollTranscriptToBottom();
+      return { consume: true };
+    }
+
+    if (editorEmpty && matchesKey(data, Key.pageUp)) {
+      this.layout.scrollTranscript(pageLines);
+      return { consume: true };
+    }
+    if (editorEmpty && matchesKey(data, Key.pageDown)) {
+      this.layout.scrollTranscript(-pageLines);
+      return { consume: true };
+    }
+
+    if (matchesKey(data, Key.alt("u")) || matchesKey(data, Key.alt("up"))) {
+      this.layout.scrollTranscript(lineStep);
+      return { consume: true };
+    }
+    if (matchesKey(data, Key.alt("d")) || matchesKey(data, Key.alt("down"))) {
+      this.layout.scrollTranscript(-lineStep);
+      return { consume: true };
+    }
+
+    if (matchesKey(data, Key.shift("pageUp")) || matchesKey(data, Key.alt("pageUp"))) {
+      this.layout.scrollTranscript(pageLines);
+      return { consume: true };
+    }
+    if (matchesKey(data, Key.shift("pageDown")) || matchesKey(data, Key.alt("pageDown"))) {
+      this.layout.scrollTranscript(-pageLines);
+      return { consume: true };
+    }
+
+    return undefined;
   }
 
   setActiveSession(activeRoleLabel: string, modelLabel: string): void {
@@ -413,6 +570,8 @@ class WorkspaceStartTui implements SessionOutputSink {
   }
 
   appendUserPrompt(prompt: string, options: { queued?: boolean } = {}): void {
+    this.layout.scrollTranscriptToBottom();
+
     if (options.queued) {
       this.appendText(formatQueuedPromptEcho(prompt));
       return;
@@ -448,6 +607,7 @@ class WorkspaceStartTui implements SessionOutputSink {
     const editor = this.layout.getEditor();
     editor.disableSubmit = true;
 
+    this.terminal.write(MOUSE_TRACKING_DISABLE);
     await this.terminal.drainInput().catch(() => undefined);
     this.tui.stop();
   }

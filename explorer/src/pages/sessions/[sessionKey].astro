@@ -1,0 +1,66 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { getWorkspaceRoot } from "../../lib/workspace.js";
+import {
+  formatHistoryTypeLabel,
+  formatSessionTimestamp,
+  loadWorkspaceSessionDetail,
+} from "../../lib/sessions.js";
+
+const { sessionKey } = Astro.params;
+if (!sessionKey) {
+  return Astro.redirect("/sessions");
+}
+
+const root = getWorkspaceRoot();
+const session = await loadWorkspaceSessionDetail(root, sessionKey);
+if (!session) {
+  return Astro.redirect("/sessions");
+}
+
+function roleClass(role: string): string {
+  switch (role) {
+    case "user":
+      return "session-message session-message--user";
+    case "assistant":
+      return "session-message session-message--assistant";
+    case "compaction":
+    case "branch_summary":
+      return "session-message session-message--summary";
+    default:
+      return "session-message session-message--custom";
+  }
+}
+---
+<BaseLayout title={session.name ?? session.roleLabel}>
+  <div class="breadcrumb">
+    <a href="/">Explorer</a> →
+    <a href="/sessions">Sessions</a> →
+    {session.name ?? session.roleLabel}
+  </div>
+
+  <div class="page-intro">
+    <h1>{session.name ?? session.roleLabel}</h1>
+    <p class="meta">
+      {session.roleId} · {formatHistoryTypeLabel(session.historyType)} · {session.messageCount} messages ·
+      modified {formatSessionTimestamp(session.modified)}
+    </p>
+    <p class="meta break-all">Session id: {session.id}</p>
+  </div>
+
+  <div class="session-thread">
+    {session.messages.length === 0 ? (
+      <p class="meta">This session has no displayable messages.</p>
+    ) : (
+      session.messages.map((message) => (
+        <article class={roleClass(message.role)}>
+          <header class="session-message__header">
+            <strong>{message.role}</strong>
+            <span class="meta">{formatSessionTimestamp(new Date(message.timestamp))}</span>
+          </header>
+          <pre class="session-message__body">{message.text}</pre>
+        </article>
+      ))
+    )}
+  </div>
+</BaseLayout>

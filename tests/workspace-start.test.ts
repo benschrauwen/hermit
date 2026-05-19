@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { sliceScrollableLines } from "../src/tui-scroll.js";
 import {
   extractExplorerUrl,
   formatHeartbeatHeaderDetail,
@@ -42,6 +43,13 @@ describe("formatHeartbeatHeaderDetail", () => {
     expect(
       formatHeartbeatHeaderDetail("http://localhost:4321", "up at https://tail.example.ts.net", "connected"),
     ).toBe("Explorer http://localhost:4321 | Tailscale up at https://tail.example.ts.net | Telegram connected");
+  });
+});
+
+describe("chat transcript scrolling", () => {
+  it("keeps older lines visible when scrolled up", () => {
+    const lines = Array.from({ length: 10 }, (_, index) => `line-${index + 1}`);
+    expect(sliceScrollableLines(lines, 4, 3)).toEqual(["line-4", "line-5", "line-6", "line-7"]);
   });
 });
 
