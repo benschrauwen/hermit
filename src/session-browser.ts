@@ -29,11 +29,22 @@ export interface WorkspaceSessionListItem {
   firstMessage: string;
 }
 
+export interface WorkspaceSessionToolCall {
+  id: string;
+  name: string;
+  arguments: unknown;
+  resultText?: string;
+  resultIsError?: boolean;
+}
+
 export interface WorkspaceSessionMessage {
   id: string;
   role: string;
   timestamp: string;
   text: string;
+  reasoning?: string;
+  reasoningLocked?: boolean;
+  toolCalls?: WorkspaceSessionToolCall[];
 }
 
 export interface WorkspaceSessionDetail {
@@ -50,27 +61,145 @@ export interface WorkspaceSessionDetail {
   messages: WorkspaceSessionMessage[];
 }
 
-function extractMessageText(message: { content?: unknown }): string {
-  const { content } = message;
+type ContentPart = Record<string, unknown>;
+
+function asContentParts(content: unknown): ContentPart[] {
   if (typeof content === "string") {
-    return content;
+    return content.length > 0 ? [{ type: "text", text: content }] : [];
   }
   if (!Array.isArray(content)) {
-    return "";
+    return [];
   }
+  return content.filter((part): part is ContentPart => Boolean(part) && typeof part === "object");
+}
 
-  return content
+function extractMessageText(message: { content?: unknown }): string {
+  return asContentParts(message.content)
     .map((part) => {
-      if (typeof part === "string") {
-        return part;
-      }
-      if (part && typeof part === "object" && "type" in part && part.type === "text" && "text" in part) {
-        return String(part.text);
+      if (part.type === "text" && typeof part.text === "string") {
+        return part.text;
       }
       return "";
     })
     .filter((value) => value.length > 0)
     .join("\n");
+}
+
+function parseThinkingSignature(signature: unknown): { text?: string; locked?: boolean } {
+  if (typeof signature !== "string" || signature.length === 0) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(signature) as {
+      type?: string;
+      encrypted_content?: string;
+      summary?: Array<{ type?: string; text?: string }>;
+    };
+    if (Array.isArray(parsed.summary) && parsed.summary.length > 0) {
+      const text = parsed.summary
+        .map((item) => (item.type === "summary_text" && typeof item.text === "string" ? item.text : ""))
+        .filter((value) => value.length > 0)
+        .join("\n\n");
+      if (text.length > 0) {
+        return { text };
+      }
+    }
+    if (parsed.type === "reasoning" && typeof parsed.encrypted_content === "string") {
+      return { locked: true };
+    }
+  } catch {
+    return {};
+  }
+  return {};
+}
+
+function extractReasoningFromContent(content: unknown): { text?: string; locked?: boolean } {
+  const parts: string[] = [];
+  let locked = false;
+
+  for (const part of asContentParts(content)) {
+    if (part.type !== "thinking") {
+      continue;
+    }
+    if (typeof part.thinking === "string" && part.thinking.length > 0) {
+      parts.push(part.thinking);
+      continue;
+    }
+    const fromSignature = parseThinkingSignature(part.thinkingSignature);
+    if (fromSignature.text) {
+      parts.push(fromSignature.text);
+    } else if (fromSignature.locked) {
+      locked = true;
+    }
+  }
+
+  const text = parts.join("\n\n").trim();
+  if (text.length > 0) {
+    return { text };
+  }
+  if (locked) {
+    return { locked: true };
+  }
+  return {};
+}
+
+function extractToolCallsFromContent(content: unknown): WorkspaceSessionToolCall[] {
+  const toolCalls: WorkspaceSessionToolCall[] = [];
+  for (const part of asContentParts(content)) {
+    if (part.type !== "toolCall" || typeof part.id !== "string" || typeof part.name !== "string") {
+      continue;
+    }
+    toolCalls.push({
+      id: part.id,
+      name: part.name,
+      arguments: "arguments" in part ? part.arguments : {},
+    });
+  }
+  return toolCalls;
+}
+
+function extractToolResultText(message: { content?: unknown }): string {
+  return extractMessageText(message);
+}
+
+function indexToolResults(entries: SessionEntry[]): Map<string, { text: string; isError: boolean }> {
+  const results = new Map<string, { text: string; isError: boolean }>();
+  for (const entry of entries) {
+    if (entry.type !== "message") {
+      continue;
+    }
+    const message = entry.message as {
+      role?: string;
+      toolCallId?: string;
+      content?: unknown;
+      isError?: boolean;
+    };
+    if (message.role !== "toolResult" || typeof message.toolCallId !== "string") {
+      continue;
+    }
+    results.set(message.toolCallId, {
+      text: extractToolResultText(message),
+      isError: Boolean(message.isError),
+    });
+  }
+  return results;
+}
+
+function attachToolResults(
+  toolCalls: WorkspaceSessionToolCall[],
+  toolResults: Map<string, { text: string; isError: boolean }>,
+): WorkspaceSessionToolCall[] {
+  return toolCalls.map((toolCall) => {
+    const result = toolResults.get(toolCall.id);
+    if (!result) {
+      return toolCall;
+    }
+    return {
+      ...toolCall,
+      resultText: result.text,
+      resultIsError: result.isError,
+    };
+  });
 }
 
 function resolveWorkspaceRoot(workspaceRoot: string): string {
@@ -175,17 +304,37 @@ export async function listWorkspaceSessions(workspaceRoot: string): Promise<Work
   return sessions;
 }
 
-function entryToMessage(entry: SessionEntry): WorkspaceSessionMessage | undefined {
+function entryToMessage(
+  entry: SessionEntry,
+  toolResults: Map<string, { text: string; isError: boolean }>,
+): WorkspaceSessionMessage | undefined {
   if (entry.type === "message") {
-    const text = extractMessageText(entry.message as { content?: unknown });
-    if (!text) {
+    const message = entry.message as { role?: string; content?: unknown };
+    if (message.role === "toolResult") {
       return undefined;
     }
+
+    const text = extractMessageText(message);
+    const reasoning = extractReasoningFromContent(message.content);
+    const toolCalls = attachToolResults(extractToolCallsFromContent(message.content), toolResults);
+    const hasContent =
+      text.length > 0 ||
+      Boolean(reasoning.text) ||
+      Boolean(reasoning.locked) ||
+      toolCalls.length > 0;
+
+    if (!hasContent) {
+      return undefined;
+    }
+
     return {
       id: entry.id,
-      role: entry.message.role,
+      role: message.role ?? "unknown",
       timestamp: entry.timestamp,
       text,
+      ...(reasoning.text ? { reasoning: reasoning.text } : {}),
+      ...(reasoning.locked ? { reasoningLocked: true } : {}),
+      ...(toolCalls.length > 0 ? { toolCalls } : {}),
     };
   }
 
@@ -230,9 +379,10 @@ function entryToMessage(entry: SessionEntry): WorkspaceSessionMessage | undefine
 }
 
 export function extractSessionMessages(entries: SessionEntry[]): WorkspaceSessionMessage[] {
+  const toolResults = indexToolResults(entries);
   const messages: WorkspaceSessionMessage[] = [];
   for (const entry of entries) {
-    const message = entryToMessage(entry);
+    const message = entryToMessage(entry, toolResults);
     if (message) {
       messages.push(message);
     }

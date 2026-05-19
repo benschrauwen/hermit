@@ -247,34 +247,120 @@
   }
 
   .session-thread {
-    @apply grid gap-4;
+    @apply mx-auto flex max-w-4xl flex-col gap-5;
   }
 
-  .session-message {
-    @apply overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm;
+  .session-turn {
+    @apply flex w-full;
   }
 
-  .session-message__header {
-    @apply flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/80 px-5 py-3 text-sm;
+  .session-turn--user {
+    @apply justify-end;
   }
 
-  .session-message__body {
-    @apply m-0 max-h-[32rem] overflow-auto whitespace-pre-wrap px-5 py-4 text-sm leading-6 text-slate-800;
+  .session-turn--assistant {
+    @apply justify-start;
   }
 
-  .session-message--user {
-    @apply border-sky-200;
+  .session-turn--summary,
+  .session-turn--custom {
+    @apply justify-center;
   }
 
-  .session-message--assistant {
-    @apply border-violet-200;
+  .session-bubble {
+    @apply max-w-[min(100%,42rem)] overflow-hidden rounded-2xl border shadow-sm;
   }
 
-  .session-message--summary {
-    @apply border-amber-200 bg-amber-50/40;
+  .session-turn--user .session-bubble {
+    @apply border-sky-200 bg-sky-50;
   }
 
-  .session-message--custom {
-    @apply border-slate-300;
+  .session-turn--assistant .session-bubble {
+    @apply border-violet-200 bg-violet-50/60;
+  }
+
+  .session-turn--summary .session-bubble {
+    @apply max-w-full border-amber-200 bg-amber-50/50;
+  }
+
+  .session-turn--custom .session-bubble {
+    @apply max-w-full border-slate-300 bg-slate-50;
+  }
+
+  .session-bubble__header {
+    @apply flex flex-wrap items-center justify-between gap-2 border-b border-black/5 px-4 py-2.5 text-sm;
+  }
+
+  .session-bubble__text {
+    @apply border-t border-black/5;
+  }
+
+  .session-text {
+    @apply m-0 max-h-[32rem] overflow-auto whitespace-pre-wrap px-4 py-3 text-sm leading-6 text-slate-800;
+  }
+
+  .session-text--error {
+    @apply text-red-800;
+  }
+
+  .session-muted {
+    @apply m-0 px-4 py-3 text-sm italic text-slate-500;
+  }
+
+  .session-collapsible {
+    @apply border-t border-black/5;
+  }
+
+  .session-collapsible summary {
+    @apply flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-700;
+  }
+
+  .session-collapsible summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .session-collapsible summary::before {
+    content: "▸";
+    @apply inline-block text-xs text-slate-400 transition-transform;
+  }
+
+  .session-collapsible[open] summary::before {
+    transform: rotate(90deg);
+  }
+
+  .session-collapsible--reasoning summary {
+    @apply text-violet-800;
+  }
+
+  .session-collapsible--tool summary {
+    @apply font-mono text-xs uppercase tracking-wide text-slate-600;
+  }
+
+  .session-collapsible__body {
+    @apply border-t border-black/5 bg-white/70;
+  }
+
+  .session-tool-call__name {
+    @apply font-mono text-xs normal-case tracking-normal text-slate-800;
+  }
+
+  .session-tool-call__badge {
+    @apply rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600;
+  }
+
+  .session-tool-call__badge--ok {
+    @apply bg-emerald-100 text-emerald-800;
+  }
+
+  .session-tool-call__badge--error {
+    @apply bg-red-100 text-red-800;
+  }
+
+  .session-tool-call__details section + section {
+    @apply border-t border-black/5;
+  }
+
+  .session-tool-call__details h4 {
+    @apply m-0 px-4 pt-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500;
   }
 }

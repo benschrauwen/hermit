@@ -18,17 +18,40 @@ if (!session) {
   return Astro.redirect("/sessions");
 }
 
+function roleLabel(role: string): string {
+  switch (role) {
+    case "user":
+      return "You";
+    case "assistant":
+      return "Agent";
+    case "compaction":
+      return "Compaction";
+    case "branch_summary":
+      return "Branch summary";
+    default:
+      return role;
+  }
+}
+
 function roleClass(role: string): string {
   switch (role) {
     case "user":
-      return "session-message session-message--user";
+      return "session-turn session-turn--user";
     case "assistant":
-      return "session-message session-message--assistant";
+      return "session-turn session-turn--assistant";
     case "compaction":
     case "branch_summary":
-      return "session-message session-message--summary";
+      return "session-turn session-turn--summary";
     default:
-      return "session-message session-message--custom";
+      return "session-turn session-turn--custom";
+  }
+}
+
+function formatJson(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
   }
 }
 ---
@@ -54,11 +77,58 @@ function roleClass(role: string): string {
     ) : (
       session.messages.map((message) => (
         <article class={roleClass(message.role)}>
-          <header class="session-message__header">
-            <strong>{message.role}</strong>
-            <span class="meta">{formatSessionTimestamp(new Date(message.timestamp))}</span>
-          </header>
-          <pre class="session-message__body">{message.text}</pre>
+          <div class="session-bubble">
+            <header class="session-bubble__header">
+              <strong>{roleLabel(message.role)}</strong>
+              <time class="meta" datetime={message.timestamp}>
+                {formatSessionTimestamp(new Date(message.timestamp))}
+              </time>
+            </header>
+
+            {message.reasoning || message.reasoningLocked ? (
+              <details class="session-collapsible session-collapsible--reasoning">
+                <summary>Reasoning</summary>
+                <div class="session-collapsible__body">
+                  {message.reasoning ? (
+                    <pre class="session-text">{message.reasoning}</pre>
+                  ) : (
+                    <p class="session-muted">Reasoning is stored in encrypted provider form and is not shown here.</p>
+                  )}
+                </div>
+              </details>
+            ) : null}
+
+            {message.toolCalls?.map((toolCall) => (
+              <details class="session-collapsible session-collapsible--tool">
+                <summary>
+                  <span class="session-tool-call__name">{toolCall.name}</span>
+                  {toolCall.resultIsError ? (
+                    <span class="session-tool-call__badge session-tool-call__badge--error">error</span>
+                  ) : toolCall.resultText !== undefined ? (
+                    <span class="session-tool-call__badge session-tool-call__badge--ok">result</span>
+                  ) : (
+                    <span class="session-tool-call__badge">pending</span>
+                  )}
+                </summary>
+                <div class="session-collapsible__body session-tool-call__details">
+                  <section>
+                    <h4>Call</h4>
+                    <pre class="session-text">{formatJson(toolCall.arguments)}</pre>
+                  </section>
+                  {toolCall.resultText !== undefined ? (
+                    <section>
+                      <h4>Result</h4>
+                      <pre class:list={["session-text", toolCall.resultIsError && "session-text--error"]}>
+                        {toolCall.resultText || "(empty result)"}
+                      </pre>
+                    </section>
+                  ) : null}
+                </div>
+              </details>
+            ))}
+
+            {message.text ? <pre class="session-text session-bubble__text">{message.text}</pre> : null}
+          </div>
         </article>
       ))
     )}
