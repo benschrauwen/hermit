@@ -3,6 +3,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 import { getWorkspaceRoot } from "../../lib/workspace.js";
 import {
   formatHistoryTypeLabel,
+  formatSessionRelativePath,
   formatSessionTimestamp,
   loadWorkspaceSessionDetail,
 } from "../../lib/sessions.js";
@@ -17,6 +18,8 @@ const session = await loadWorkspaceSessionDetail(root, sessionKey);
 if (!session) {
   return Astro.redirect("/sessions");
 }
+
+const sessionRelativePath = formatSessionRelativePath(root, session.path);
 
 function roleLabel(role: string): string {
   switch (role) {
@@ -67,6 +70,9 @@ function formatJson(value: unknown): string {
     <p class="meta">
       {session.roleId} · {formatHistoryTypeLabel(session.historyType)} · {session.messageCount} messages ·
       modified {formatSessionTimestamp(session.modified)}
+    </p>
+    <p class="meta break-all">
+      Path: <code>{sessionRelativePath}</code>
     </p>
     <p class="meta break-all">Session id: {session.id}</p>
   </div>

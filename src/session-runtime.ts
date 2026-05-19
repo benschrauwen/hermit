@@ -73,6 +73,7 @@ interface BaseSessionOptions {
   promptContext: PromptContext;
   persist: boolean;
   continueRecent?: boolean;
+  continueSessionPath?: string;
   sessionHistoryType?: SessionHistoryType;
   telemetryCommandName?: string;
   telemetryContext?: Partial<TelemetrySessionContext>;
@@ -184,6 +185,7 @@ async function createSession(options: SessionOptions): Promise<{
     sessionsDir: prepared.sessionsDir,
     persist: options.persist,
     continueRecent: options.continueRecent,
+    continueSessionPath: options.continueSessionPath,
     customTools: prepared.customTools,
     telemetryContext: buildTelemetryContext(options, prepared.roleId),
   });
@@ -223,6 +225,7 @@ interface SessionCoreOptions {
   sessionsDir: string;
   persist: boolean;
   continueRecent?: boolean | undefined;
+  continueSessionPath?: string | undefined;
   customTools: ToolDefinition<any>[];
   telemetryContext: Omit<TelemetrySessionContext, "modelProvider" | "modelId">;
 }
@@ -249,9 +252,11 @@ async function createSessionCore(options: SessionCoreOptions): Promise<{
 
   const sessionManager = !options.persist
     ? SessionManager.inMemory(options.executionRoot)
-    : options.continueRecent
-      ? SessionManager.continueRecent(options.executionRoot, options.sessionsDir)
-      : SessionManager.create(options.executionRoot, options.sessionsDir);
+    : options.continueSessionPath
+      ? SessionManager.open(options.continueSessionPath, options.sessionsDir)
+      : options.continueRecent
+        ? SessionManager.continueRecent(options.executionRoot, options.sessionsDir)
+        : SessionManager.create(options.executionRoot, options.sessionsDir);
 
   const { session } = await createAgentSession({
     cwd: options.executionRoot,

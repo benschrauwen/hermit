@@ -6,6 +6,7 @@ import process from "node:process";
 import { createAbortError } from "./abort.js";
 import { withCheckpoints, type CheckpointOutcome } from "./git.js";
 import { InteractiveSessionCache, snapshotPreexistingInteractiveSessionKeys } from "./chat-session-cache.js";
+import { resolveWorkspaceSessionPath } from "./session-browser.js";
 import { HERMIT_ROLE_ID, HERMIT_ROLE_ROOT } from "./constants.js";
 import {
   inferRootAndRoleFromCwd,
@@ -21,7 +22,7 @@ import { createHermitSession, createRoleSession, type InteractiveChatSession } f
 import { assertProviderAwareModelConfigured } from "./model-auth.js";
 import type { TelemetryRecorder } from "./telemetry-recorder.js";
 import type { WorkspaceTurnCoordinator, WorkspaceTurnOwner } from "./turn-control.js";
-import type { RoleDefinition, RoleSwitchRequest } from "./types.js";
+import type { RoleDefinition, RoleSwitchRequest, SessionHistoryType } from "./types.js";
 import { ensureWorkspaceRepository } from "./runtime-paths.js";
 
 export async function resolveRoleContext(explicitRoleId?: string): Promise<{ root: string; roleId: string }> {
@@ -289,11 +290,27 @@ export async function runManagedOneShotCommand(options: {
 
 type ChatSessionTarget = Awaited<ReturnType<typeof resolveChatSession>>;
 
+interface InteractiveChatSessionLoad {
+  continueRecent?: boolean;
+  continueSessionPath?: string;
+  sessionHistoryType?: SessionHistoryType;
+}
+
 async function buildInteractiveChatSession(
   target: ChatSessionTarget,
   gitContext: CommandGitContext,
-  continueRecent: boolean,
+  load: InteractiveChatSessionLoad = {},
 ): Promise<InteractiveChatSession> {
+  const sessionOptions = {
+    persist: true as const,
+    ...(load.continueRecent ? { continueRecent: true } : {}),
+    ...(load.continueSessionPath !== undefined
+      ? {
+          continueSessionPath: load.continueSessionPath,
+          ...(load.sessionHistoryType !== undefined ? { sessionHistoryType: load.sessionHistoryType } : {}),
+        }
+      : {}),
+  };
   let pendingRoleSwitch: RoleSwitchRequest | undefined;
   const onRoleSwitchRequest = (request: RoleSwitchRequest) => {
     pendingRoleSwitch = request;
@@ -303,8 +320,6 @@ async function buildInteractiveChatSession(
     target.kind === "hermit"
       ? await createHermitSession({
           root: target.root,
-          persist: true,
-          continueRecent,
           bootstrapMode: target.bootstrapMode,
           startupIssues: target.startupIssues,
           telemetryCommandName: "chat",
@@ -314,12 +329,11 @@ async function buildInteractiveChatSession(
             ...gitContext.promptContext,
           },
           onRoleSwitchRequest,
+          ...sessionOptions,
         })
       : await createRoleSession({
           root: target.root,
           role: target.role,
-          persist: true,
-          continueRecent,
           telemetryCommandName: "chat",
           telemetryContext: gitContext.telemetryContext,
           promptContext: {
@@ -327,6 +341,7 @@ async function buildInteractiveChatSession(
             ...gitContext.promptContext,
           },
           onRoleSwitchRequest,
+          ...sessionOptions,
         });
 
   return {
@@ -344,9 +359,23 @@ function getChatSessionKey(target: ChatSessionTarget): string {
   return target.kind === "role" ? target.role.id : HERMIT_ROLE_ID;
 }
 
+function parseContinueOption(value: boolean | string | undefined): {
+  continueRecent: boolean;
+  sessionPath?: string;
+} {
+  if (value === undefined || value === false) {
+    return { continueRecent: false };
+  }
+  if (value === true) {
+    return { continueRecent: true };
+  }
+  const sessionPath = value.trim();
+  return sessionPath.length > 0 ? { continueRecent: false, sessionPath } : { continueRecent: true };
+}
+
 export interface InteractiveChatCommandOptions {
   role?: string;
-  continue?: boolean;
+  continue?: boolean | string;
   image?: string[];
   prompt?: string;
   gitCheckpoints?: boolean;
@@ -364,12 +393,25 @@ export async function runInteractiveChatCommand(
 ): Promise<void> {
   assertProviderAwareModelConfigured();
   const inferred = inferRootAndRoleFromCwd(process.cwd());
+  const { continueRecent, sessionPath: continueSessionPath } = parseContinueOption(options.continue);
+
+  let sessionFile: { roleId: string; path: string; historyType: SessionHistoryType } | undefined;
+  if (continueSessionPath !== undefined) {
+    sessionFile = await resolveWorkspaceSessionPath(inferred.root, continueSessionPath);
+    if (options.role !== undefined && options.role !== sessionFile.roleId) {
+      throw new Error(
+        `Session belongs to role ${sessionFile.roleId}, but --role ${options.role} was specified.`,
+      );
+    }
+  }
+
   const lastRoleId =
-    options.role === undefined && inferred.roleId === undefined
+    options.role === undefined && inferred.roleId === undefined && sessionFile === undefined
       ? await readLastUsedChatRole(inferred.root)
       : undefined;
+  const explicitRoleId = options.role ?? sessionFile?.roleId;
   const resolved = await resolveChatSession(inferred.root, {
-    ...(options.role !== undefined ? { explicitRoleId: options.role } : {}),
+    ...(explicitRoleId !== undefined ? { explicitRoleId } : {}),
     ...(inferred.roleId !== undefined ? { inferredRoleId: inferred.roleId } : {}),
     ...(lastRoleId !== undefined ? { lastRoleId } : {}),
   });
@@ -384,13 +426,15 @@ export async function runInteractiveChatCommand(
     run: async (gitContext) => {
       const telemetry = new TelemetryCollection();
       const sessionCache = new InteractiveSessionCache(
-        Boolean(options.continue),
+        continueRecent,
         await snapshotPreexistingInteractiveSessionKeys(resolved.root),
       );
 
       const getOrCreateSession = async (target: ChatSessionTarget) => {
-        return sessionCache.getOrCreate(getChatSessionKey(target), async (continueRecent) => {
-          const session = await buildInteractiveChatSession(target, gitContext, continueRecent);
+        return sessionCache.getOrCreate(getChatSessionKey(target), async (shouldContinueRecent) => {
+          const session = await buildInteractiveChatSession(target, gitContext, {
+            continueRecent: shouldContinueRecent,
+          });
           telemetry.add(session.telemetry);
           return session;
         });
@@ -402,7 +446,15 @@ export async function runInteractiveChatCommand(
         return (await getOrCreateSession(nextTarget)).session;
       };
 
-      const initialEntry = await getOrCreateSession(resolved);
+      const initialEntry = sessionFile
+        ? {
+            session: await buildInteractiveChatSession(resolved, gitContext, {
+              continueSessionPath: sessionFile.path,
+              sessionHistoryType: sessionFile.historyType,
+            }),
+            continuedFromPersistedSession: true,
+          }
+        : await getOrCreateSession(resolved);
       const initialPrompt = resolveInitialChatPrompt({
         workspaceState: initialEntry.session.workspaceState,
         hasStartupIssues: resolved.startupIssues.length > 0,

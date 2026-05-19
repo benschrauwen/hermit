@@ -9,6 +9,8 @@ import {
   decodeSessionKey,
   encodeSessionKey,
   extractSessionMessages,
+  resolveSessionPathUnderWorkspace,
+  resolveWorkspaceSessionPath,
   listWorkspaceSessions,
   loadWorkspaceSessionDetail,
 } from "../src/session-browser.js";
@@ -116,6 +118,46 @@ describe("session-browser", () => {
     ]);
     expect(detail?.messages[2]?.text).toBe("Hi there");
     expect(extractSessionMessages([])).toEqual([]);
+  });
+
+  it("resolves session paths across interactive and heartbeat histories", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "session-browser-find-"));
+    roots.push(root);
+    seedRoleWorkspace(root, ["role-a"]);
+
+    const hermitSessionsDir = path.join(root, ".hermit", "sessions", "hermit");
+    mkdirSync(hermitSessionsDir, { recursive: true });
+    const hermitSessionPath = path.join(hermitSessionsDir, "hermit-session.jsonl");
+    writeFileSync(hermitSessionPath, SESSION_LINES, "utf8");
+
+    const heartbeatSessionsDir = path.join(root, "agents", "role-a", ".role-agent", "heartbeat-sessions");
+    mkdirSync(heartbeatSessionsDir, { recursive: true });
+    const heartbeatSessionPath = path.join(heartbeatSessionsDir, "heartbeat-session.jsonl");
+    writeFileSync(heartbeatSessionPath, SESSION_LINES, "utf8");
+
+    const hermitSession = await resolveWorkspaceSessionPath(
+      root,
+      ".hermit/sessions/hermit/hermit-session.jsonl",
+    );
+    expect(hermitSession).toMatchObject({
+      roleId: HERMIT_ROLE_ID,
+      historyType: "interactive",
+      path: hermitSessionPath,
+    });
+
+    const heartbeatSession = await resolveWorkspaceSessionPath(
+      root,
+      "agents/role-a/.role-agent/heartbeat-sessions/heartbeat-session.jsonl",
+    );
+    expect(heartbeatSession).toMatchObject({
+      roleId: "role-a",
+      historyType: "heartbeat",
+      path: heartbeatSessionPath,
+    });
+
+    expect(resolveSessionPathUnderWorkspace(root, hermitSessionPath)).toBe(hermitSessionPath);
+    await expect(resolveWorkspaceSessionPath(root, "missing/session.jsonl")).rejects.toThrow(/not found/);
+    await expect(resolveWorkspaceSessionPath(root, "../outside.jsonl")).rejects.toThrow(/outside workspace/);
   });
 
   it("extracts reasoning summaries from encrypted thinking signatures", () => {

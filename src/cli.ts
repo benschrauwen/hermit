@@ -32,7 +32,10 @@ program
   .description("Open the combined workspace screen with explorer, heartbeat daemon, and interactive chat.")
   .option("--no-git-checkpoints", DISABLE_GIT_CHECKPOINTS_OPTION_DESCRIPTION)
   .option("--role <id>", "Role ID to run.")
-  .option("--continue", "Continue the most recent persisted chat and heartbeat sessions for this workspace.")
+  .option(
+    "--continue [sessionPath]",
+    "Continue the most recent persisted chat and heartbeat sessions, or resume a specific .jsonl session file (including heartbeat sessions).",
+  )
   .option(
     "--interval <duration>",
     'Delay between heartbeat cycles. Use a whole number followed by ms, s, m, or h (for example "30m" or "1h").',
@@ -43,7 +46,7 @@ program
   .action(
     async (options: {
       role?: string;
-      continue?: boolean;
+      continue?: boolean | string;
       interval: string;
       image?: string[];
       prompt?: string;
@@ -55,7 +58,7 @@ program
           frameworkRoot: resolveFrameworkRoot(),
           heartbeatInterval: options.interval,
           initialHeartbeatDelay: COMBINED_START_INITIAL_HEARTBEAT_DELAY,
-          ...(options.continue !== undefined ? { continueHeartbeatSessions: options.continue } : {}),
+          ...(options.continue === true ? { continueHeartbeatSessions: true } : {}),
           ...(options.gitCheckpoints !== undefined ? { gitCheckpointsEnabled: options.gitCheckpoints } : {}),
           initialSession,
           ...(initialPrompt !== undefined ? { initialPrompt } : {}),

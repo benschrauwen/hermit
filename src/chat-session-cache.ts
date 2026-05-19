@@ -3,7 +3,11 @@ import { promises as fs } from "node:fs";
 import { HERMIT_ROLE_ID } from "./constants.js";
 import { formatErrorMessage, isMissingPathError } from "./fs-utils.js";
 import { inspectWorkspaceRoles } from "./roles.js";
-import { resolveHermitSessionDirectory, resolvePersistedSessionDirectory, type InteractiveChatSession } from "./session-runtime.js";
+import {
+  resolveHermitSessionDirectory,
+  resolvePersistedSessionDirectory,
+  type InteractiveChatSession,
+} from "./session-runtime.js";
 
 async function directoryHasEntries(directoryPath: string): Promise<boolean> {
   try {
@@ -56,10 +60,10 @@ export class InteractiveSessionCache {
       return existing;
     }
 
-    const continuedFromPersistedSession = this.continueRequested && this.preexistingSessionKeys.has(sessionKey);
+    const continueRecent = this.continueRequested && this.preexistingSessionKeys.has(sessionKey);
     const entry = {
-      session: await createSession(continuedFromPersistedSession),
-      continuedFromPersistedSession,
+      session: await createSession(continueRecent),
+      continuedFromPersistedSession: continueRecent,
     };
     this.sessions.set(sessionKey, entry);
     return entry;

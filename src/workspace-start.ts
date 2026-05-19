@@ -28,6 +28,10 @@ import {
 } from "./interactive-session-controller.js";
 import { formatQueuedPromptEcho, formatUserPromptEcho } from "./session-formatting.js";
 import { createSessionStreamHandler, type SessionOutputSink } from "./session-terminal.js";
+import {
+  renderSessionHistoryToSink,
+  sessionHasTranscriptHistory,
+} from "./session-transcript-replay.js";
 import type { InteractiveChatSession } from "./session-runtime.js";
 import { formatTelegramInboundPrompt, resolveTelegramBridgeStatus, TelegramPollingBridge } from "./telegram.js";
 import type { RoleSwitchRequest } from "./types.js";
@@ -61,6 +65,11 @@ import {
   renderAnsiTextBlock,
   resolveWorkspaceStartLayout,
 } from "./workspace-start-display.js";
+
+interface HeartbeatPaneGeometry {
+  bodyStartRow: number;
+  bodyHeight: number;
+}
 
 interface ChatPaneGeometry {
   startRow: number;
@@ -148,7 +157,9 @@ class WorkspaceStartLayout implements Component, Focusable {
   private tailscaleStatus: string | undefined;
   private telegramStatus: string | undefined;
   private queuedFollowUpCount = 0;
+  private heartbeatScrollFromBottom = 0;
   private transcriptScrollFromBottom = 0;
+  private lastHeartbeatPaneGeometry: HeartbeatPaneGeometry | undefined;
   private lastChatPaneGeometry: ChatPaneGeometry | undefined;
 
   private _focused = false;
@@ -225,6 +236,69 @@ class WorkspaceStartLayout implements Component, Focusable {
 
   appendHeartbeatOutput(text: string): void {
     this.heartbeatLog.appendText(text);
+    if (this.heartbeatScrollFromBottom === 0) {
+      this.tui.requestRender();
+      return;
+    }
+
+    const width = Math.max(1, this.tui.terminal.columns);
+    const heartbeatLines = this.heartbeatLog.render(width);
+    const viewportHeight = this.lastHeartbeatPaneGeometry?.bodyHeight ?? 0;
+    this.heartbeatScrollFromBottom = clampScrollFromBottom(
+      this.heartbeatScrollFromBottom,
+      heartbeatLines.length,
+      viewportHeight,
+    );
+    this.tui.requestRender();
+  }
+
+  scrollHeartbeat(deltaLines: number): void {
+    if (deltaLines === 0) {
+      return;
+    }
+
+    const width = Math.max(1, this.tui.terminal.columns);
+    const heartbeatLines = this.heartbeatLog.render(width);
+    const viewportHeight = this.lastHeartbeatPaneGeometry?.bodyHeight ?? 0;
+    this.heartbeatScrollFromBottom = clampScrollFromBottom(
+      this.heartbeatScrollFromBottom + deltaLines,
+      heartbeatLines.length,
+      viewportHeight,
+    );
+    this.tui.requestRender();
+  }
+
+  scrollHeartbeatToBottom(): void {
+    if (this.heartbeatScrollFromBottom === 0) {
+      return;
+    }
+    this.heartbeatScrollFromBottom = 0;
+    this.tui.requestRender();
+  }
+
+  getHeartbeatScrollHint(): string | undefined {
+    if (this.heartbeatScrollFromBottom === 0) {
+      return undefined;
+    }
+    return `${this.heartbeatScrollFromBottom} line${this.heartbeatScrollFromBottom === 1 ? "" : "s"} above end`;
+  }
+
+  isRowInHeartbeatRegion(row: number): boolean {
+    const geometry = this.lastHeartbeatPaneGeometry;
+    if (!geometry || geometry.bodyHeight <= 0) {
+      return false;
+    }
+    // Mouse coordinates are 1-based; layout rows are 0-based.
+    const terminalRow = row - 1;
+    return (
+      terminalRow >= geometry.bodyStartRow &&
+      terminalRow < geometry.bodyStartRow + geometry.bodyHeight
+    );
+  }
+
+  clearChatTranscript(): void {
+    this.transcript.setText("");
+    this.transcriptScrollFromBottom = 0;
     this.tui.requestRender();
   }
 
@@ -331,15 +405,32 @@ class WorkspaceStartLayout implements Component, Focusable {
   }
 
   private renderHeartbeatPane(width: number, height: number): string[] {
-    const detail = formatHeartbeatHeaderDetail(this.explorerStatus, this.tailscaleStatus, this.telegramStatus);
+    const scrollHint = this.getHeartbeatScrollHint();
+    const detail = [
+      formatHeartbeatHeaderDetail(this.explorerStatus, this.tailscaleStatus, this.telegramStatus),
+      ...(scrollHint ? [scrollHint] : []),
+    ].join(" | ");
     const header = renderHeader(
       `${ANSI_BOLD}Heartbeat daemon${ANSI_RESET}`,
       detail,
       width,
     );
     const bodyHeight = Math.max(0, height - 1);
-    const bodyLines = this.heartbeatLog.render(width).slice(-bodyHeight);
-    return [header, ...bodyLines, ...createBlankLines(bodyHeight - bodyLines.length)];
+    const allBodyLines = this.heartbeatLog.render(width);
+    this.heartbeatScrollFromBottom = clampScrollFromBottom(
+      this.heartbeatScrollFromBottom,
+      allBodyLines.length,
+      bodyHeight,
+    );
+    const bodyLines = sliceScrollableLines(allBodyLines, bodyHeight, this.heartbeatScrollFromBottom);
+    const bodyPadding = Math.max(0, bodyHeight - bodyLines.length);
+
+    this.lastHeartbeatPaneGeometry = {
+      bodyStartRow: 1,
+      bodyHeight,
+    };
+
+    return [header, ...createBlankLines(bodyPadding), ...bodyLines];
   }
 
   private renderChatPane(width: number, height: number, paneStartRow: number): string[] {
@@ -457,9 +548,15 @@ class WorkspaceStartTui implements SessionOutputSink {
       }
 
       const wheel = parseMouseWheelEvent(data);
-      if (wheel && this.layout.isRowInTranscriptRegion(wheel.row)) {
-        this.layout.scrollTranscript(scrollDeltaForWheel(wheel.direction));
-        return { consume: true };
+      if (wheel) {
+        if (this.layout.isRowInHeartbeatRegion(wheel.row)) {
+          this.layout.scrollHeartbeat(scrollDeltaForWheel(wheel.direction));
+          return { consume: true };
+        }
+        if (this.layout.isRowInTranscriptRegion(wheel.row)) {
+          this.layout.scrollTranscript(scrollDeltaForWheel(wheel.direction));
+          return { consume: true };
+        }
       }
 
       return undefined;
@@ -590,6 +687,18 @@ class WorkspaceStartTui implements SessionOutputSink {
 
   appendToolStatus(text: string): void {
     this.layout.appendChatText(`${colorize(ANSI_DIM, text)}\n`);
+  }
+
+  replaySessionHistory(session: InteractiveChatSession): number {
+    const restoredCount = renderSessionHistoryToSink(session.session, this, session.activeRoleLabel);
+    if (restoredCount > 0) {
+      this.layout.scrollTranscriptToBottom();
+    }
+    return restoredCount;
+  }
+
+  clearChatTranscript(): void {
+    this.layout.clearChatTranscript();
   }
 
   showStatus(text: string): void {
@@ -792,7 +901,14 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
       ui.appendSystemNotice(`Ignored redundant role switch to ${activeRoleLabel}.`);
     },
     onRoleSwitched: (session) => {
+      ui.clearChatTranscript();
+      const restoredCount = ui.replaySessionHistory(session);
       ui.appendSystemNotice(`Switched active role to ${session.activeRoleLabel} using ${session.modelLabel}.`);
+      if (restoredCount > 0) {
+        ui.appendSystemNotice(
+          `Restored ${restoredCount} earlier message${restoredCount === 1 ? "" : "s"}. PgUp/PgDn scroll the transcript.`,
+        );
+      }
     },
     onTurnStateChange: (state) => {
       if (state !== "running") {
@@ -847,7 +963,17 @@ export async function runWorkspaceStartLoop(options: WorkspaceStartLoopOptions):
   };
 
   ui.setShutdownHandler(requestShutdown);
-  ui.appendSystemNotice(`Using model ${sessionController.getActiveSession().modelLabel}.`);
+  const initialSession = sessionController.getActiveSession();
+  if (sessionHasTranscriptHistory(initialSession.session)) {
+    const restoredCount = ui.replaySessionHistory(initialSession);
+    if (restoredCount > 0) {
+      ui.appendSystemNotice(
+        `Restored ${restoredCount} earlier message${restoredCount === 1 ? "" : "s"}. PgUp/PgDn scroll the transcript.`,
+      );
+    }
+  }
+
+  ui.appendSystemNotice(`Using model ${initialSession.modelLabel}.`);
   ui.setExplorerStatus(`starting on ${DEFAULT_EXPLORER_URL}`);
   const tailscaleUrl = readHermitTailscaleUrl();
   if (tailscaleUrl) {

@@ -1,4 +1,5 @@
 import { SessionManager, type SessionEntry, type SessionInfo } from "@mariozechner/pi-coding-agent";
+import { access } from "node:fs/promises";
 import path from "node:path";
 
 import { HERMIT_ROLE_ID } from "./constants.js";
@@ -288,6 +289,55 @@ export async function listWorkspaceSessionSources(workspaceRoot: string): Promis
   return sources;
 }
 
+export function resolveSessionPathUnderWorkspace(workspaceRoot: string, sessionPathInput: string): string {
+  const root = resolveWorkspaceRoot(workspaceRoot);
+  const absolute = path.isAbsolute(sessionPathInput.trim())
+    ? path.resolve(sessionPathInput.trim())
+    : path.resolve(root, sessionPathInput.trim());
+  const normalizedRoot = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
+  if (absolute !== root && !absolute.startsWith(normalizedRoot)) {
+    throw new Error(`Session path is outside workspace: ${sessionPathInput}`);
+  }
+  if (!absolute.endsWith(".jsonl")) {
+    throw new Error(`Session path must be a .jsonl file: ${sessionPathInput}`);
+  }
+  return absolute;
+}
+
+function matchSessionSource(sources: WorkspaceSessionSource[], sessionPath: string): WorkspaceSessionSource | undefined {
+  const resolvedSessionPath = path.resolve(sessionPath);
+  return sources.find((candidate) => {
+    const sessionsDir = path.resolve(candidate.sessionsDir);
+    return resolvedSessionPath === sessionsDir || resolvedSessionPath.startsWith(`${sessionsDir}${path.sep}`);
+  });
+}
+
+export async function resolveWorkspaceSessionPath(
+  workspaceRoot: string,
+  sessionPathInput: string,
+): Promise<{ roleId: string; path: string; historyType: SessionHistoryType }> {
+  const sessionPath = resolveSessionPathUnderWorkspace(workspaceRoot, sessionPathInput);
+  try {
+    await access(sessionPath);
+  } catch {
+    throw new Error(`Session file not found: ${sessionPathInput}`);
+  }
+
+  const matchedSource = matchSessionSource(
+    await listWorkspaceSessionSources(resolveWorkspaceRoot(workspaceRoot)),
+    sessionPath,
+  );
+  if (!matchedSource) {
+    throw new Error(`Session path is not under a known session directory: ${sessionPathInput}`);
+  }
+
+  return {
+    roleId: matchedSource.roleId,
+    path: sessionPath,
+    historyType: matchedSource.historyType,
+  };
+}
+
 export async function listWorkspaceSessions(workspaceRoot: string): Promise<WorkspaceSessionListItem[]> {
   const root = resolveWorkspaceRoot(workspaceRoot);
   const sources = await listWorkspaceSessionSources(root);
@@ -397,11 +447,7 @@ export async function loadWorkspaceSessionDetail(
   const root = resolveWorkspaceRoot(workspaceRoot);
   const sessionPath = decodeSessionKey(root, sessionKey);
   const sources = await listWorkspaceSessionSources(root);
-  const matchedSource = sources.find((candidate) => {
-    const sessionsDir = path.resolve(candidate.sessionsDir);
-    const resolvedSessionPath = path.resolve(sessionPath);
-    return resolvedSessionPath === sessionsDir || resolvedSessionPath.startsWith(`${sessionsDir}${path.sep}`);
-  });
+  const matchedSource = matchSessionSource(sources, sessionPath);
   if (!matchedSource) {
     return undefined;
   }

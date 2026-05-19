@@ -64,3 +64,11 @@ export function formatSessionTimestamp(value: Date): string {
 export function formatHistoryTypeLabel(historyType: string): string {
   return historyType === "heartbeat" ? "Heartbeat" : "Interactive";
 }
+
+export function formatSessionRelativePath(workspaceRoot: string, sessionPath: string): string {
+  const relative = path.relative(path.resolve(workspaceRoot), path.resolve(sessionPath));
+  if (relative.startsWith("..")) {
+    return sessionPath;
+  }
+  return relative.split(path.sep).join("/");
+}
