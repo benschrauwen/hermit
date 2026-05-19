@@ -47,7 +47,33 @@ import {
   colorize,
   editorTheme,
 } from "./tui-components.js";
-import { clampScrollFromBottom, sliceScrollableLines } from "./tui-scroll.js";
+import {
+  isBracketedPasteInput,
+  isPasteShortcut,
+  readSystemClipboardText,
+  wrapBracketedPaste,
+  writeSystemClipboardText,
+} from "./tui-clipboard.js";
+import {
+  clampSelectionColumn,
+  extractSelectedText,
+  highlightSelectionLine,
+  normalizeSelectionRange,
+  selectionIsEmpty,
+  type SelectionPoint,
+  type SelectionRange,
+} from "./tui-selection.js";
+import {
+  MOUSE_TRACKING_DISABLE,
+  MOUSE_TRACKING_ENABLE,
+  clampScrollFromBottom,
+  isSgrMouseEvent,
+  parseMouseWheelEvent,
+  parseSgrMouseButtonEvent,
+  scrollDeltaForWheel,
+  sliceScrollableLines,
+  type SgrMouseButtonEvent,
+} from "./tui-scroll.js";
 import {
   createWorkspaceTurnCoordinator,
   formatWorkspaceTurnOwner,
@@ -154,6 +180,10 @@ class WorkspaceStartLayout implements Component, Focusable {
   private transcriptScrollFromBottom = 0;
   private lastHeartbeatPaneGeometry: HeartbeatPaneGeometry | undefined;
   private lastChatPaneGeometry: ChatPaneGeometry | undefined;
+  private lastHeartbeatVisibleLines: string[] = [];
+  private lastTranscriptVisibleLines: string[] = [];
+  private selectionAnchor: SelectionPoint | null = null;
+  private selectionActive: SelectionPoint | null = null;
 
   private _focused = false;
 
@@ -276,6 +306,118 @@ class WorkspaceStartLayout implements Component, Focusable {
     return `${this.heartbeatScrollFromBottom} line${this.heartbeatScrollFromBottom === 1 ? "" : "s"} above end`;
   }
 
+  handleSelectionMouse(event: SgrMouseButtonEvent): void {
+    const point = this.resolveSelectionPoint(event.row, event.column);
+    if (!point) {
+      if (event.action === "press") {
+        this.clearSelection();
+      } else if (event.action === "release") {
+        this.finishSelection();
+      }
+      this.tui.requestRender();
+      return;
+    }
+
+    switch (event.action) {
+      case "press":
+        this.selectionAnchor = point;
+        this.selectionActive = point;
+        break;
+      case "drag":
+        if (this.selectionAnchor) {
+          this.selectionActive = point;
+        }
+        break;
+      case "release":
+        if (this.selectionAnchor) {
+          this.selectionActive = point;
+        }
+        this.finishSelection();
+        break;
+    }
+
+    this.tui.requestRender();
+  }
+
+  private clearSelection(): void {
+    this.selectionAnchor = null;
+    this.selectionActive = null;
+  }
+
+  private finishSelection(): void {
+    const range = this.getSelectionRange();
+    if (range && !selectionIsEmpty(range)) {
+      const lines =
+        range.pane === "heartbeat" ? this.lastHeartbeatVisibleLines : this.lastTranscriptVisibleLines;
+      const text = extractSelectedText(lines, range);
+      if (text.length > 0) {
+        void writeSystemClipboardText(text);
+      }
+    }
+  }
+
+  private getSelectionRange(): SelectionRange | undefined {
+    if (!this.selectionAnchor || !this.selectionActive) {
+      return undefined;
+    }
+    return normalizeSelectionRange(this.selectionAnchor, this.selectionActive);
+  }
+
+  private resolveSelectionPoint(row: number, column: number): SelectionPoint | undefined {
+    const terminalRow = row - 1;
+
+    if (this.isRowInHeartbeatRegion(row)) {
+      const geometry = this.lastHeartbeatPaneGeometry;
+      if (!geometry) {
+        return undefined;
+      }
+      const line = terminalRow - geometry.bodyStartRow;
+      const visibleLine = this.lastHeartbeatVisibleLines[line] ?? "";
+      return {
+        pane: "heartbeat",
+        line,
+        col: clampSelectionColumn(visibleLine, column - 1),
+      };
+    }
+
+    if (this.isRowInTranscriptRegion(row)) {
+      const geometry = this.lastChatPaneGeometry;
+      if (!geometry) {
+        return undefined;
+      }
+      const line = terminalRow - geometry.transcriptStartRow;
+      const visibleLine = this.lastTranscriptVisibleLines[line] ?? "";
+      return {
+        pane: "transcript",
+        line,
+        col: clampSelectionColumn(visibleLine, column - 1),
+      };
+    }
+
+    return undefined;
+  }
+
+  private applySelectionHighlight(lines: readonly string[], pane: SelectionPoint["pane"]): string[] {
+    const range = this.getSelectionRange();
+    if (!range || range.pane !== pane) {
+      return [...lines];
+    }
+    return lines.map((line, index) => highlightSelectionLine(line, index, range));
+  }
+
+  isRowInHeartbeatRegion(row: number): boolean {
+    const geometry = this.lastHeartbeatPaneGeometry;
+    if (!geometry || geometry.bodyHeight <= 0) {
+      return false;
+    }
+    // Mouse coordinates are 1-based; layout rows are 0-based.
+    const terminalRow = row - 1;
+    return (
+      terminalRow >= geometry.bodyStartRow &&
+      terminalRow < geometry.bodyStartRow + geometry.bodyHeight
+    );
+  }
+
   clearChatTranscript(): void {
     this.transcript.setText("");
     this.transcriptScrollFromBottom = 0;
@@ -335,6 +477,19 @@ class WorkspaceStartLayout implements Component, Focusable {
     return `${this.transcriptScrollFromBottom} line${this.transcriptScrollFromBottom === 1 ? "" : "s"} above end · End to follow`;
   }
 
+  isRowInTranscriptRegion(row: number): boolean {
+    const geometry = this.lastChatPaneGeometry;
+    if (!geometry || geometry.transcriptHeight <= 0) {
+      return false;
+    }
+    // Mouse coordinates are 1-based; layout rows are 0-based.
+    const terminalRow = row - 1;
+    return (
+      terminalRow >= geometry.transcriptStartRow &&
+      terminalRow < geometry.transcriptStartRow + geometry.transcriptHeight
+    );
+  }
+
   getTranscriptPageSize(): number {
     return Math.max(1, this.lastChatPaneGeometry?.transcriptHeight ?? 1);
   }
@@ -391,13 +546,16 @@ class WorkspaceStartLayout implements Component, Focusable {
     );
     const bodyLines = sliceScrollableLines(allBodyLines, bodyHeight, this.heartbeatScrollFromBottom);
     const bodyPadding = Math.max(0, bodyHeight - bodyLines.length);
+    const paddedBodyLines = [...createBlankLines(bodyPadding), ...bodyLines];
+    this.lastHeartbeatVisibleLines = paddedBodyLines;
 
     this.lastHeartbeatPaneGeometry = {
       bodyStartRow: 1,
       bodyHeight,
     };
 
-    return [header, ...createBlankLines(bodyPadding), ...bodyLines];
+    const highlightedBodyLines = this.applySelectionHighlight(paddedBodyLines, "heartbeat");
+    return [header, ...highlightedBodyLines];
   }
 
   private renderChatPane(width: number, height: number, paneStartRow: number): string[] {
@@ -408,7 +566,7 @@ class WorkspaceStartLayout implements Component, Focusable {
         ? [`${this.queuedFollowUpCount} queued follow-up${this.queuedFollowUpCount === 1 ? "" : "s"}`]
         : []),
       ...(scrollHint ? [scrollHint] : []),
-      "PgUp/PgDn scroll · End follow · Ctrl-C exit",
+      "wheel/drag scroll · drag select · End follow · Ctrl-C exit",
     ].join(" | ");
     const header = renderHeader(
       `${ANSI_BOLD}Chat${ANSI_RESET}`,
@@ -445,6 +603,8 @@ class WorkspaceStartLayout implements Component, Focusable {
     );
     const transcriptLines = sliceScrollableLines(allTranscriptLines, transcriptHeight, this.transcriptScrollFromBottom);
     const transcriptPadding = Math.max(0, transcriptHeight - transcriptLines.length);
+    const paddedTranscriptLines = [...createBlankLines(transcriptPadding), ...transcriptLines];
+    this.lastTranscriptVisibleLines = paddedTranscriptLines;
 
     this.lastChatPaneGeometry = {
       startRow: paneStartRow,
@@ -452,10 +612,11 @@ class WorkspaceStartLayout implements Component, Focusable {
       transcriptHeight,
     };
 
+    const highlightedTranscriptLines = this.applySelectionHighlight(paddedTranscriptLines, "transcript");
+
     return [
       header,
-      ...createBlankLines(transcriptPadding),
-      ...transcriptLines,
+      ...highlightedTranscriptLines,
       ...statusLines,
       ...editorLines,
     ];
@@ -509,9 +670,46 @@ class WorkspaceStartTui implements SessionOutputSink {
         return { consume: true };
       }
 
+      // Let bracketed paste reach the editor; do not treat it as scroll/mouse input.
+      if (isBracketedPasteInput(data)) {
+        return undefined;
+      }
+
+      if (isPasteShortcut(data)) {
+        void this.pasteClipboardIntoEditor(editor);
+        return { consume: true };
+      }
+
       const scrollResult = this.handleTranscriptScrollInput(data, editor);
       if (scrollResult?.consume) {
         return scrollResult;
+      }
+
+      const wheel = parseMouseWheelEvent(data);
+      if (wheel) {
+        if (this.layout.isRowInHeartbeatRegion(wheel.row)) {
+          this.layout.scrollHeartbeat(scrollDeltaForWheel(wheel.direction));
+          return { consume: true };
+        }
+        if (this.layout.isRowInTranscriptRegion(wheel.row)) {
+          this.layout.scrollTranscript(scrollDeltaForWheel(wheel.direction));
+          return { consume: true };
+        }
+      }
+
+      const button = parseSgrMouseButtonEvent(data);
+      if (button) {
+        if (
+          this.layout.isRowInHeartbeatRegion(button.row) ||
+          this.layout.isRowInTranscriptRegion(button.row)
+        ) {
+          this.layout.handleSelectionMouse(button);
+        }
+        return { consume: true };
+      }
+
+      if (isSgrMouseEvent(data)) {
+        return { consume: true };
       }
 
       return undefined;
@@ -519,6 +717,17 @@ class WorkspaceStartTui implements SessionOutputSink {
 
     this.terminal.setTitle(`Hermit start: ${activeRoleLabel}`);
     this.tui.start();
+    this.terminal.write(MOUSE_TRACKING_ENABLE);
+  }
+
+  private async pasteClipboardIntoEditor(editor: RoleLabeledEditor): Promise<void> {
+    const text = await readSystemClipboardText();
+    if (!text) {
+      return;
+    }
+
+    editor.handleInput(wrapBracketedPaste(text));
+    this.tui.requestRender();
   }
 
   private handleTranscriptScrollInput(
@@ -670,6 +879,7 @@ class WorkspaceStartTui implements SessionOutputSink {
     const editor = this.layout.getEditor();
     editor.disableSubmit = true;
 
+    this.terminal.write(MOUSE_TRACKING_DISABLE);
     await this.terminal.drainInput().catch(() => undefined);
     this.tui.stop();
   }

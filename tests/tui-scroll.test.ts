@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  MOUSE_TRACKING_ENABLE,
   clampScrollFromBottom,
+  isSgrMouseEvent,
   parseMouseWheelEvent,
+  parseSgrMouseButtonEvent,
   scrollDeltaForWheel,
   sliceScrollableLines,
 } from "../src/tui-scroll.js";
@@ -17,6 +20,34 @@ describe("tui-scroll", () => {
   it("clamps scroll offset to available history", () => {
     expect(clampScrollFromBottom(99, 5, 2)).toBe(3);
     expect(clampScrollFromBottom(-4, 5, 2)).toBe(0);
+  });
+
+  it("enables SGR mouse reporting with button-event tracking for drag selection", () => {
+    expect(MOUSE_TRACKING_ENABLE).toBe("\x1b[?1000h\x1b[?1002h\x1b[?1006h");
+  });
+
+  it("detects SGR mouse sequences", () => {
+    expect(isSgrMouseEvent("\x1b[<0;12;8M")).toBe(true);
+    expect(isSgrMouseEvent("\x1b[5~")).toBe(false);
+  });
+
+  it("parses left-button press, drag, and release", () => {
+    expect(parseSgrMouseButtonEvent("\x1b[<0;12;8M")).toEqual({
+      action: "press",
+      column: 12,
+      row: 8,
+    });
+    expect(parseSgrMouseButtonEvent("\x1b[<32;12;8M")).toEqual({
+      action: "drag",
+      column: 12,
+      row: 8,
+    });
+    expect(parseSgrMouseButtonEvent("\x1b[<0;12;8m")).toEqual({
+      action: "release",
+      column: 12,
+      row: 8,
+    });
+    expect(parseSgrMouseButtonEvent("\x1b[<64;12;8M")).toBeUndefined();
   });
 
   it("parses SGR mouse wheel events", () => {
