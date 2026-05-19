@@ -47,14 +47,7 @@ import {
   colorize,
   editorTheme,
 } from "./tui-components.js";
-import {
-  MOUSE_TRACKING_DISABLE,
-  MOUSE_TRACKING_ENABLE,
-  clampScrollFromBottom,
-  parseMouseWheelEvent,
-  scrollDeltaForWheel,
-  sliceScrollableLines,
-} from "./tui-scroll.js";
+import { clampScrollFromBottom, sliceScrollableLines } from "./tui-scroll.js";
 import {
   createWorkspaceTurnCoordinator,
   formatWorkspaceTurnOwner,
@@ -283,19 +276,6 @@ class WorkspaceStartLayout implements Component, Focusable {
     return `${this.heartbeatScrollFromBottom} line${this.heartbeatScrollFromBottom === 1 ? "" : "s"} above end`;
   }
 
-  isRowInHeartbeatRegion(row: number): boolean {
-    const geometry = this.lastHeartbeatPaneGeometry;
-    if (!geometry || geometry.bodyHeight <= 0) {
-      return false;
-    }
-    // Mouse coordinates are 1-based; layout rows are 0-based.
-    const terminalRow = row - 1;
-    return (
-      terminalRow >= geometry.bodyStartRow &&
-      terminalRow < geometry.bodyStartRow + geometry.bodyHeight
-    );
-  }
-
   clearChatTranscript(): void {
     this.transcript.setText("");
     this.transcriptScrollFromBottom = 0;
@@ -353,19 +333,6 @@ class WorkspaceStartLayout implements Component, Focusable {
       return undefined;
     }
     return `${this.transcriptScrollFromBottom} line${this.transcriptScrollFromBottom === 1 ? "" : "s"} above end · End to follow`;
-  }
-
-  isRowInTranscriptRegion(row: number): boolean {
-    const geometry = this.lastChatPaneGeometry;
-    if (!geometry || geometry.transcriptHeight <= 0) {
-      return false;
-    }
-    // Mouse coordinates are 1-based; layout rows are 0-based.
-    const terminalRow = row - 1;
-    return (
-      terminalRow >= geometry.transcriptStartRow &&
-      terminalRow < geometry.transcriptStartRow + geometry.transcriptHeight
-    );
   }
 
   getTranscriptPageSize(): number {
@@ -547,24 +514,11 @@ class WorkspaceStartTui implements SessionOutputSink {
         return scrollResult;
       }
 
-      const wheel = parseMouseWheelEvent(data);
-      if (wheel) {
-        if (this.layout.isRowInHeartbeatRegion(wheel.row)) {
-          this.layout.scrollHeartbeat(scrollDeltaForWheel(wheel.direction));
-          return { consume: true };
-        }
-        if (this.layout.isRowInTranscriptRegion(wheel.row)) {
-          this.layout.scrollTranscript(scrollDeltaForWheel(wheel.direction));
-          return { consume: true };
-        }
-      }
-
       return undefined;
     });
 
     this.terminal.setTitle(`Hermit start: ${activeRoleLabel}`);
     this.tui.start();
-    this.terminal.write(MOUSE_TRACKING_ENABLE);
   }
 
   private handleTranscriptScrollInput(
@@ -716,7 +670,6 @@ class WorkspaceStartTui implements SessionOutputSink {
     const editor = this.layout.getEditor();
     editor.disableSubmit = true;
 
-    this.terminal.write(MOUSE_TRACKING_DISABLE);
     await this.terminal.drainInput().catch(() => undefined);
     this.tui.stop();
   }

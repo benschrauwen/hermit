@@ -1,6 +1,8 @@
-/** Enable SGR mouse reporting (clicks + wheel). Avoid ?1007 so wheel is not remapped to arrows. */
-export const MOUSE_TRACKING_ENABLE = "\x1b[?1000h\x1b[?1002h\x1b[?1006h";
-export const MOUSE_TRACKING_DISABLE = "\x1b[?1006l\x1b[?1002l\x1b[?1000l";
+/**
+ * Parse SGR mouse wheel events when a terminal forwards them.
+ * Hermit does not enable xterm mouse reporting: modes 1000/1002 steal click-and-drag
+ * from the terminal, which breaks native text selection for copy/paste.
+ */
 
 const MOUSE_WHEEL_UP_BUTTON = 64;
 const MOUSE_WHEEL_DOWN_BUTTON = 65;
